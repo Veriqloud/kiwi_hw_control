@@ -1,46 +1,40 @@
 use std::net::{TcpListener, TcpStream};
 use std::fs::File;
-use std::io::prelude::*;
-use check_qber::{Message, MessageHeader, rcv};
+//use std::io::prelude::*;
+use check_qber::{Message, MessageHeader, rcv, read_angles};
+//use std::{thread, time};
 
 
-fn handle_connection(mut stream: TcpStream){
-    match rcv(&mut stream) {
+fn handle_connection(stream: &mut TcpStream, fifo: &mut File) -> bool{
+    match rcv(stream) {
         Ok(message) => {
             match message.header{
                 MessageHeader::Start => {
-                    let angles_to_read = message.body[0] as usize;
-                    println!("reading angles ...");
-                    let mut fifo = File::open("fifo2")
-                        .expect("could not open fifo2");
-                    let mut buf = [0;16];
-                    let mut angles = Vec::<u8>::with_capacity(angles_to_read/4);
-                    while angles.len()<angles_to_read/4 {
-                        fifo.read_exact(&mut buf)
-                            .expect("error reading fifo");
-                        angles.extend(&buf);
-                    }
-                    println!("finished reading angles");
+                    let chunks_to_read = message.body[0] as usize;
+
+                    let angles = read_angles(fifo, chunks_to_read)
+                        .expect("could not read angles from fifo");
+                    
                     let mr = Message{
-                        header: MessageHeader::Done,
-                        body: vec![0,0]
+                        header: MessageHeader::Angles,
+                        body: angles
                     };
-                    mr.snd(&mut stream);
+                    mr.snd(stream);
+                    return true;
                 },
-                MessageHeader::Angles => {
-                    println!("processing ...");
-                    let angles = message.body;
-                    let mr = Message{
-                        header: MessageHeader::Done,
-                        body: vec![0,0]
-                    };
-                    mr.snd(&mut stream);
-                },
-            _ => {println!("unknow request")},
+                MessageHeader::Done => {
+                    println!("got message done");
+                    return false;
+                }
+            _ => {
+                println!("unknow request");
+                return false;
+            },
             }
         }
         Err(_err) => {
             println!("no message received");
+            return false;
         }
     }
 }
@@ -48,13 +42,20 @@ fn handle_connection(mut stream: TcpStream){
 
 fn main() -> std::io::Result<()> {
 
+
     let listener = TcpListener::bind("0.0.0.0:15403")
         .expect("TcpListener could not bind to address\n");
+    
+    let mut fifo = File::open("fifo2")
+        .expect("could not open fifo2");
 
     for stream in listener.incoming(){
         match stream {
-            Ok(stream) => {
-                handle_connection(stream);
+            Ok(mut stream) => {
+                let mut run = true;
+                while run {
+                    run = handle_connection(&mut stream, &mut fifo);
+                }
             }
             Err(err) => {
                 println!("Error: {}", err);
