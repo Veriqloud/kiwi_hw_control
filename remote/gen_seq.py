@@ -251,6 +251,7 @@ def seq_dacs_dp(num_delays,delays,cycle_num,shift_pm,fit_calib,shift_am):
     list1 = dac1_sample(lin_seq_2(), shift_pm, fit_calib)
     for k in range (cycle_num):
         dp_final_list = [i+j for i,j in zip(list1,list0_dp)]
+    # print(dp_final_list)
     return dp_final_list
 
 def seq_dacs_dp_10(cycle_num, shift_pm, shift_am):
@@ -258,6 +259,7 @@ def seq_dacs_dp_10(cycle_num, shift_pm, shift_am):
     list1 = dac1_sample(lin_seq_2(), shift_pm, 320)
     for k in range (cycle_num):
         dp_final_list = [i+j for i,j in zip(list1,list0_dp)]
+    # print(dp_final_list)
     return dp_final_list
 
 def seq_dacs_sp(num_delays,delays,cycle_num,shift_pm, shift_am):
@@ -265,6 +267,7 @@ def seq_dacs_sp(num_delays,delays,cycle_num,shift_pm, shift_am):
     list1 = dac1_sample(lin_seq_2(), shift_pm, 320)
     for k in range (cycle_num):
         sp_final_list = [i+j for i,j in zip(list1,list0_sp)]
+    # print(sp_final_list)
     return sp_final_list
 
 def seq_dacs_sp_10(cycle_num,shift_pm, shift_am):
@@ -361,9 +364,57 @@ def seq_rng_long(dpram_max_addr, non_zero_size):
     # print(list_rng_long_return)
     return list_rng_long_return
 
+def seq_rng_fd(dpram_max_addr, start_position):
+    ele = ['00000000']
+    ele_non_zero = ['aaaaaaaa']
+    x = start_position%16  #start_position = 64 - det [q_bins]
+    y = np.floor(start_position/16)
+    if (x == 0):
+        list_zero = ele*int(y) + ele_non_zero*int(4-y)
+    elif (x == 1):
+        list_zero = ele*int(y) + ['aaaaaaa2'] + ele_non_zero*2 + ['8aaaaaaa']
+    elif (x == 2):     
+        list_zero = ele*int(y) + ['aaaaaaa0'] + ele_non_zero*2 + ['0aaaaaaa']
+    elif (x == 3):     
+        list_zero = ele*int(y) + ['aaaaaa20'] + ele_non_zero*2 + ['08aaaaaa']
+    elif (x == 4):     
+        list_zero = ele*int(y) + ['aaaaaa00'] + ele_non_zero*2 + ['00aaaaaa']
+    elif (x == 5):     
+        list_zero = ele*int(y) + ['aaaaa200'] + ele_non_zero*2 + ['008aaaaa']
+    elif (x == 6):     
+        list_zero = ele*int(y) + ['aaaaa000'] + ele_non_zero*2 + ['000aaaaa']
+    elif (x == 7):     
+        list_zero = ele*int(y) + ['aaaa2000'] + ele_non_zero*2 + ['0008aaaa']
+    elif (x == 8):     
+        list_zero = ele*int(y) + ['aaaa0000'] + ele_non_zero*2 + ['0000aaaa']
+    elif (x == 9):     
+        list_zero = ele*int(y) + ['aaa20000'] + ele_non_zero*2 + ['00008aaa']
+    elif (x == 10):     
+        list_zero = ele*int(y) + ['aaa00000'] + ele_non_zero*2 + ['00000aaa']
+    elif (x == 11):     
+        list_zero = ele*int(y) + ['aa200000'] + ele_non_zero*2 + ['000008aa']
+    elif (x == 12):     
+        list_zero = ele*int(y) + ['aa000000'] + ele_non_zero*2 + ['000000aa']
+    elif (x == 13):     
+        list_zero = ele*int(y) + ['a2000000'] + ele_non_zero*2 + ['0000008a']
+    elif (x == 14):     
+        list_zero = ele*int(y) + ['a0000000'] + ele_non_zero*2 + ['0000000a']
+    elif (x == 15):     
+        list_zero = ele*int(y) + ['20000000'] + ele_non_zero*2 + ['00000008']
+    list_rng_long = list_zero + ele*(int(dpram_max_addr/8) - int(y+4))
+    list_rng_long_return = []
+    for x in list_rng_long: 
+        list_rng_long_return.append("0x{:08x}".format(int(x,16)))
+    # print(list_rng_long_return)
+    return list_rng_long_return
+
+
+# seq_dacs_dp_10(2,0,0)
+# seq_dacs_dp(2,[-0.95,0.95],2,0,0,0)
 # seq_rng_zero(8)
 # seq_rng_long(64)
 # seq_rng_long(64,8)
+seq_rng_fd(64,20)
 
 # def concat_dacs(num_delays,delays,cycle_num,shift_pm, shift_am):
 #     list0_dp = dac0_double(num_delays, delays, cycle_num, shift_am)

@@ -95,20 +95,21 @@ def client_start(commands_in):
                 # while True:\
                 count_rcv_arr = []
                 for i in range(21):
-                    main.Set_vol(4,  0.1*i)
+                    main.Set_vol(4,  -1 + 0.1*i)
                     cmd = 'sv_done'
                     client_socket.sendall(cmd.encode())
                     count_rcv = client_socket.recv(4)
                     int_count_rcv = int.from_bytes(count_rcv, byteorder='big')
                     count_rcv_arr.append(int_count_rcv)
                 print("Min count: ", min(count_rcv_arr), "index: ", count_rcv_arr.index(min(count_rcv_arr)))
-                am_bias_opt = 0.1*count_rcv_arr.index(min(count_rcv_arr))
+                am_bias_opt = -1 + 0.1*count_rcv_arr.index(min(count_rcv_arr))
                 main.Set_vol(4, am_bias_opt)
                 #Initialize var file: am_bias, shift_am, shift_pm
                 with open("data/var.txt","w") as var_file:
                     var_file.write("0.8"+'\n') #am_bias
                     var_file.write("0"+'\n')   #shift_am
                     var_file.write("0"+'\n')   #shift_pm
+                    var_file.write("0"+'\n')   #delay_mod
                 var_file.close()
                 #Write am_bias voltage to the file
                 lines = np.loadtxt("data/var.txt",dtype=str,encoding='utf-8')
@@ -166,21 +167,35 @@ def client_start(commands_in):
             elif command == 'fd_b':
                 main.Write_Dac1_Shift(2,0,0,0,0,0)
 
-            elif command == 'fd_a_mod':
+            elif command == 'fd_ab_mod':
                 lines = np.loadtxt("data/var.txt",usecols=0)
                 shift_pm_a = int(lines[2])
                 ret_shift_am = int(lines[1])
                 # main.Find_Opt_Delay_AB_mod64('alice',shift_pm_a)
                 # main.Find_Opt_Delay_AB_mod64('alice',(ret_shift_am+6)%10)
-                main.Find_Opt_Delay_AB_mod64('alice',0)
+                main.Find_Opt_Delay_AB_mod32('alice',0)
+                #tell bob setting phase on alice done
+                cmd = 'fd_mod_done'
+                client_socket.sendall(cmd.encode())
+                #Receive delay_mod from Bob
+                delay_mod_rcv = client_socket.recv(4)
+                int_delay_mod_rcv = int.from_bytes(delay_mod_rcv,byteorder='big')
+                print("Delay in modulo mod received from bob: ", int_delay_mod_rcv, "[q_bins]")
+                #Write to var file
+                lines = np.loadtxt("data/var.txt",dtype=str,encoding='utf-8')
+                lines[3] = str(int_delay_mod_rcv)
+                np.savetxt("data/var.txt",lines,fmt="%s",encoding='utf-8')
 
-            elif command == 'fd_a':
+            elif command == 'fd_ab':
                 lines = np.loadtxt("data/var.txt",usecols=0)
+                delay_mod = int(lines[3])
                 shift_pm_a = int(lines[2])
                 ret_shift_am = int(lines[1])
                 # main.Find_Opt_Delay_AB('alice',shift_pm_a)
                 # main.Find_Opt_Delay_AB('alice',(ret_shift_am+6)%10)
-                main.Find_Opt_Delay_AB('alice',0)
+                main.Find_Opt_Delay_AB('alice',0,delay_mod)
+                cmd = 'fd_ab_done'
+                client_socket.sendall(cmd.encode())
 
             response_rcv = client_socket.recv(1024)
             print("Response from server: ", response_rcv.decode(),"--------------------------------")

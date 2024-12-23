@@ -37,6 +37,12 @@ times_gated = time_gated%625
 n, bins, patches = gated_his.hist(times_gated, 200, density=False,color='g',alpha=0.8, label='apd + fpga gate')
 gated_his.legend(prop={'size':10})
 
+
+#----------------------FIND DELAY----------------------------------------
+gc = np.loadtxt("histogram_fd.txt",usecols=2,unpack=True,dtype=np.int64)
+gcs_delay = np.array(gc%40000)
+np.savetxt('gcs_delay.txt',gcs_delay,fmt='%d')
+
 #----------------------DOUBLE PULSE-----25ns-----GATED-------------------
 #clicks output from FPGA, inside the window of apd_gate, apd in gated mode, 
 gate_his = fig.add_subplot(222,sharex=raw_his)
@@ -47,6 +53,40 @@ n, bins, patches = gate_his.hist(times_gate_apd, 200, density=False,color='b',al
 gate_his.legend(prop={'size':10})
 # gate_his.axis([0,1250,0,2000])
 
+#Check first peak
+# ref_time = np.loadtxt("histogram_gate_apd.txt",usecols=1,unpack=True,dtype=np.int32)
+# ref_time_arr = (ref_time*20%12500)/20
+# y, x = np.histogram(ref_time_arr, bins=np.arange(0,1255, 5)-2.5)
+
+# amax1 = y.argmax()
+# ytmp = np.copy(y)
+# ytmp[max(0,amax1-10): amax1+10] = 0
+# if (amax1<10):
+#     ytmp[-10+amax1:] = 0
+# amax2 = ytmp.argmax()
+# ytmp[max(0,amax2-10): amax2+10] = 0
+# if (amax2<10):
+#     ytmp[-10+amax2:] = 0
+# amax3 = ytmp.argmax()
+# ytmp[max(0,amax3-10): amax3+10] = 0
+# if (amax3<10):
+#     ytmp[-10+amax3:] = 0
+# amax4 = ytmp.argmax()
+# ytmp[max(0,amax4-10): amax4+10] = 0
+# if (amax4<10):
+#     ytmp[-10+amax4:] = 0
+
+
+# p = np.sort([x[amax1], x[amax2], x[amax3], x[amax4]])
+# d0 = (p[0] - p[3]) % 1250
+# d1 = p[1] - p[0]
+# d2 = p[2] - p[1]
+# d3 = p[3] - p[2]
+# first_peak = (p[np.argmax([d0, d1, d2, d3])]+2.5) % 625
+# print("First peak: ",first_peak)
+
+
+
 #-----------------------------------------------------------------------------------
 #click output form FPGA inside the gate, only click 0 and click 1
 times_ref_click0=[]
@@ -55,7 +95,7 @@ times_ref_click1=[]
 int_click_gated = np.loadtxt("histogram_gated.txt",usecols=(2,3,4),unpack=True, dtype=np.int64)
 
 seq_option = [64,8000,160]
-seq = seq_option[1]
+seq = seq_option[0]
 gc_calib=[]
 
 for i in range(len(int_click_gated[1])):
@@ -98,8 +138,8 @@ elif (seq == seq_option[1]):
     gs = fig2.add_gridspec(2,1,height_ratios=[2,1])
     sin_his = fig2.add_subplot(gs[1])
 
-    n0, bins0, patches = sin_his.hist(times_ref_click0, int(seq/160), density=False,color='g',alpha=0.1, label='p0')
-    n1, bins1, patches = sin_his.hist(times_ref_click1, int(seq/160), density=False,color='r',alpha=0.1, label='p1')
+    n0, bins0, patches = sin_his.hist(times_ref_click0, int(seq/64), density=False,color='g',alpha=0.1, label='p0')
+    n1, bins1, patches = sin_his.hist(times_ref_click1, int(seq/64), density=False,color='r',alpha=0.1, label='p1')
 
 
     bin_center0 = (bins0[:-1] + bins0[1:])/2
@@ -109,7 +149,7 @@ elif (seq == seq_option[1]):
     index = np.argmax(np.abs(n1-n0))
     print(index)
 
-    x_axis = list(range(0,int(seq/160),1))
+    x_axis = list(range(0,int(seq/64),1))
     fd_his.plot(x_axis, n1-n0)
     fd_his.scatter(x=x_axis,y=n0,color='g',label='click0')
     fd_his.scatter(x=x_axis,y=n1,color='r',label='click1')

@@ -64,22 +64,34 @@ try:
             try:
                 with open(device_c2h, 'rb') as f:
                     with open(device_h2c, 'wb') as fw:
-                        while True:
-                        # for i in range (4):
+                        # while True:
+                        # # for i in range (64):
+                        #     data_gc = f.read(16)
+                        #     print(data_gc,flush=True)
+                        #     if not data_gc:
+                        #         print("No available data on stream")
+                        #         break
+                        #     # print(f"Read {len(data_gc)} bytes: {data_gc.hex()}")
+                        #     # First send the size of the data to the client
+                        #     conn.sendall(struct.pack('!I', len(data_gc)))
+                        #     conn.sendall(data_gc)
+
+                        #     #Write back to h2c device of Bob
+                        #     bytes_written = fw.write(data_gc)
+                        #     fw.flush()
+                        #     # print(f"{bytes_written} are written back to h2c device")
+                        # while True:
+                        for i in range(64):
                             data_gc = f.read(16)
+                            print(data_gc,flush=True)
                             if not data_gc:
                                 print("No available data on stream")
                                 break
-                            # print(f"Read {len(data_gc)} bytes: {data_gc.hex()}")
-                            # First send the size of the data to the client
-                            conn.sendall(struct.pack('!I', len(data_gc)))
-                            conn.sendall(data_gc)
-
+                            conn.sendall(data_gc)    
                             #Write back to h2c device of Bob
                             bytes_written = fw.write(data_gc)
                             fw.flush()
-                            # print(f"{bytes_written} are written back to h2c device")
-    
+
             except FileNotFoundError:
                 print(f"Device not found")    
             except PermissionError:

@@ -69,6 +69,7 @@ try:
                 var_file.write("0"+'\n')     #shift_am
                 var_file.write("550"+'\n')   #first peak
                 var_file.write("0"+'\n')     #shift_pm
+                var_file.write("0"+'\n')     #delay_mod
             var_file.close()
             #Response end of command
             response = "Init done"
@@ -143,24 +144,35 @@ try:
             main.Find_Opt_Delay_B(8)
             response = 'Find delay bob done'
             
-        elif command == 'fd_a_mod':
+        elif command == 'fd_ab_mod':
             lines = np.loadtxt("data/var.txt",usecols=0)
             shift_pm_b = int(lines[2])
             ret_shift_am = int(lines[0])
             # time.sleep(1)
             # main.Find_Opt_Delay_AB_mod64('bob',shift_pm_b)
             # main.Find_Opt_Delay_AB_mod64('bob',(ret_shift_am+4)%10)
-            main.Find_Opt_Delay_AB_mod64('bob',8)
+            cmd = conn.recv(BUFFER_SIZE).decode().strip()
+            if cmd == 'fd_mod_done':
+                ret_delay_mod = main.Find_Opt_Delay_AB_mod32('bob',8)
+                #Send delay_mod to alice
+                conn.sendall(ret_delay_mod.to_bytes(4,byteorder='big'))
+                #Write ddelay_mod to var file
+                lines = np.loadtxt("data/var.txt",dtype=str,encoding='utf-8')
+                lines[3] = str(ret_delay_mod)
+                np.savetxt("data/var.txt",lines,fmt="%s",encoding='utf-8')
             response = 'Find delay alice in modulo mode done'
 
-        elif command == 'fd_a':
+        elif command == 'fd_ab':
             lines = np.loadtxt("data/var.txt",usecols=0)
+            delay_mod = int(lines[3])
             shift_pm_b = int(lines[2])
             ret_shift_am = int(lines[0])
             # time.sleep(4)
             # main.Find_Opt_Delay_AB('bob',shift_pm_b)
             # main.Find_Opt_Delay_AB('bob',(ret_shift_am+4)%10)
-            main.Find_Opt_Delay_AB('bob',8)
+            cmd = conn.recv(BUFFER_SIZE).decode().strip()
+            if cmd == 'fd_ab_done':
+                main.Find_Opt_Delay_AB('bob',8,delay_mod)
             response = 'Find delay alice done'
 
         elif command == 'shutdown':
