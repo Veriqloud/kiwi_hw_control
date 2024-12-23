@@ -59,9 +59,10 @@ fn main() -> std::io::Result<()> {
         let angles = read_angles(&mut fifo, cli.chunks as usize)
             .expect("could not read angles from fifo");
 
-        let mr = rcv(&mut stream).expect("error receiving angles from Bob");
+        let mr1 = rcv(&mut stream).expect("error receiving angles from Bob");
+        let mr2 = rcv(&mut stream).expect("error receiving results from Bob");
 
-        let qber = calc_qber(angles, mr.body);
+        let qber = calc_qber(angles, mr1.body, mr2.body);
 
         println!("qber {:?}", qber);
     }
