@@ -12,19 +12,23 @@ raw_his = fig.add_subplot(221)
 time_sp = np.loadtxt("histogram_sp.txt",usecols=1,unpack=True)
 times_ref_sp = (time_sp*20%25000)/20
 
-n, bins, patches = raw_his.hist(times_ref_sp, 400, density=False,alpha=0.5, label='sp')
+default_hist_bins = np.arange(-1,1302, 4)/50
+
+n, bins, patches = raw_his.hist(times_ref_sp/50, default_hist_bins, density=False,alpha=0.5, label='sp')
 
 #-----------------------DOUBLE PULSE------25ns-----CONT------------
 time_dp = np.loadtxt('histogram_dp.txt',usecols=(1), unpack=True)
 # times_ref_dp = (time_dp*20%25000)/20
 times_ref_dp = (time_dp*20%25000)/20
-n, bins, patches = raw_his.hist(times_ref_dp, 400, density=False, color='r',alpha=0.3, label='dp')
+n, bins, patches = raw_his.hist(times_ref_dp/50, default_hist_bins, density=False, color='r',alpha=0.3, label='dp')
 
-raw_his.set_xlabel('time[20ps]')
+#raw_his.set_xlabel('time[20ps]')
+raw_his.set_xlabel('time[ns]')
 raw_his.set_ylabel('counts')
 raw_his.set_title('Histogram of click')
 # raw_his.axis([0,1250,0,5000])
 raw_his.legend(prop={'size':10})
+raw_his.set_xlim(0,25)
 #plt.axvspan(90,40, facecolor='g', alpha=0.3)
 #plt.axvspan(550,600, facecolor='g', alpha=0.3)
 
@@ -34,8 +38,9 @@ gated_his = fig.add_subplot(224,sharex=raw_his)
 #click output form FPGA inside the gate_apply, only click 0 and click 1
 time_gated = np.loadtxt("histogram_gated.txt",usecols=1,unpack=True)
 times_gated = time_gated%625
-n, bins, patches = gated_his.hist(times_gated, 200, density=False,color='g',alpha=0.8, label='apd + fpga gate')
+n, bins, patches = gated_his.hist(times_gated/50, default_hist_bins, density=False,color='g',alpha=0.8, label='apd + fpga gate')
 gated_his.legend(prop={'size':10})
+gated_his.set_xlabel('time[ns]')
 
 #----------------------DOUBLE PULSE-----25ns-----GATED-------------------
 #clicks output from FPGA, inside the window of apd_gate, apd in gated mode, 
@@ -43,7 +48,8 @@ gate_his = fig.add_subplot(222,sharex=raw_his)
 time_gate_apd = np.loadtxt("histogram_gate_apd.txt",usecols=1,unpack=True)
 times_gate_apd = (time_gate_apd*20%25000)/20
     
-n, bins, patches = gate_his.hist(times_gate_apd, 200, density=False,color='b',alpha=0.3, label='apd gate ')
+n, bins, patches = gate_his.hist(times_gate_apd/50, default_hist_bins, density=False,color='b',alpha=0.3, label='apd gate ')
+gate_his.set_xlabel('time[ns]')
 gate_his.legend(prop={'size':10})
 # gate_his.axis([0,1250,0,2000])
 
@@ -57,6 +63,7 @@ int_click_gated = np.loadtxt("histogram_gated.txt",usecols=(2,3,4),unpack=True, 
 seq_option = [64,8000,160]
 seq = seq_option[1]
 gc_calib=[]
+
 
 for i in range(len(int_click_gated[1])):
     if (int_click_gated[1][i] == 0):
@@ -78,6 +85,7 @@ for i in range(len(int_click_gated[1])):
     if (gc_q == 16 ):
         gc_calib.append([int_click_gated[0][i], (int_click_gated[0][i]%2000), (int_click_gated[0][i]-0)%32, int_click_gated[2][i]]),
 np.savetxt('a_gc_calib.txt', gc_calib, fmt='%d')
+
 
 if (seq == seq_option[0]):
     sin_his = fig.add_subplot(223)
