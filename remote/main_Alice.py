@@ -6,7 +6,7 @@ import numpy as np
 import datetime 
 import mmap
 import gen_seq, cal_lib
-from config_lib import *
+from lib.config_lib import *
 
 
 def Set_Vca(voltage):
@@ -54,7 +54,7 @@ def Start_gc():
 
     
 
-def Gen_Sp(party, shift_am):
+def Gen_Sp(shift_am):
     # shift_am = 0
     Base_Addr = 0x00030000
     Write(Base_Addr + 16, 0x0000a0a0) #sequence64
@@ -73,7 +73,7 @@ def Gen_Sp(party, shift_am):
     Write_Dac1_Shift(2,0,0,0,0,0)
     print("Set mode 2 for fake rng")
 
-def Gen_Dp(party, shift_am, first_peak, qdistance):
+def Gen_Dp(shift_am, qdistance):
     # shift_am = 2
     # qdistance = 0.08
     Base_Addr = 0x00030000
@@ -572,6 +572,7 @@ def main():
             Write_Dac1_Shift(2, 0, 0, 0, 0, 0)
             Config_Fda()
             Config_Sda()
+            d = get_default()
             Set_Vca(d['vca'])
             Set_Am_Bias(d['am_bias'])
     def set(args):
@@ -581,7 +582,7 @@ def main():
             Set_Am_Bias(args.am_bias)
         elif not(args.qdistance==None):
             t = get_tmp()
-            Gen_Dp('alice', t['shift_am'], t['first_peak'], args.qdistance)
+            Gen_Dp(t['am_shift'], args.qdistance)
             t['qdistance'] = args.qdistance
             save_tmp(t)
         elif args.rng_mode:
@@ -597,6 +598,28 @@ def main():
             Write_Dac1_Shift(mode+(t['feedback']<<2), angles[0], angles[1], angles[2], angles[3], d['shift'])
             t['rng_mode'] = mode
             save_tmp(t)
+        elif args.am_shift is not None:
+            t = get_tmp()
+            t['am_shift'] = args.am_shift
+            save_tmp(t)
+            if t['am_pulse']==0:
+                Gen_Sp(t['am_shift'])
+            else:
+                Gen_Dp(t['am_shift'], t['qdistance'])
+        elif args.am_pulse:
+            t = get_tmp()
+            if args.am_pulse=='single':
+                Gen_Sp(t['am_shift'])
+                t['am_pulse'] = 0
+                save_tmp(t)
+            elif args.am_pulse=='double':
+                Gen_Dp(t['am_shift'], t['qdistance'])
+                t['am_pulse'] = 1
+                save_tmp(t)
+
+        
+
+
         elif args.feedback:
             angles = np.loadtxt("config/angles.txt", dtype=float)
             d = get_default()
@@ -623,8 +646,8 @@ def main():
             t = {}
             t['rng_mode'] = 0
             t['feedback'] = 0
-            t['shift_am'] = 2
-            t['first_peak'] = 20
+            t['am_pulse'] = 0
+            t['am_shift'] = 2
             t['qdistance'] = 0.08
             save_tmp(t)
 
@@ -660,10 +683,15 @@ def main():
                             help="voltage controlled attenuator; float [0,5] V")
     parser_set.add_argument("--am_bias", type=float, metavar=("voltage"), 
                             help="bias of amplitude modulator; float [-10,10] V")
+    parser_set.add_argument("--am_pulse", choices=['single', 'double'],
+                            help="send single pulse or double pulse")
+    parser_set.add_argument("--am_shift", type=int, metavar=("steps"), 
+                            help="time shift pulse generation in steps of 1.25ns")
     parser_set.add_argument("--qdistance", type=float, metavar="value", 
                             help="fine tune double pulse separation; float [0,0.5]; good value is 0.08")
     parser_set.add_argument("--rng_mode", choices=['seq', 'fake_rng', 'true_rng'],
                             help="fixed periodic sequece, fake rng or real rng")
+    
     parser_set.add_argument("--feedback", choices=['on', 'off'], 
                             help="balance interferometer")
 

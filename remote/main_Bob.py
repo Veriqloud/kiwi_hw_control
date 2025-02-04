@@ -6,7 +6,8 @@ import numpy as np
 import datetime 
 import mmap
 import gen_seq, cal_lib
-from config_lib import *
+from lib.config_lib import *
+from lib.Aurea import Aurea
 
 
 
@@ -30,16 +31,41 @@ def Config_Fda():
 
 #-------------------------PULSE GATE APD-------------------------------
 
-def Gen_Gate():
-    print("Generate Gate signal for APD")
-    ttl_reset()
-    write_delay_master(2,1,100,1)
-    write_delay_slaves(100,1,100,1)
+def Gen_Gate(delay):
+    timestep = 3.383    # fine delay timestep in ps
+    delay_au = round(delay/timestep)
+    fine_max = 404      # corresponds to 1/3 of coarse delay
+    coarse = delay_au // (fine_max*3)
+    fine0_abs = delay_au % fine_max
+    fine1_abs = int((delay_au%(fine_max*3)) >= fine_max) * fine_max
+    fine2_abs = int((delay_au%(fine_max*3)) >= 2*fine_max) * fine_max
+
+    t = get_tmp()
+
+    fine0 = fine0_abs - t['gate_delayf0']
+    direction0 = 1 if fine0 > 0 else 0
+
+    fine1 = fine1_abs - t['gate_delayf1']
+    direction1 = 1 if fine1 > 0 else 0
+    
+    fine2 = fine2_abs - t['gate_delayf2']
+    direction2 = 1 if fine2 > 0 else 0
+
+    write_delay_master(2,coarse, abs(fine0), direction0) 
+    write_delay_slaves(abs(fine1), direction1, abs(fine2), direction2)
+
     params_en()
-    # trigger only master and slv1/ all of them
     trigger_fine_master()
-    # trigger_fine_slv1()
-    # trigger_fine_slv2()
+    trigger_fine_slv1()
+    trigger_fine_slv2()
+
+    t['gate_delayf0'] = fine0_abs
+    t['gate_delayf1'] = fine1_abs
+    t['gate_delayf2'] = fine2_abs
+    save_tmp(t)
+
+    #print(coarse, fine0, fine1, fine2)
+    #print(coarse, direction0, direction1, direction2)
 
 
 #-------------------------GLOBAL COUNTER-------------------------------------------
@@ -73,8 +99,13 @@ def Cont_Det():
     print("Number of count: ", str(len(int_time_gc[1])))
     print("Appro click rate: ", str(click_rate), "click/s")
 
-def Gen_Sp(party, shift_am):
-    # shift_am = 0
+def Download_Time(num_clicks):
+    Get_Stream(0x00000000+40,'/dev/xdma0_c2h_2','data/tdc/time.bin',num_clicks)
+    command ="test_tdc/tdc_bin2txt data/tdc/time.bin data/tdc/time.txt"
+    s = subprocess.check_call(command, shell = True)
+
+
+def Gen_Sp():
     Base_Addr = 0x00030000
     Write(Base_Addr + 16, 0x0000a0a0) #sequence64
     #Write data to dpram_dac0 and dpram_dac1
@@ -91,7 +122,10 @@ def Gen_Sp(party, shift_am):
     print("Set sequence off_am for dpram_dac0 and seq64 for dpram_dac1")
 
     #Set APD in continuous mode
-    subprocess.run("cd /home/vq-user/Aurea_API/OEM_API_Linux/Examples/Python && python Aurea.py --mode continuous && python Aurea.py --dt 100", shell = True)
+    aurea = Aurea()
+    aurea.mode("continuous")
+
+    #subprocess.run("cd /home/vq-user/Aurea_API/OEM_API_Linux/Examples/Python && python Aurea.py --mode continuous && python Aurea.py --dt 100", shell = True)
 
     Time_Calib_Reg(1, 0, 0, 0, 0, 0, 0)
     #Get detection result
@@ -101,7 +135,7 @@ def Gen_Sp(party, shift_am):
     ref_time = np.loadtxt("data/tdc/histogram_sp.txt",usecols=1,unpack=True,dtype=np.int32)
     ref_time_arr = (ref_time*20%25000)/20
     #Find first peak of histogram
-    first_peak = cal_lib.Find_First_Peak(ref_time_arr)
+    first_peak = int(cal_lib.Find_First_Peak(ref_time_arr))
     print("First peak: ",first_peak)
     peak_target = np.array([625,689])
     # peak_target = np.array([0,64])
@@ -117,7 +151,7 @@ def Gen_Sp(party, shift_am):
     print("Shift for am: ",shift_am_out)
     return first_peak, shift_am_out
 
-def Gen_Dp(party, shift_am, first_peak):
+def Gen_Dp(first_peak):
     Base_Addr = 0x00030000
     Write(Base_Addr + 16, 0x0000a0a0) #sequence64
     #Write data to dpram_dac0 and dpram_dac1
@@ -134,7 +168,8 @@ def Gen_Dp(party, shift_am, first_peak):
     print("Set sequence off_am for dpram_dac0 and seq64 for dpram_dac1")
 
     #Set APD in continuous mode
-    subprocess.run("cd /home/vq-user/Aurea_API/OEM_API_Linux/Examples/Python && python Aurea.py --mode continuous && python Aurea.py --dt 100 ", shell = True)
+    aurea = Aurea()
+    aurea.mode("continuous")
 
     Time_Calib_Reg(1, 0, 0, 0, 0, 0, 0)
     #Get detection result
@@ -777,12 +812,19 @@ def main():
         elif args.sda:
             Config_Sda()
             d = get_default()
-            Set_Vca(d['vca'])
-            Set_Am_Bias(d['am_bias'])
         elif args.fda:
             Config_Fda()
-        elif args.Jic():
+        elif args.jic:
             Config_Jic()
+        elif args.tdc:
+            Time_Calib_Reg()
+        elif args.ttl:
+            ttl_reset()
+            t = get_tmp()
+            t['gate_delayf0'] = 0
+            t['gate_delayf1'] = 0
+            t['gate_delayf2'] = 0
+            save_tmp(t)
         elif args.all:
             Config_Ltc()
             Sync_Ltc()
@@ -793,20 +835,15 @@ def main():
             Config_Sda()
             Config_Jic()
             Time_Calib_Reg(1, 0, 0, 0, 0, 0, 0)
-            Config_Tdc()
-            Set_Vca(d['vca'])
-            Set_Am_Bias(d['am_bias'])
-    def set(args):
-        if not(args.vca==None):
-            Set_Vca(args.vca)
-        elif not(args.am_bias == None):
-            Set_Am_Bias(args.am_bias)
-        elif not(args.qdistance==None):
+            Time_Calib_Reg()
+            ttl_reset()
             t = get_tmp()
-            Gen_Dp('alice', t['shift_am'], t['first_peak'], args.qdistance)
-            t['qdistance'] = args.qdistance
+            t['gate_delayf0'] = 0
+            t['gate_delayf1'] = 0
+            t['gate_delayf2'] = 0
             save_tmp(t)
-        elif args.rng_mode:
+    def set(args):
+        if args.rng_mode:
             angles = np.loadtxt("config/angles.txt", dtype=float)
             d = get_default()
             if args.rng_mode=='seq':
@@ -830,6 +867,37 @@ def main():
             Write_Dac1_Shift(t['rng_mode']+(feedback<<2), angles[0], angles[1], angles[2], angles[3], d['shift'])
             t['feedback'] = feedback
             save_tmp(t)
+        elif args.spd_mode:
+            print("opening SPD...")
+            aurea = Aurea()
+            if args.spd_mode=="free":
+                aurea.mode("continuous")
+            elif args.spd_mode=="gated":
+                aurea.mode("gated")
+                Gen_Gate()
+        elif not (args.spd_deadtime==None):
+            print("opening SPD...")
+            aurea = Aurea()
+            aurea.deadtime(args.spd_deadtime)
+        elif not (args.spd_eff==None):
+            print("opening SPD...")
+            aurea = Aurea()
+            aurea.effi(int(args.spd_eff))
+        elif not (args.spd_delay==None):
+            delay = int(args.spd_delay*1000)    # translate to ps
+            Gen_Gate(delay)
+            print("gate pulse delay set to", delay/1000, "sn")
+        elif args.pol_bias is not None:
+            for ch,vol in enumerate(args.pol_bias):
+                if (vol>5 or vol <0):
+                    exit ("voltage not in the good range")
+                Set_vol(ch,vol)
+    def get(args):
+        if args.counts:
+            Count_Mon()
+        elif args.time:
+            Download_Time(args.time)
+
 
 
 
@@ -837,18 +905,41 @@ def main():
     def debug(args):
         if args.reset_defaults:
             d = {}
-            d['vca'] = 4
-            d['am_bias'] = 0
-            d['shift'] = 0
+            d['gate_delay'] = 0
             save_default(d)
-        if args.reset_tmp:
+        elif args.reset_tmp:
             t = {}
             t['rng_mode'] = 0
             t['feedback'] = 0
-            t['shift_am'] = 2
             t['first_peak'] = 20
-            t['qdistance'] = 0.08
+            t['gate_delayf0'] = 0
+            t['gate_delayf1'] = 0
+            t['gate_delayf2'] = 0
             save_tmp(t)
+        elif args.take_hist:
+            t = get_tmp()
+            first_peak, s = Gen_Sp()
+            t['first_peak'] = first_peak
+            save_tmp(t)
+        elif args.take_hist2:
+            t = get_tmp()
+            Gen_Dp(t['first_peak'])
+        #if args.delay is not None:
+        #    Gen_Gate(args.delay)
+        #if args.sweep_delay:
+        #    for i in range(0,200):
+        #        delay = (12500//100)*i
+        #        print("setting delay to ", delay)
+        #        Gen_Gate(delay)
+        #        time.sleep(0.5)
+        #if args.rst_delay:
+        #    ttl_reset()
+        #    t = get_tmp()
+        #    t['gate_delayf0'] = 0
+        #    t['gate_delayf1'] = 0
+        #    t['gate_delayf2'] = 0
+        #    save_tmp(t)
+
 
 
 
@@ -861,6 +952,7 @@ def main():
 
     parser_init = subparsers.add_parser('init')
     parser_set = subparsers.add_parser('set')
+    parser_get = subparsers.add_parser('get')
     parser_debug = subparsers.add_parser('debug')
 
 ######### init ###########
@@ -874,23 +966,35 @@ def main():
                              help="init slow dac")
     parser_init.add_argument("--jic", action="store_true", 
                              help="init jitter cleaner for tdc")
+    parser_init.add_argument("--tdc", action="store_true", 
+                             help="init tdc")
     parser_init.add_argument("--sync", action="store_true", 
                              help="sync to PPS")
+    parser_init.add_argument("--ttl", action="store_true", 
+                             help="delay module for the SPD gate")
 
 
 ######### set ###########
-    parser_set.add_argument("--vca", type=float, metavar=("voltage"), 
-                            help="voltage controlled attenuator; float [0,5] V")
-    parser_set.add_argument("--am_bias", type=float, metavar=("voltage"), 
-                            help="bias of amplitude modulator; float [-10,10] V")
-    parser_set.add_argument("--qdistance", type=float, metavar="value", 
-                            help="fine tune double pulse separation; float [0,0.5]; good value is 0.08")
     parser_set.add_argument("--rng_mode", choices=['seq', 'fake_rng', 'true_rng'],
                             help="fixed periodic sequece, fake rng or real rng")
     parser_set.add_argument("--feedback", choices=['on', 'off'], 
                             help="balance interferometer")
+    parser_set.add_argument("--spd_mode", choices=['free', 'gated'], 
+                            help="free running or gated")
+    parser_set.add_argument("--spd_delay", type=float, metavar="time",  
+                            help="delay time in ns [range..]")
+    parser_set.add_argument("--spd_deadtime", type=float, metavar="time",
+                            help="dead time in us; recommended: 15us for gated; 50us for freerunning")
+    parser_set.add_argument("--spd_eff", choices=['10', '20', '30'], 
+                            help="detection efficiency in percent; strongly recommended: 20")
 
-    #parser_alice.add_argument("--init",action="store_true",help="initialize Alice")
+    
+    parser_set.add_argument("--pol_bias",nargs=4, type=float, metavar="V",  help="float [0,5] V")
+    
+    parser_get.add_argument("--counts", action="store_true", 
+                            help="get SPD counts")
+    parser_get.add_argument("--time", type=int, metavar="num_counts",
+                            help="download timestamps of spd clicks")
 
 
 ######### debug ###########
@@ -898,12 +1002,29 @@ def main():
                               help="reset values stored in config/default.txt")
     parser_debug.add_argument("--reset_tmp", action="store_true", 
                               help="reset values stored in config/tmp.txt")
+    parser_debug.add_argument("--take_hist", action="store_true", 
+                              help="gen_sp for testing")
+    parser_debug.add_argument("--take_hist2", action="store_true", 
+                              help="gen_dp for testing")
 
+    
     parser_init.set_defaults(func=init)
     parser_debug.set_defaults(func=debug)
     parser_set.set_defaults(func=set)
+    parser_get.set_defaults(func=get)
     
     args = parser.parse_args()
     args.func(args)
+
+
 if __name__ =="__main__":
     main()
+
+
+
+
+
+
+
+
+
