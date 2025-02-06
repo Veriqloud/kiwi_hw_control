@@ -1,16 +1,18 @@
 import socket
 import time
+import numpy as np
 import os  # For generating random data
 import struct  # For packing data size
 import subprocess, sys, argparse
+import main
 
 
-def Write(base_add, value):
-    str_base = str(base_add)
-    str_value = str(value)
-    command ="../dma_ip_drivers/XDMA/linux-kernel/tools/reg_rw /dev/xdma0_user "+ str_base + " w "+ str_value 
-    #print(command)
-    s = subprocess.check_call(command, shell = True)
+# def Write(base_add, value):
+#     str_base = str(base_add)
+#     str_value = str(value)
+#     command ="../dma_ip_drivers/XDMA/linux-kernel/tools/reg_rw /dev/xdma0_user "+ str_base + " w "+ str_value 
+#     #print(command)
+#     s = subprocess.check_call(command, shell = True)
 
 
 
@@ -41,18 +43,22 @@ try:
             break
 
         if command == 'get_gc':
-            print("Received 'get_gc' command from client. Generating data...")
+            # print("Received 'get_gc' command from client. Generating data...")
 
             #Start to write 
-            Write(0x00001000, 0x00) 
-            Write(0x00001000, 0x01) 
+            main.Write(0x00001000, 0x00) 
+            main.Write(0x00001000, 0x01) 
+            # time.sleep(1)
+            # current_gc = main.Get_Current_Gc()
+            # print('Bob current_gc: ',current_gc)
+
             #Command_enable -> Reset the fifo_gc_out
-            Write(0x00001000+28,0x0)
-            Write(0x00001000+28,0x1)
+            main.Write(0x00001000+28,0x0)
+            main.Write(0x00001000+28,0x1)
 
             #Command enable to save alpha
-            Write(0x00001000+24,0x0)
-            Write(0x00001000+24,0x1)
+            main.Write(0x00001000+24,0x0)
+            main.Write(0x00001000+24,0x1)
             # Generate random data
             # data_size = 100 * 1024 * 1024  # 100 MB of data
             # data = os.urandom(data_size)

@@ -197,6 +197,24 @@ def client_start(commands_in):
                 cmd = 'fd_ab_done'
                 client_socket.sendall(cmd.encode())
 
+            elif command == 'ver_sync':
+                current_gc = main.Get_Current_Gc()
+                print('Alice current_gc: ', current_gc)
+                #Receive Bob current gc
+                gc_rcv = client_socket.recv(8)
+                int_gc_rcv = np.frombuffer(gc_rcv,dtype=np.int64)[0]
+                gc_diff = np.abs(current_gc - int_gc_rcv)
+                time_diff = gc_diff/40000000
+                print('gc diff: ', gc_diff, 'time_diff', time_diff)
+                if (time_diff < 0.5):
+                    cmd = 'sync'
+                    client_socket.sendall(cmd.encode())
+                    print('SYNC')
+                else :
+                    cmd = 'no_sync'
+                    client_socket.sendall(cmd.encode())
+                    print('NOT SYNC')
+
             response_rcv = client_socket.recv(1024)
             print("Response from server: ", response_rcv.decode(),"--------------------------------")
 
