@@ -316,7 +316,7 @@ def Config_Sda():
 def Set_vol(channel, voltage):
     vz = float(voltage)
     if (channel == 4):
-        data_vol = int(((vz + 10) * (1<<16)-1)/20)
+        data_vol = int(((vz + 10) * (1<<16)-1)/20)  
     elif (channel == 7):
         data_vol = int((vz * (1<<16)-1)/10)
     else:
@@ -461,11 +461,13 @@ def Write_Dac1_Shift(rng_mode, amp0, amp1, amp2, amp3, shift):
     shift_hex = hex(shift)
     up_offset = 0x4000
     shift_hex_up_offset = (int(up_offset)<<16 | shift)
+    division_sp = hex(1000)
     fastdac_amp1_hex = (amp_out_list[1]<<16 | amp_out_list[0])
     fastdac_amp2_hex = (amp_out_list[3]<<16 | amp_out_list[2])
     Write(Base_Addr + 8, fastdac_amp1_hex)
     Write(Base_Addr + 24, fastdac_amp2_hex)
     Write(Base_Addr + 4, shift_hex_up_offset)
+    Write(Base_Addr + 32, division_sp)
 
     #Write bit0 of slv_reg5 to choose RNG mode
     #1: Real rng from usb | 0: rng read from dpram
@@ -881,7 +883,7 @@ def Gen_Sp(party, shift_am):
 
         Time_Calib_Reg(1, 0, 0, 0, 0, 0, 0)
         #Get detection result
-        Get_Stream(0x00000000+40,'/dev/xdma0_c2h_2','data/tdc/output_sp.bin',20000)
+        Get_Stream(0x00000000+40,'/dev/xdma0_c2h_2','data/tdc/output_sp.bin',50000)
         command ="test_tdc/tdc_bin2txt data/tdc/output_sp.bin data/tdc/histogram_sp.txt"
         s = subprocess.check_call(command, shell = True)
         ref_time = np.loadtxt("data/tdc/histogram_sp.txt",usecols=1,unpack=True,dtype=np.int32)
@@ -943,17 +945,20 @@ def Gen_Dp(party, shift_am, first_peak):
 
         Time_Calib_Reg(1, 0, 0, 0, 0, 0, 0)
         #Get detection result
-        Get_Stream(0x00000000+40,'/dev/xdma0_c2h_2','data/tdc/output_dp.bin',20000)
+        Get_Stream(0x00000000+40,'/dev/xdma0_c2h_2','data/tdc/output_dp.bin',50000)
         command ="test_tdc/tdc_bin2txt data/tdc/output_dp.bin data/tdc/histogram_dp.txt"
         s = subprocess.check_call(command, shell = True)
 
         #Generate gate signal
         print("Generate Gate signal for APD")
-        gate_initial = [105,355]
-        delay_time = (((first_peak + 80) - gate_initial[1])%625)*20
-        # delay_time = (625 + 45 - gate_initial[1])*20
+        # gate_initial = [105,355]
+        gate_initial = [0,339]
+        # delay_time = (((first_peak + 80) - gate_initial[1])%625)*20
+        delay_time = ((first_peak + 80 + 625) - gate_initial[1])*20
         print("Estimate delay time : ", delay_time, "ps")
         tune_delay_val = int(np.floor(delay_time/4166))
+        print("Tune delay: ", tune_delay_val)
+        ttl_reset()
         ttl_reset()
         write_delay_master(2,tune_delay_val,50,1) #tap = 50 -> delay = 0.166ns
         write_delay_slaves(50,1,50,1)
@@ -964,30 +969,37 @@ def Gen_Dp(party, shift_am, first_peak):
         if (fine_step <= 9):
             for i in range(fine_step):
                 trigger_fine_master()
-                # print(i)
         else:
             if (fine_step <= 18):
                 for i in range(9):
                     trigger_fine_master()
-                for i in range(fine_step%9):
+                    # time.sleep(1)
+                for i in range(fine_step - 9):
                     trigger_fine_slv1()
+                    # time.sleep(1)
             else:
                 if (fine_step <= 27):
                     for i in range(9):
                         trigger_fine_master()
+                        # time.sleep(1)
                         trigger_fine_slv1()
-                    for i in range(fine_step%9):
+                        # time.sleep(1)
+                    for i in range(fine_step-18):
                         trigger_fine_slv2()
+                        # time.sleep(1)
                 else:
                     for i in range(9):
                         trigger_fine_master()
+                        # time.sleep(1)
                         trigger_fine_slv1()
-                        trigger_fine_slv2()                                
+                        # time.sleep(1)
+                        trigger_fine_slv2()
+                        # time.sleep(1)                                
 
         #APD switch to gated mode
         subprocess.run("cd /home/vq-user/Aurea_API/OEM_API_Linux/Examples/Python && python Aurea.py --mode gated && python Aurea.py --dt 10 && python Aurea.py --eff 20 ", shell = True)
 
-        Get_Stream(0x00000000+40,'/dev/xdma0_c2h_2','data/tdc/output_gate_apd.bin',20000)
+        Get_Stream(0x00000000+40,'/dev/xdma0_c2h_2','data/tdc/output_gate_apd.bin',50000)
         command ="test_tdc/tdc_bin2txt data/tdc/output_gate_apd.bin data/tdc/histogram_gate_apd.txt"
         s = subprocess.check_call(command, shell = True)
 
@@ -996,67 +1008,19 @@ def Gen_Dp(party, shift_am, first_peak):
         ref_time_arr = (ref_time*20%12500)/20
         #Generate bin counts and bin edges
         counts,bins_edges = np.histogram(ref_time_arr,bins=625)
-        # gw = 50
-        # print("first peak return: ", first_peak)
-        # gate1_start = int((first_peak - 5)%625)
-        # gate0_start = int((gate1_start - 115)%625)
         gw = 60
         print("first peak return: ", first_peak)
-        gate1_start = int((first_peak - 10)%625)
-        gate0_start = int((gate1_start - 120)%625)
-
+        gate1_start = int((first_peak - 5)%625)
+        gate0_start = int((gate1_start - 110)%625)
         print(f"gate0_start : {gate0_start}")
         print(f"gate1_start : {gate1_start}")
-
-
         #Set gate parameter
         Time_Calib_Reg(2, 0, 0, gate0_start, gw, gate1_start, gw)
         #Get detection result
         print("OUTPUT GATED DETECTION")
-        Get_Stream(0x00000000+40,'/dev/xdma0_c2h_2','data/tdc/output_gated.bin',40000)
+        Get_Stream(0x00000000+40,'/dev/xdma0_c2h_2','data/tdc/output_gated.bin',100000)
         command ="test_tdc/tdc_bin2txt data/tdc/output_gated.bin data/tdc/histogram_gated.txt"
         s = subprocess.check_call(command, shell = True)
-
-
-# def Find_Gate():
-#     Time_Calib_Reg(1, 0, 0, 0, 0, 0, 0)
-#     num_data = 40000
-#     Get_Stream(0x00000000+40,'/dev/xdma0_c2h_2','data/tdc/output_gate_apd.bin',num_data)
-#     command ="test_tdc/tdc_bin2txt data/tdc/output_gate_apd.bin data/tdc/histogram_gate_apd.txt"
-#     s = subprocess.check_call(command, shell = True)
-
-#     ref_time = np.loadtxt("data/tdc/histogram_gate_apd.txt",usecols=1,unpack=True,dtype=np.int32)
-#     ref_time_arr = (ref_time*20%12500)/20
-#     #Generate bin counts and bin edges
-#     counts,bins_edges = np.histogram(ref_time_arr,bins=312)
-#     mid_idx = len(counts)//2
-#     left_peak_idx = np.argmax(counts[:mid_idx])
-#     right_peak_idx = mid_idx + np.argmax(counts[mid_idx:])
-
-#     gw = 48 #gate width
-#     left_start_idx = max(0,int(left_peak_idx-gw/2))
-#     left_end_idx = min(len(counts)-1,int(left_peak_idx+gw/2))
-
-#     right_start_idx = max(0,int(right_peak_idx-gw/2))
-#     right_end_idx = min(len(counts)-1,int(right_peak_idx+gw/2))
-
-#     # left_range = (int(bins_edges[left_start_idx]),int(bins_edges[left_end_idx+1]))
-#     # right_range = (int(bins_edges[right_start_idx]),int(bins_edges[right_end_idx+1]))
-#     # print(f"Left range : {left_range}")
-#     # print(f"Right range : {right_range}")
-
-#     gate0_start = int(bins_edges[left_start_idx])
-#     gate1_start = int(bins_edges[right_start_idx])
-#     print(f"gate0_start : {gate0_start}")
-#     print(f"gate1_start : {gate1_start}")
-
-#     #Set gate parameter
-#     Time_Calib_Reg(2, 0, 0, gate0_start, gw, gate1_start, gw)
-#     #Get detection result
-#     print("OUTPUT GATED DETECTION")
-#     Get_Stream(0x00000000+40,'/dev/xdma0_c2h_2','data/tdc/output_gated.bin',40000)
-#     command ="test_tdc/tdc_bin2txt data/tdc/output_gated.bin data/tdc/histogram_gated.txt"
-#     s = subprocess.check_call(command, shell = True)
 
 def Verify_Shift_B(party,shift_am):
     if (party == 'alice'):
@@ -1078,7 +1042,7 @@ def Verify_Shift_B(party,shift_am):
             Write_Dac1_Shift(0,0,0,0,0,0)
             # print("Set seq64 for PM, shift value from find_shift")
             print("Get detection result")
-            Get_Stream(0x00000000+40,'/dev/xdma0_c2h_2','data/tdc/pm_b_shift_'+str(i+1)+'.bin',20000)
+            Get_Stream(0x00000000+40,'/dev/xdma0_c2h_2','data/tdc/pm_b_shift_'+str(i+1)+'.bin',40000)
             # command ="test_tdc/tdc_bin2txt data/tdc/output_gated.bin data/tdc/histogram_gated.txt"
             # s = subprocess.check_call(command, shell = True)
         for i in range(10):
@@ -1105,7 +1069,7 @@ def Verify_Shift_A(party, shift_pm, shift_am):
         Write_Dac1_Shift(2,0,0,0,0,0)
         print("Set phase of PM to zero")
         print("Get detection result")
-        Get_Stream(0x00000000+40,'/dev/xdma0_c2h_2','data/tdc/pm_a_shift_'+str(shift_pm+1)+'.bin',20000)
+        Get_Stream(0x00000000+40,'/dev/xdma0_c2h_2','data/tdc/pm_a_shift_'+str(shift_pm+1)+'.bin',40000)
         command ="test_tdc/tdc_bin2txt data/tdc/pm_a_shift_"+str(shift_pm+1)+".bin data/tdc/pm_a_shift_"+str(shift_pm+1)+".txt"
         s = subprocess.check_call(command, shell = True)
 
@@ -1116,24 +1080,46 @@ def Find_Best_Shift(party):
         best_shift = cal_lib.Best_Shift(party)
     return best_shift
 
-# def Find_Shift():
-#     #dpram_rng_max_addr
-#     Base_Addr = 0x00030000
-#     Write(Base_Addr + 28, 0x0008)
-#     #Write data to rng_dpram
-#     Base_seq0 = 0x00030000 + 0x2000  #Addr_axil_sequencer +   addr_dpram
-#     rngseq = 0x11111112
-#     Write(Base_seq0, rngseq)
-#     Write_Dac1_Shift(2,0,0,0,0,0)
-#     #Write_Dac1_shift
-#     for i in range(10):
-#         Write_Dac1_Shift(2,0.35,0.25,0 ,0,i)
-#         Get_Stream(0x00000000+40,'/dev/xdma0_c2h_2','data/tdc/clickout_'+str(i+1)+'.bin',2000) 
-#     Write_Dac1_Shift(2,0.35,0.25,0,0,0)
+def Read_Count_InGates():
+    BaseAddr = 0x00000000
+    click0_count = Read(BaseAddr + 60)
+    hex_click0_count = click0_count.decode('utf-8').strip()
+    dec_click0_count = int(hex_click0_count, 16)
+    click1_count = Read(BaseAddr + 56)
+    hex_click1_count = click1_count.decode('utf-8').strip()
+    dec_click1_count = int(hex_click1_count, 16)
+    time.sleep(0.1)
+    ingates_count = dec_click0_count + dec_click1_count
+    return ingates_count
 
-#     for i in range(10):
-#         command ="test_tdc/tdc_bin2txt data/tdc/clickout_"+str(i+1)+".bin data/tdc/click_data_"+str(i+1)+".txt"
-#         s = subprocess.check_call(command, shell = True)
+def Polarisation_Control():
+    voltages = np.arange(1,3.5,0.5)
+    bests = []
+    for ch in range(4):
+        c = []
+        for v in voltages:
+            Set_vol(ch,v)
+            c.append(Read_Count_InGates())
+        c = np.array(c)
+        print(c)
+        best = voltages[c.argmax()]
+        bests.append(best)
+        print("Best voltage on channel ", ch, "is", best)
+        Set_vol(ch,best)
+
+    bests2 = []
+    for ch in range(4):
+        voltages = np.arange(bests[ch]-0.2,bests[ch]+0.3,0.1)
+        c = []
+        for v in voltages:
+            Set_vol(ch,v)
+            c.append(Read_Count_InGates())
+        c = np.array(c)
+        print(c)
+        best = voltages[c.argmax()]
+        bests2.append(best)
+        print("Best voltage on channel ", ch, "is", best)
+        Set_vol(ch,best)
 
 #-----------APPLY GATE--------------------------
 #Apply the gate parameter to FPGA and take just the click inside the gate
@@ -1143,7 +1129,7 @@ def Find_Best_Shift(party):
 def Gated_Det():
     print("-----------------------------GATE INPUT----------------------")
     #Command_gate_aply set in Time_Calib_Reg
-    Get_Stream(0x00000000+40,'/dev/xdma0_c2h_2','data/tdc/output_gated.bin',80000)
+    Get_Stream(0x00000000+40,'/dev/xdma0_c2h_2','data/tdc/output_gated.bin',100000)
     command ="test_tdc/tdc_bin2txt data/tdc/output_gated.bin data/tdc/histogram_gated.txt"
     s = subprocess.check_call(command, shell = True)
 
@@ -1160,7 +1146,7 @@ def Phase_Shift_Calib():
     for j in range(4):
         for i in range(10):
             Write_Dac1_Shift(2,0.125+j*0.125,-0.125+j*0.125,0 ,0,i)
-            Get_Stream(0x00000000+40,'/dev/xdma0_c2h_2','data/tdc/clickout_'+str(10*j+i+1)+'.bin',2000) 
+            Get_Stream(0x00000000+40,'/dev/xdma0_c2h_2','data/tdc/clickout_'+str(10*j+i+1)+'.bin',5000) 
         Write_Dac1_Shift(2,0.125+j*0.125,-0.125+ j*0.125,0,0,0)
 
     for j in range(4):
@@ -1196,8 +1182,8 @@ def Feedback_Phase():
     amp = np.array([0.2, 0.2, 0.2, 0.2])
     Write_Dac1_Shift(14, amp[0], amp[1], amp[2], amp[3], 8)
 
-def Find_Opt_Delay_AB_mod64(party,shift_pm):
-    dpram_max_addr = 80
+def Find_Opt_Delay_AB_mod32(party,shift_pm):
+    dpram_max_addr = 32
     if (party == 'alice'):
         #dpram_rng_max_addr
         Base_Addr = 0x00030000
@@ -1212,11 +1198,11 @@ def Find_Opt_Delay_AB_mod64(party,shift_pm):
         write_to_dev(fd, Base_seq0, 0, vals)
         fd.close()
         #Write amplitue
-        amp = np.array([0 ,0, 0.4, 0])
+        amp = np.array([0 ,0, 0.45, 0])
         Write_Dac1_Shift(2, amp[0], amp[1], amp[2], amp[3], shift_pm)
         #Reset jesd module
-        En_reset_jesd()
-        # Config_Fda()
+        # En_reset_jesd()
+        Config_Fda()
         print("Apply phase in period of 32 gcs")
     elif (party == 'bob'):
         Write_Dac1_Shift(6, 0, 0, 0, 0, shift_pm)
@@ -1244,26 +1230,27 @@ def Find_Opt_Delay_AB_mod64(party,shift_pm):
                     gc_q = (int_click_gated[0][i]%(seq/2))*2 + 1
                 times_ref_click1.append(gc_q)
 
-
         n0, bins0 = np.histogram(times_ref_click0, seq)
         n1, bins1 = np.histogram(times_ref_click1, seq)
-        # bin_center0 = (bins0[:-1] + bins0[1:])/2
-
         index = np.argmax(np.abs(n1-n0))
         print("Fiber Delay Alice-Bob in mode 32-gcs period: ",index, " [q_bins]")
+        return int(index)
 
-def Find_Opt_Delay_AB(party,shift_pm):
-    # dpram_max_addr = 6400
-    # non_zero_addr = 32
+def Find_Opt_Delay_AB(party,shift_pm,delay_mod):
     dpram_max_addr = 4000
+    non_zero_addr = 32
+    # start_position = 64 - 44  #40 q_bins returned from mod32
+    start_position = 64 - delay_mod
+    # dpram_max_addr = 4000
     #with 100km, doesn't work with write to dev() function, maybe need to offset
-    non_zero_addr = 80
+    # non_zero_addr = 80
     if (party == 'alice'):
         Base_Addr = 0x00030000
         Base_seq0 = 0x00030000 + 0x2000  #Addr_axil_sequencer +   addr_dpram
         Write(Base_Addr + 28, hex(dpram_max_addr))
         #Write data to rng_dpram
-        list_rng = gen_seq.seq_rng_long(dpram_max_addr,non_zero_addr)
+        # list_rng = gen_seq.seq_rng_long(dpram_max_addr,non_zero_addr)
+        list_rng = gen_seq.seq_rng_fd(dpram_max_addr,start_position)
         vals = []
         for l in list_rng:
             vals.append(int(l, 0))
@@ -1281,21 +1268,20 @@ def Find_Opt_Delay_AB(party,shift_pm):
         # print("Set rng sequence for DAC1 finished")
         # file0.close()
 
-
         #Write amplitude
-        amp = np.array([0 ,0, 0.4, 0])
+        amp = np.array([0 ,0, 0.45, 0])
         Write_Dac1_Shift(2, amp[0], amp[1], amp[2], amp[3], shift_pm)
         #Reset jesd module
-        # En_reset_jesd()
-        Config_Fda()
+        En_reset_jesd()
+        # Config_Fda()
         print("Apply phase for long distance mode")
         # Config_Fda()
 
         #Write amplitude
     if (party == 'bob'):
         Write_Dac1_Shift(6, 0, 0, 0, 0, shift_pm)
-        time.sleep(20)
-        Get_Stream(0x00000000+40,'/dev/xdma0_c2h_2','data/tdc/output_gated.bin',1000000)
+        time.sleep(10)
+        Get_Stream(0x00000000+40,'/dev/xdma0_c2h_2','data/tdc/output_gated.bin',500000)
         command ="test_tdc/tdc_bin2txt data/tdc/output_gated.bin data/tdc/histogram_gated.txt"
         s = subprocess.check_call(command, shell = True)
 
@@ -1324,7 +1310,44 @@ def Find_Opt_Delay_AB(party,shift_pm):
         index = np.argmax(np.abs(n1-n0))
         index_arr = np.abs(n1-n0)
         print("Fiber Delay Alice-Bob : ",index, "[index] = ",index*non_zero_addr*2 ," [q_bins]")
-        
+
+def Find_Opt_Delay_A(shift_pm):
+    # Write_Dac1_Shift(6, 0, 0, 0, 0, shift_pm)
+    # Write_Dac1_Shift(2, 0, 0, 0, 0, shift_pm)
+    Write_Dac1_Shift(2, 0, 0, 0, 0, 0)
+    subprocess.run("cd /home/vq-user/Aurea_API/OEM_API_Linux/Examples/Python && python Aurea.py --mode continuous && python Aurea.py --dt 100 ", shell = True)
+    Time_Calib_Reg(1, 0, 0, 0, 0, 0, 0)
+
+    time.sleep(2)
+    Get_Stream(0x00000000+40,'/dev/xdma0_c2h_2','data/tdc/output_fd.bin',20000)
+    command ="test_tdc/tdc_bin2txt data/tdc/output_fd.bin data/tdc/histogram_fd.txt"
+    s = subprocess.check_call(command, shell = True)
+
+    #Process to get delay val
+    int_click_gated = np.loadtxt("data/tdc/histogram_fd.txt",usecols=(2,3,4),unpack=True, dtype=np.int64)
+    print("Get detection result")
+    # seq = dpram_max_addr*2  #[q_bins]
+    # times_ref_click0 = []
+    # times_ref_click1 = []
+    # for i in range(len(int_click_gated[1])):
+    #     if (int_click_gated[1][i] == 0):
+    #         if (int_click_gated[2][i] == 0):
+    #             gc_q = (int_click_gated[0][i]%(seq/2))*2
+    #         elif(int_click_gated[2][i] == 1):
+    #             gc_q = (int_click_gated[0][i]%(seq/2))*2 + 1
+    #         times_ref_click0.append(gc_q)
+    #     elif (int_click_gated[1][i] == 1):
+    #         if (int_click_gated[2][i] == 0):
+    #             gc_q = (int_click_gated[0][i]%(seq/2))*2
+    #         elif(int_click_gated[2][i] == 1):
+    #             gc_q = (int_click_gated[0][i]%(seq/2))*2 + 1
+    #         times_ref_click1.append(gc_q)
+
+    # n0, bins0 = np.histogram(times_ref_click0, int(dpram_max_addr/non_zero_addr))
+    # n1, bins1 = np.histogram(times_ref_click1, int(dpram_max_addr/non_zero_addr))
+    # index = np.argmax(np.abs(n1-n0))
+    # index_arr = np.abs(n1-n0)
+    # print("Fiber Delay Alice-Bob : ",index, "[index] = ",index*non_zero_addr*2 ," [q_bins]")
 
 
 def Find_Opt_Delay_B(shift_pm):
@@ -1342,7 +1365,7 @@ def Find_Opt_Delay_B(shift_pm):
     write_to_dev(fd, Base_seq0, 0, vals)
     fd.close()
     #Write amplitude
-    amp = np.array([0,0, 0.4, 0])
+    amp = np.array([0,0, 0.45, 0])
     Write_Dac1_Shift(6, amp[0], amp[1], amp[2], amp[3], shift_pm)
     #Reset jesd module
     # WriteFPGA()
@@ -1350,9 +1373,9 @@ def Find_Opt_Delay_B(shift_pm):
     # Config_Fda()
     # Config_Fda()
     print("Apply phase in period of 32 gcs")
-    time.sleep(1)
+    time.sleep(3)
     #Get detection result
-    Get_Stream(0x00000000+40,'/dev/xdma0_c2h_2','data/tdc/output_gated.bin',40000)
+    Get_Stream(0x00000000+40,'/dev/xdma0_c2h_2','data/tdc/output_gated.bin',150000)
     command ="test_tdc/tdc_bin2txt data/tdc/output_gated.bin data/tdc/histogram_gated.txt"
     s = subprocess.check_call(command, shell = True)
     #Process to get delay val
@@ -1429,6 +1452,7 @@ def Read_Count():
     dec_total_count = int(hex_total_count, 16)
     print("Total count: ", dec_total_count)
     return dec_total_count
+
 #------------------------------DDR4 TESTING-----------------------------------
 # Testing AXIS write and read DDR4 through AXI Virtual FIFO
 # threshold define speed of reading gc_in_fifo
@@ -1612,8 +1636,8 @@ def main():
         elif args.verify_shift_b is not None:
             shift_pm = int(args.verify_shift_b[0])
             Verify_Shift_B('alice',shift_pm)
-        elif args.find_delay_ab_mod64:
-            Find_Opt_Delay_AB_mod64('alice')
+        elif args.find_delay_ab_mod32:
+            Find_Opt_Delay_AB_mod32('alice')
         elif args.find_delay_ab:
             Find_Opt_Delay_AB('alice')
         elif args.ltc_init:
@@ -1629,7 +1653,7 @@ def main():
             amp2 = float(args.shift[3])
             amp3 = float(args.shift[4])
             shift = int(args.shift[5])
-            if (rng_mode > 16 or rng_mode <0):
+            if (rng_mode > 20 or rng_mode <0):
                 exit("wrong mode, should be in list[]")
             if (amp0>1 or amp0 <-1):
                 exit("wrong amplitude, should be in range -1..1")
@@ -1722,8 +1746,8 @@ def main():
             Verify_Shift_A('bob',shift_pm,2)
         elif args.find_delay_b:
             Find_Opt_Delay_B()
-        elif args.find_delay_ab_mod64:
-            Find_Opt_Delay_AB_mod64('bob')
+        elif args.find_delay_ab_mod32:
+            Find_Opt_Delay_AB_mod32('bob')
         elif args.find_delay_ab:
             Find_Opt_Delay_AB('bob')
         elif args.ltc_init:
@@ -1766,6 +1790,8 @@ def main():
             if (vol>5 or vol <0):
                 exit ("voltage not in the good range")
             Set_vol(chan,vol)
+        elif args.pol_ctl:
+            Polarisation_Control()
         elif args.gen_gate:
             Gen_Gate()
         elif args.jic_init:
@@ -1885,7 +1911,7 @@ def main():
     parser_alice.add_argument("--gen_dp",action="store_true",help="generate double pulse")
     parser_alice.add_argument("--verify_shift_a",nargs=1,metavar=("shift_pm"),help="verify shift parameter of alice")
     parser_alice.add_argument("--verify_shift_b",nargs=1,metavar=("shift_pm"),help="verify shift parameter of bob")
-    parser_alice.add_argument("--find_delay_ab_mod64",action="store_true",help="apply phase to find delay between Alice and Bob")
+    parser_alice.add_argument("--find_delay_ab_mod32",action="store_true",help="apply phase to find delay between Alice and Bob")
     parser_alice.add_argument("--find_delay_ab",action="store_true",help="apply phase to find delay between Alice and Bob")
 
 
@@ -1924,7 +1950,7 @@ def main():
     parser_bob.add_argument("--verify_shift_b",nargs=1,metavar=("shift_pm"),help="verify shift parameter of bob")
     parser_bob.add_argument("--verify_shift_a",nargs=1,metavar=("shift_pm"),help="verify shift parameter of alice")
     parser_bob.add_argument("--find_delay_b",action="store_true",help="find fiber delay locally in Bob")
-    parser_bob.add_argument("--find_delay_ab_mod64",action="store_true",help="find delay between Alice and Bob")
+    parser_bob.add_argument("--find_delay_ab_mod32",action="store_true",help="find delay between Alice and Bob")
     parser_bob.add_argument("--find_delay_ab",action="store_true",help="find delay between Alice and Bob")
 
 
@@ -1935,6 +1961,7 @@ def main():
     parser_bob.add_argument("--shift",nargs=6,metavar=('rng_mode','amp0','amp1','amp2','amp3','shift'), help="rng_mode int [0:fix_seq;2:fake_rng_seq;3:true_rng_seq];amp* float [-1,1]; shift int [0,10] ")
     parser_bob.add_argument("--sda_init",action="store_true", help="slow_dac init")
     parser_bob.add_argument("--pol_bias",nargs=2,metavar=('chan','vol'), help="chan int [0,1,2,3]; vol float [-10,10] V")
+    parser_bob.add_argument("--pol_ctl",action="store_true", help="run polarisation control")
     parser_bob.add_argument("--gen_gate",action="store_true",help="generate gate signal for APD Aurea")
 
     parser_bob.add_argument("--jic_init",action="store_true", help="set registers jitter cleaner ")

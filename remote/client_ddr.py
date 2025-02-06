@@ -1,15 +1,17 @@
 import socket
 import time
+import numpy as np
 import struct  # For unpacking data size
-import subprocess, sys, argparse
+import os,subprocess, sys, argparse
+import main
 
 
-def Write(base_add, value):
-    str_base = str(base_add)
-    str_value = str(value)
-    command ="../dma_ip_drivers/XDMA/linux-kernel/tools/reg_rw /dev/xdma0_user "+ str_base + " w "+ str_value 
-    #print(command)
-    s = subprocess.check_call(command, shell = True)
+# def Write(base_add, value):
+#     str_base = str(base_add)
+#     str_value = str(value)
+#     command ="../dma_ip_drivers/XDMA/linux-kernel/tools/reg_rw /dev/xdma0_user "+ str_base + " w "+ str_value 
+#     #print(command)
+#     s = subprocess.check_call(command, shell = True)
 
 # Client configuration
 SERVER_HOST = '192.168.1.77'  # Server's IP address
@@ -64,20 +66,30 @@ client_socket.connect((SERVER_HOST, SERVER_PORT))
 
 try:
     command = 'get_gc'
-    print(f"Sending command '{command}' to server...")
-    client_socket.sendall(command.encode())
+    while True:
+        pps_ret = main.Read(0x00001000+48)
+        pps_ret_int = np.int64(int(pps_ret.decode('utf-8').strip(),16))
 
-    time.sleep(0.1)
+        print(pps_ret_int)
+        if (pps_ret_int == 1):
+            break
+    time.sleep(0.02) #delay should be more than 10ms
+    client_socket.sendall(command.encode())
+    print(f"Sending command '{command}' to server...")
         #Start to write 
-    Write(0x00001000, 0x00) 
-    Write(0x00001000, 0x01) 
+    main.Write(0x00001000, 0x00) 
+    main.Write(0x00001000, 0x01) 
+    # time.sleep(1)
+    # current_gc = main.Get_Current_Gc()
+    # print('Alice current_gc: ', current_gc)
+
     #Command_enable -> Reset the fifo_gc_out
-    Write(0x00001000+28,0x0)
-    Write(0x00001000+28,0x1)
+    main.Write(0x00001000+28,0x0)
+    main.Write(0x00001000+28,0x1)
     
     #Command enable to save alpha
-    Write(0x00001000+24,0x0)
-    Write(0x00001000+24,0x1)
+    main.Write(0x00001000+24,0x0)
+    main.Write(0x00001000+24,0x1)
 
     #Write data to xdma
     device_h2c = '/dev/xdma0_h2c_0'
@@ -85,26 +97,57 @@ try:
         with open(device_h2c,'wb') as f:    
 
         # First, receive the size of the incoming data
-            while True:
-            # for i in range (4):
-                raw_data_size = client_socket.recv(4)
-                if not raw_data_size:
-                    print("Failed to receive data size. Exiting.")
-                    # break
-                data_size = struct.unpack('!I', raw_data_size)[0]  # Unpack the size
+            # while True:
+            # # for i in range (64):
+            #     raw_data_size = client_socket.recv(4)
+            #     if not raw_data_size:
+            #         print("Failed to receive data size. Exiting.")
+            #         # break
+            #     data_size = struct.unpack('!I', raw_data_size)[0]  # Unpack the size
 
-                total_bytes_received = 0
-                while total_bytes_received < data_size:
-                    # Receive data in chunks
-                    data_gc = client_socket.recv(data_size - total_bytes_received)
+            #     total_bytes_received = 0
+            #     while total_bytes_received < data_size:
+            #         # Receive data in chunks
+            #         data_gc = client_socket.recv(data_size - total_bytes_received)
+            #         if not data_gc:
+            #             break  # No more data from server
+            #         # print(f"Received {len(data_gc)} bytes: {data_gc.hex()}")
+            #         total_bytes_received += len(data_gc)
+                
+            #     print(data_gc)
+            #     bytes_written = f.write(data_gc)
+            #     f.flush()
+            #     # print(f"{bytes_written} are written back to h2c device")
+            # while True:
+            for i in range(1):
+                list_cr = []
+                for i in range (64):
+                    data_gc = client_socket.recv(16)
                     if not data_gc:
-                        break  # No more data from server
-                    # print(f"Received {len(data_gc)} bytes: {data_gc.hex()}")
-                    total_bytes_received += len(data_gc)
+                        print("No data from server")
+                        break
+                    cr = (data_gc[6] >> 1) & 1 #take click result out of 7th bytes
+                    print(cr)
+                    list_cr.append(f'{cr:01d}')
 
-                bytes_written = f.write(data_gc)
-                f.flush()
-                # print(f"{bytes_written} are written back to h2c device")
+                    # print(data_gc)
+                    bytes_written = f.write(data_gc)
+                    f.flush()
+                #join all bit to string
+                list_cr.reverse()
+                join_cr = ''.join(list_cr)
+                print(join_cr)
+                #add zero at the first
+                pack_cr = '0'+''.join(c + '0' for c in join_cr)[:-1]
+                print(pack_cr)
+                #creat a fifo
+                fifo_path = 'check_qber/fifo_cr'
+                if not os.path.exists(fifo_path):
+                    os.mkfifo(fifo_path)
+                #Write click result to fifo
+                with open(fifo_path,'w') as fifo:
+                    fifo.write(pack_cr)
+
 
     except FileNotFoundError:
         print(f"Device not found")    

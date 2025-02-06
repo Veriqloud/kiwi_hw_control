@@ -180,6 +180,19 @@ try:
                 main.Find_Opt_Delay_AB('bob',8,delay_mod)
             response = 'Find delay alice done'
 
+        elif command == 'ver_sync':
+            current_gc = main.Get_Current_Gc()
+            print('Bob current_gc: ',current_gc)
+            #send current gc to Alice
+            conn.sendall(current_gc.tobytes())
+            #receive sync result from Alice
+            cmd = conn.recv(BUFFER_SIZE).decode().strip()
+            if (cmd == 'sync'):
+                print('SYNC')
+            elif (cmd == 'no_sync'):
+                print('NOT SYNC')
+            response = 'Verify SYNC done'
+
         elif command == 'shutdown':
             response = "Shutdown done"
             print("Received 'shutdown' command from client. Closing connection...")
