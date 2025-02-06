@@ -85,6 +85,9 @@ def fit_sine(party):
         initial_guess_0 = [amp_guess, fre_guess, phase_guess, offset_guess]
         params_0, params_covariance_0 = curve_fit(sine_function, bin_center0/64, n0, p0=initial_guess_0, maxfev=10000)
         A0,B0,C0,D0 = params_0
+        ma = abs(A0) + D0
+        mi = -abs(A0) + D0
+        print(i, ma/(ma+mi))
         fitted_y_data_0 = sine_function(bin_center0/64, A0, B0, C0, D0)
         # resi0 = n0 - fitted_y_data_0
         # rmse0 = np.sqrt(np.mean(resi0**2))
@@ -110,6 +113,7 @@ def fit_sine(party):
         sin_his[i].tick_params(axis='both',labelsize=8)	
         # sin_his[i].set_title(f'shift {i}',fontsize=8)
         sin_his[i].legend(prop={'size':8},loc='upper center', bbox_to_anchor=(0.5,-0.15), ncol=1)
+        sin_his[i].set_ylim(0)
 
     return return_arr
 	#Find shift with min error
