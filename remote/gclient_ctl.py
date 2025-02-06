@@ -1,9 +1,11 @@
+#!/bin/python
+
 import socket
 import time
 import struct  # For unpacking data size
 import subprocess, sys, argparse
 import numpy as np
-import main
+import gmain as main
 
 
 # def Write(base_add, value):
@@ -21,51 +23,6 @@ BUFFER_SIZE = 64  # Increased buffer size for receiving data
 # ROUNDS = 1  # Number of rounds to perform
 # DELAY_BETWEEN_ROUNDS = 2  # Delay between rounds in seconds
 
-# Create TCP socket
-# client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-# client_socket.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, BUFFER_SIZE)
-# client_socket.connect((SERVER_HOST, SERVER_PORT))
-
-# try:
-#     command = 'init'
-#     print(f"Sending command '{command}' to server...")
-#     client_socket.sendall(command.encode())
-#     #Wait for server response
-#     # res = client_socket.recv(1024)
-#     # print("Server response: ", res.decode()) 
-#     if command == 'init':
-#         main.Config_Ltc()
-#         main.Sync_Ltc()
-#         main.Write_Sequence_Dacs('off_am')
-#         main.Write_Sequence_Rng()
-#         main.Write_Dac1_Shift(2, 0, 0, 0, 0, 0)
-#         main.Config_Fda()
-#         main.Config_Sda()
-#         main.Set_vol(7, 0)
-#         # while True:\
-#         count_rcv_arr = []
-#         for i in range(41):
-#             main.Set_vol(4, -2 + 0.1*i)
-#             cmd = 'sv_done'
-#             client_socket.sendall(cmd.encode())
-#             count_rcv = client_socket.recv(4)
-#             int_count_rcv = int.from_bytes(count_rcv, byteorder='big')
-#             count_rcv_arr.append(int_count_rcv)
-#         print("Min count: ", min(count_rcv_arr), "index: ", count_rcv_arr.index(min(count_rcv_arr)))
-#         main.Set_vol(4, -2 + 0.1*count_rcv_arr.index(min(count_rcv_arr)))
-#         # response_rcv = client_socket.recv(1024)
-#         # print("Response from server: ", response_rcv.decode())
-#     elif command == 'gen_dp':
-#         main.Gen_Dp('alice')
-
-#     response_rcv = client_socket.recv(1024)
-#     print("Response from server: ", response_rcv.decode())
-
-# except KeyboardInterrupt:
-#     print("Client stopped by keyboard interrupt.")
-# finally:
-#     client_socket.close()
-#     print("Client has been shut down gracefully.")
 
 
 
@@ -80,9 +37,7 @@ def client_start(commands_in):
             # command = 'init'
             print(f"Sending command '{command}' to server...")
             client_socket.sendall(command.encode())
-            #Wait for server response
-            # res = client_socket.recv(1024)
-            # print("Server response: ", res.decode()) 
+
             if command == 'init':
                 main.Config_Ltc()
                 main.Sync_Ltc()
@@ -91,11 +46,21 @@ def client_start(commands_in):
                 main.Write_Dac1_Shift(2, 0, 0, 0, 0, 0)
                 main.Config_Fda()
                 main.Config_Sda()
-                main.Set_vol(7, 2.5)
-                # while True:\
+                d = get_default()
+                Set_Vca(d['vca'])
+                main.Set_Am_Bias(d['am_bias'])
+                t = {}
+                t['rng_mode'] = 0
+                t['feedback'] = 0
+                t['am_pulse'] = 0
+                t['am_shift'] = 2
+                t['qdistance'] = 0.08
+                save_tmp(t)
+
+            if command == 'find_am_bias':
                 count_rcv_arr = []
                 for i in range(21):
-                    main.Set_vol(4,  -1 + 0.1*i)
+                    main.Set_Am_Bias(-1 + 0.1*i)
                     cmd = 'sv_done'
                     client_socket.sendall(cmd.encode())
                     count_rcv = client_socket.recv(4)
@@ -103,32 +68,32 @@ def client_start(commands_in):
                     count_rcv_arr.append(int_count_rcv)
                 print("Min count: ", min(count_rcv_arr), "index: ", count_rcv_arr.index(min(count_rcv_arr)))
                 am_bias_opt = -1 + 0.1*count_rcv_arr.index(min(count_rcv_arr))
-                main.Set_vol(4, am_bias_opt)
+                main.Set_Am_Bias(am_bias_opt)
                 #Initialize var file: am_bias, shift_am, shift_pm
-                with open("data/var.txt","w") as var_file:
-                    var_file.write("0.8"+'\n') #am_bias
-                    var_file.write("1"+'\n')   #shift_am
-                    var_file.write("0"+'\n')   #shift_pm
-                    var_file.write("0"+'\n')   #delay_mod
-                var_file.close()
-                #Write am_bias voltage to the file
-                lines = np.loadtxt("data/var.txt",dtype=str,encoding='utf-8')
-                lines[0] = str(round(am_bias_opt,2))+'\n'
-                np.savetxt("data/var.txt",lines,fmt="%s",encoding='utf-8')
+                #with open("data/var.txt","w") as var_file:
+                #    var_file.write("0.8"+'\n') #am_bias
+                #    var_file.write("1"+'\n')   #shift_am
+                #    var_file.write("0"+'\n')   #shift_pm
+                #    var_file.write("0"+'\n')   #delay_mod
+                #var_file.close()
+                ##Write am_bias voltage to the file
+                #lines = np.loadtxt("data/var.txt",dtype=str,encoding='utf-8')
+                #lines[0] = str(round(am_bias_opt,2))+'\n'
+                #np.savetxt("data/var.txt",lines,fmt="%s",encoding='utf-8')
 
             elif command == 'sp':
                 #1.Send single pulse, shift_am 0
-                main.Gen_Sp('alice', 0)
+                main.Gen_Sp(0)
                 #2. Receive shift_am value from Bob
                 global int_shift_am_rcv
                 shift_am_rcv = client_socket.recv(4)
                 int_shift_am_rcv = int.from_bytes(shift_am_rcv, byteorder='big')
-                #Write shift_am to var.txt
-                lines = np.loadtxt("data/var.txt",dtype=str,encoding='utf-8')
-                lines[1] = str(int_shift_am_rcv)
-                np.savetxt("data/var.txt",lines,fmt="%s",encoding='utf-8')
+                #Write shift_am value to tmp.txt
+                t = get_tmp()
+                t['am_shift'] = ret_shift_am
+                save_tmp(t)
                 #3. Apply new value of shift_am
-                main.Gen_Sp('alice',int_shift_am_rcv)
+                main.Gen_Sp(t['am_shift'])
                 cmd = 'ss_done'
                 client_socket.sendall(cmd.encode())
 

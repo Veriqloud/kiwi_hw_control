@@ -834,6 +834,12 @@ def Time_Calib_Reg(command,t0, gc_back, gate0, width0, gate1, width1):
     Write(BaseAddr + 36,0x0)
     Write(BaseAddr + 36,0x2)# turn bit[1] to high to enable register setting
 
+def Set_t0(t0):
+    BaseAddr = 0x00000000
+    Write(BaseAddr + 24,hex(int(t0))) #shift tdc time = 0
+    Write(BaseAddr + 36,0x0)
+    Write(BaseAddr + 36,0x2)# turn bit[1] to high to enable register setting
+
 #-------------------------GLOBAL COUNTER-------------------------------------------
 def Reset_gc():
     Write(0x00000008,0x00) #Start_gc = 0

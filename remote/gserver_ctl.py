@@ -1,10 +1,13 @@
+#!/bin/python
+
 import socket
 import time
 import os  # For generating random data
 import struct  # For packing data size
 import subprocess, sys, argparse
 import numpy as np
-import main
+from lib.Aurea import Aurea
+import gmain as main
 
 
 # def Write(base_add, value):
@@ -47,6 +50,7 @@ try:
 
         response = ''
         if command == 'init':
+            exit()
             main.Config_Ltc()
             main.Sync_Ltc()
             main.Write_Sequence_Dacs('dp')
@@ -55,38 +59,50 @@ try:
             main.Config_Fda()
             main.Config_Sda()
             main.Config_Jic()
-            subprocess.run("cd /home/vq-user/Aurea_API/OEM_API_Linux/Examples/Python && python Aurea.py --mode continuous && python Aurea.py --dt 100 ", shell = True)
             main.Time_Calib_Reg(1, 0, 0, 0, 0, 0, 0)
             main.Time_Calib_Init()
-
-            # main.Count_Mon()
-            # while True:
+            aurea = Aurea()
+            aurea.mode("continuous")
+            aurea.deadtime(100)
+            t = {}
+            t['rng_mode'] = 0
+            t['feedback'] = 0
+            t['first_peak'] = 20
+            t['gate_delayf0'] = 0
+            t['gate_delayf1'] = 0
+            t['gate_delayf2'] = 0
+            save_tmp(t)
+        if command == 'find_am_bias':
             for i in range(21):
                 cmd = conn.recv(BUFFER_SIZE).decode().strip()
                 if cmd == 'sv_done':
-                    time.sleep(0.5)
+                    time.sleep(0.3)
                     current_count = main.Read_Count()
                     # print(current_count.to_bytes(4,byteorder='big'))
                     conn.sendall(current_count.to_bytes(4,byteorder='big'))
             #Initialize var file: shift_am, peak, shift_pm
-            with open("data/var.txt","w") as var_file:
-                var_file.write("0"+'\n')     #shift_am
-                var_file.write("550"+'\n')   #first peak
-                var_file.write("0"+'\n')     #shift_pm
-                var_file.write("0"+'\n')     #delay_mod
-            var_file.close()
+            #with open("data/var.txt","w") as var_file:
+            #    var_file.write("0"+'\n')     #shift_am
+            #    var_file.write("550"+'\n')   #first peak
+            #    var_file.write("0"+'\n')     #shift_pm
+            #    var_file.write("0"+'\n')     #delay_mod
+            #var_file.close()
             #Response end of command
-            response = "Init done"
 
         elif command == 'sp':
             time.sleep(2)
+            t = get_tmp()
+
+            # make sure the SPD is in the correct setting
+            if (t['spd_mode'] == 'gated') or (t['spd_deadtime']!=100):
+                aurea = Aurea()
+                aurea.mode("continuous")
+                aurea.deadtime(100)
+
             #1.detection single pulse at shift_am 0
             global ret_shift_am
-            ret_first_peak, ret_shift_am = main.Gen_Sp('bob',0)
-            #Write shift_am value to var.txt
-            lines = np.loadtxt("data/var.txt",dtype=str,encoding='utf-8')
-            lines[0] = str(ret_shift_am)+'\n'
-            np.savetxt("data/var.txt",lines,fmt="%s",encoding='utf-8')
+            ret_first_peak, ret_shift_am = main.Measure_Sp()
+
             #2. send back shift_am value to alice
             conn.sendall(ret_shift_am.to_bytes(4,byteorder='big'))
             #3. detection single pulse at new shift_am
@@ -94,19 +110,22 @@ try:
             if cmd == 'ss_done':
                 time.sleep(2)
                 global ret_fp2, ret_sa2
-                ret_fp2, ret_sa2 = main.Gen_Sp('bob',ret_shift_am)
-                #Write new first peak to var.txt
-                lines = np.loadtxt("data/var.txt",dtype=str,encoding='utf-8')
-                lines[1] = str(ret_fp2)+'\n'
-                np.savetxt("data/var.txt",lines,fmt="%s",encoding='utf-8')
+                ret_fp2, ret_sa2 = main.Measure_Sp(20000)
+                #Write new first peak to tmp.txt
+                t['first_peak'] = ret_fp2
             #4. Response end of the command
             response = "Gen_Sp 2 rounds done"
 
         elif command == 'fg':
-            lines = np.loadtxt("data/var.txt",usecols=0)
-            ret_shift_am = int(lines[0])
-            ret_fp2 = int(lines[1])
-            main.Gen_Dp('bob',ret_shift_am, ret_fp2)
+            # make sure the SPD is in the correct setting
+            if (t['spd_mode'] == 'gated') or (t['spd_deadtime']!=100):
+                aurea = Aurea()
+                aurea.mode("continuous")
+                aurea.deadtime(100)
+
+            t = get_tmp()
+            ret_fp2 = t['first_peak']
+            main.Gen_Dp(ret_fp2)
             response = "Gen_Dp done"
        
         elif command == 'fs_b':

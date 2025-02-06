@@ -85,13 +85,14 @@ def Cont_Det():
     print("Number of count: ", str(len(int_time_gc[1])))
     print("Appro click rate: ", str(click_rate), "click/s")
 
-def Download_Time(num_clicks):
-    Get_Stream(0x00000000+40,'/dev/xdma0_c2h_2','data/tdc/time.bin',num_clicks)
-    command ="test_tdc/tdc_bin2txt data/tdc/time.bin data/tdc/time.txt"
+def Download_Time(num_clicks, fileprefix="time"):
+    binfile = 'data/tdc/'+fileprefix+'.bin'
+    txtfile = 'data/tdc/'+fileprefix+'.txt'
+    Get_Stream(0x00000000+40,'/dev/xdma0_c2h_2',binfile, num_clicks)
+    command ="test_tdc/tdc_bin2txt "+binfile+" "+txtfile
     s = subprocess.check_call(command, shell = True)
 
-
-def Gen_Sp():
+def Seq64():
     Base_Addr = 0x00030000
     Write(Base_Addr + 16, 0x0000a0a0) #sequence64
     #Write data to dpram_dac0 and dpram_dac1
@@ -107,61 +108,34 @@ def Gen_Sp():
     fd.close()
     print("Set sequence off_am for dpram_dac0 and seq64 for dpram_dac1")
 
-    #Set APD in continuous mode
-    aurea = Aurea()
-    aurea.mode("continuous")
+def Measure_Sp(num_clicks):
+    Seq64()
 
-    #subprocess.run("cd /home/vq-user/Aurea_API/OEM_API_Linux/Examples/Python && python Aurea.py --mode continuous && python Aurea.py --dt 100", shell = True)
-
-    Time_Calib_Reg(1, 0, 0, 0, 0, 0, 0)
+    #Time_Calib_Reg(1, 0, 0, 0, 0, 0, 0)
     #Get detection result
-    Get_Stream(0x00000000+40,'/dev/xdma0_c2h_2','data/tdc/output_sp.bin',50000)
-    command ="test_tdc/tdc_bin2txt data/tdc/output_sp.bin data/tdc/histogram_sp.txt"
-    s = subprocess.check_call(command, shell = True)
+    Download_Time(num_clicks, fileprefix="histogram_sp")
+
     ref_time = np.loadtxt("data/tdc/histogram_sp.txt",usecols=1,unpack=True,dtype=np.int32)
     ref_time_arr = (ref_time*20%25000)/20
     #Find first peak of histogram
-    first_peak = int(cal_lib.Find_First_Peak(ref_time_arr))
+    first_peak = cal_lib.Find_First_Peak(ref_time_arr)
     print("First peak: ",first_peak)
-    peak_target = np.array([625,689])
-    # peak_target = np.array([0,64])
-    # peak_target = np.array([500,664])
-    # peak_target = np.array([375,539])
-    shift_am_range = ((peak_target-first_peak)%625)/62.5
-    print("shift_am_range", shift_am_range)
-    # peak_target = 50
-    # print("Target peak: ", peak_target)
-    # shift_am_out = (round((peak_target-first_peak)/62.5))%10
-    # shift_am_out = np.arange(np.ceil(shift_am_range[0]),np.floor(shift_am_range[1])+1,dtype=int)
-    shift_am_out = int((np.ceil(shift_am_range[0]))%10)
+    peak_target = 40
+    shift_am = ((peak_target-first_peak)%625)/62.5
+    print("shift_am", shift_am)
+    shift_am_out = int((shift_am-0.5)%10)
+    t0 = (peak_target - first_peak - shift_am_out*62.5) % 625
     print("Shift for am: ",shift_am_out)
+    print("Shift for t0: ",t0)
     return first_peak, shift_am_out
 
 def Gen_Dp(first_peak):
-    Base_Addr = 0x00030000
-    Write(Base_Addr + 16, 0x0000a0a0) #sequence64
-    #Write data to dpram_dac0 and dpram_dac1
-    Base_seq0 = Base_Addr + 0x1000  #Addr_axi_sequencer + addr_dpram
-    seq_list = gen_seq.seq_dac0_off(64,0) # am: off, pm: seq64
-
-    vals = []
-    for ele in seq_list:
-        vals.append(int(ele,0))
-
-    fd = open("/dev/xdma0_user", 'r+b', buffering=0)
-    write_to_dev(fd, Base_seq0, 0, vals)
-    fd.close()
-    print("Set sequence off_am for dpram_dac0 and seq64 for dpram_dac1")
-
-    #Set APD in continuous mode
-    aurea = Aurea()
-    aurea.mode("continuous")
+    Seq64()
 
     Time_Calib_Reg(1, 0, 0, 0, 0, 0, 0)
+
     #Get detection result
-    Get_Stream(0x00000000+40,'/dev/xdma0_c2h_2','data/tdc/output_dp.bin',50000)
-    command ="test_tdc/tdc_bin2txt data/tdc/output_dp.bin data/tdc/histogram_dp.txt"
-    s = subprocess.check_call(command, shell = True)
+    Download_Time(50000, fileprefix="histogram_dp")
 
     #Generate gate signal
     print("Generate Gate signal for APD")
@@ -823,6 +797,7 @@ def main():
             Time_Calib_Reg(1, 0, 0, 0, 0, 0, 0)
             Time_Calib_Init()
             ttl_reset()
+            Gen_Gate(0)
             t = get_tmp()
             t['gate_delayf0'] = 0
             t['gate_delayf1'] = 0
@@ -905,7 +880,15 @@ def main():
             t['gate_delayf0'] = 0
             t['gate_delayf1'] = 0
             t['gate_delayf2'] = 0
+            t['first_peak'] = 0
+            t['t0'] = 0
             save_tmp(t)
+        elif args.t0 is not None:
+            #Time_Calib_Reg(1, args.t0, 0, 0, 0, 0, 0)
+            Set_t0(args.t0)
+        elif args.measure is not None:
+            Measure_Sp(10000)
+
 
 
 
@@ -968,6 +951,10 @@ def main():
                               help="reset values stored in config/default.txt")
     parser_debug.add_argument("--reset_tmp", action="store_true", 
                               help="reset values stored in config/tmp.txt")
+    parser_debug.add_argument("--t0", type=int, 
+                              help = "set t0")
+    parser_debug.add_argument("--measure", action="store_true", 
+                              help = "measure and find first peak")
 
     
     parser_init.set_defaults(func=init)

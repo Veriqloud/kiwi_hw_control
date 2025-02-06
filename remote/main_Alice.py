@@ -647,7 +647,7 @@ def main():
             t['rng_mode'] = 0
             t['feedback'] = 0
             t['am_pulse'] = 0
-            t['am_shift'] = 2
+            t['am_shift'] = 0
             t['qdistance'] = 0.08
             save_tmp(t)
 
@@ -712,6 +712,7 @@ def main():
 
     args = parser.parse_args()
     args.func(args)
+
 
 if __name__ =="__main__":
     main()

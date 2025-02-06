@@ -112,6 +112,6 @@ def Find_First_Peak(ref_time_arr):
     d3 = p[3] - p[2]
     first_peak = (p[np.argmax([d0, d1, d2, d3])]+2.5) % 625
     # print("First peak: ",first_peak)
-    return first_peak
+    return int(first_peak)
 
 # Best_Shift('bob')

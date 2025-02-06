@@ -17,7 +17,7 @@ y3,b = np.histogram(time3, bins=b)
 plt.plot(b[:-1], y)
 plt.plot(b[:-1], y2)
 plt.plot(b[:-1], y3)
-plt.vlines([612], [0], [np.max(y)], 'black')
+plt.vlines([625], [0], [np.max(y)], 'black')
 plt.ylim(0)
 plt.show()
 
