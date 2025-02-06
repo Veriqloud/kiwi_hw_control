@@ -64,24 +64,10 @@ def Gen_Gate(delay):
     t['gate_delayf2'] = fine2_abs
     save_tmp(t)
 
-    #print(coarse, fine0, fine1, fine2)
-    #print(coarse, direction0, direction1, direction2)
+    print(coarse, fine0, fine1, fine2)
+    print(coarse, direction0, direction1, direction2)
 
 
-#-------------------------GLOBAL COUNTER-------------------------------------------
-def Reset_gc():
-    Write(0x00000008,0x00) #Start_gc = 0
-    Write(0x00012008,0x01)
-    Write(0x00012008,0x00)
-    time.sleep(2)
-    print("Reset global counter......")
-
-def Start_gc():
-    BaseAddr = 0x00000000
-    Write(BaseAddr + 8, 0x00000000)
-    Write(BaseAddr + 8, 0x00000001)
-    time.sleep(1)
-    print("Global counter starts counting up from some pps")
 
     
 #---------------------------TDC CALIBRATION-----------------------------------------------
@@ -186,7 +172,6 @@ def Gen_Dp(first_peak):
     print("Estimate delay time : ", delay_time, "ps")
     tune_delay_val = int(np.floor(delay_time/4166))
     print("Tune delay: ", tune_delay_val)
-    ttl_reset()
     ttl_reset()
     write_delay_master(2,tune_delay_val,50,1) #tap = 50 -> delay = 0.166ns
     write_delay_slaves(50,1,50,1)
@@ -817,7 +802,8 @@ def main():
         elif args.jic:
             Config_Jic()
         elif args.tdc:
-            Time_Calib_Reg()
+            Time_Calib_Reg(1, 0, 0, 0, 0, 0, 0)
+            Time_Calib_Init()
         elif args.ttl:
             ttl_reset()
             t = get_tmp()
@@ -835,7 +821,7 @@ def main():
             Config_Sda()
             Config_Jic()
             Time_Calib_Reg(1, 0, 0, 0, 0, 0, 0)
-            Time_Calib_Reg()
+            Time_Calib_Init()
             ttl_reset()
             t = get_tmp()
             t['gate_delayf0'] = 0
@@ -873,8 +859,9 @@ def main():
             if args.spd_mode=="free":
                 aurea.mode("continuous")
             elif args.spd_mode=="gated":
+                d = get_default()
                 aurea.mode("gated")
-                Gen_Gate()
+                Gen_Gate(d['gate_delay'])
         elif not (args.spd_deadtime==None):
             print("opening SPD...")
             aurea = Aurea()
@@ -886,6 +873,9 @@ def main():
         elif not (args.spd_delay==None):
             delay = int(args.spd_delay*1000)    # translate to ps
             Gen_Gate(delay)
+            d = get_default()
+            d['gate_delay'] = delay
+            save_default(d)
             print("gate pulse delay set to", delay/1000, "sn")
         elif args.pol_bias is not None:
             for ch,vol in enumerate(args.pol_bias):
@@ -916,30 +906,6 @@ def main():
             t['gate_delayf1'] = 0
             t['gate_delayf2'] = 0
             save_tmp(t)
-        elif args.take_hist:
-            t = get_tmp()
-            first_peak, s = Gen_Sp()
-            t['first_peak'] = first_peak
-            save_tmp(t)
-        elif args.take_hist2:
-            t = get_tmp()
-            Gen_Dp(t['first_peak'])
-        #if args.delay is not None:
-        #    Gen_Gate(args.delay)
-        #if args.sweep_delay:
-        #    for i in range(0,200):
-        #        delay = (12500//100)*i
-        #        print("setting delay to ", delay)
-        #        Gen_Gate(delay)
-        #        time.sleep(0.5)
-        #if args.rst_delay:
-        #    ttl_reset()
-        #    t = get_tmp()
-        #    t['gate_delayf0'] = 0
-        #    t['gate_delayf1'] = 0
-        #    t['gate_delayf2'] = 0
-        #    save_tmp(t)
-
 
 
 
@@ -1002,10 +968,6 @@ def main():
                               help="reset values stored in config/default.txt")
     parser_debug.add_argument("--reset_tmp", action="store_true", 
                               help="reset values stored in config/tmp.txt")
-    parser_debug.add_argument("--take_hist", action="store_true", 
-                              help="gen_sp for testing")
-    parser_debug.add_argument("--take_hist2", action="store_true", 
-                              help="gen_dp for testing")
 
     
     parser_init.set_defaults(func=init)

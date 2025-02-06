@@ -834,7 +834,22 @@ def Time_Calib_Reg(command,t0, gc_back, gate0, width0, gate1, width1):
     Write(BaseAddr + 36,0x0)
     Write(BaseAddr + 36,0x2)# turn bit[1] to high to enable register setting
 
-#def Time_Calib_Init():
-#    Config_Tdc() #Get digital data from TDC chip
-#    Reset_gc() #Reset global counter
-#    Start_gc() #Global counter start counting at the next PPS
+#-------------------------GLOBAL COUNTER-------------------------------------------
+def Reset_gc():
+    Write(0x00000008,0x00) #Start_gc = 0
+    Write(0x00012008,0x01)
+    Write(0x00012008,0x00)
+    time.sleep(2)
+    print("Reset global counter......")
+
+def Start_gc():
+    BaseAddr = 0x00000000
+    Write(BaseAddr + 8, 0x00000000)
+    Write(BaseAddr + 8, 0x00000001)
+    time.sleep(1)
+    print("Global counter starts counting up from some pps")
+
+def Time_Calib_Init():
+    Config_Tdc() #Get digital data from TDC chip
+    Reset_gc() #Reset global counter
+    Start_gc() #Global counter start counting at the next PPS

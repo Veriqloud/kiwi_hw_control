@@ -683,7 +683,7 @@ def main():
                             help="voltage controlled attenuator; float [0,5] V")
     parser_set.add_argument("--am_bias", type=float, metavar=("voltage"), 
                             help="bias of amplitude modulator; float [-10,10] V")
-    parser_set.add_argument("--am_pulse", choices=['single', 'double'],
+    parser_set.add_argument("--am_pulse", choices=['off', 'single', 'double'],
                             help="send single pulse or double pulse")
     parser_set.add_argument("--am_shift", type=int, metavar=("steps"), 
                             help="time shift pulse generation in steps of 1.25ns")
