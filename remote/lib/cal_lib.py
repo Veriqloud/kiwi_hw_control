@@ -85,25 +85,36 @@ def Best_Shift(party):
 
 def Find_First_Peak(ref_time_arr):
     y, x = np.histogram(ref_time_arr, bins=np.arange(0,1255, 5)-2.5)
+    import matplotlib.pyplot as plt
 
     amax1 = y.argmax()
     ytmp = np.copy(y)
     ytmp[max(0,amax1-10): amax1+10] = 0
     if (amax1<10):
         ytmp[-10+amax1:] = 0
+    if (amax1>240):
+        ytmp[0:10-250+amax1] = 0
+
     amax2 = ytmp.argmax()
     ytmp[max(0,amax2-10): amax2+10] = 0
     if (amax2<10):
         ytmp[-10+amax2:] = 0
+    if (amax2>240):
+        ytmp[0:10-250+amax2] = 0
+
     amax3 = ytmp.argmax()
     ytmp[max(0,amax3-10): amax3+10] = 0
     if (amax3<10):
         ytmp[-10+amax3:] = 0
+    if (amax3>240):
+        ytmp[0:10-250+amax3] = 0
+
     amax4 = ytmp.argmax()
     ytmp[max(0,amax4-10): amax4+10] = 0
     if (amax4<10):
         ytmp[-10+amax4:] = 0
-    
+    if (amax4>240):
+        ytmp[0:10-250+amax4] = 0
 
     p = np.sort([x[amax1], x[amax2], x[amax3], x[amax4]])
     d0 = (p[0] - p[3]) % 1250
