@@ -6,6 +6,7 @@ import struct  # For unpacking data size
 import subprocess, sys, argparse
 import numpy as np
 import gmain as main
+from lib.config_lib import get_tmp, save_tmp
 
 
 # def Write(base_add, value):
@@ -39,23 +40,7 @@ def client_start(commands_in):
             client_socket.sendall(command.encode())
 
             if command == 'init':
-                main.Config_Ltc()
-                main.Sync_Ltc()
-                main.Write_Sequence_Dacs('off_am')
-                main.Write_Sequence_Rng()
-                main.Write_Dac1_Shift(2, 0, 0, 0, 0, 0)
-                main.Config_Fda()
-                main.Config_Sda()
-                d = get_default()
-                Set_Vca(d['vca'])
-                main.Set_Am_Bias(d['am_bias'])
-                t = {}
-                t['rng_mode'] = 0
-                t['feedback'] = 0
-                t['am_pulse'] = 0
-                t['am_shift'] = 2
-                t['qdistance'] = 0.08
-                save_tmp(t)
+                main.init_all()
 
             if command == 'find_am_bias':
                 count_rcv_arr = []
@@ -81,26 +66,21 @@ def client_start(commands_in):
                 #lines[0] = str(round(am_bias_opt,2))+'\n'
                 #np.savetxt("data/var.txt",lines,fmt="%s",encoding='utf-8')
 
-            elif command == 'sp':
-                #1.Send single pulse, shift_am 0
+            elif command == 'find_sp':
+                #1.Send single pulse, am_shift 0
                 main.Gen_Sp(0)
-                #2. Receive shift_am value from Bob
+                #2. Receive am_shift value from Bob
                 global int_shift_am_rcv
                 shift_am_rcv = client_socket.recv(4)
-                int_shift_am_rcv = int.from_bytes(shift_am_rcv, byteorder='big')
-                #Write shift_am value to tmp.txt
+                am_shift = int.from_bytes(shift_am_rcv, byteorder='big')
+                #Write am_shift value to tmp.txt
                 t = get_tmp()
-                t['am_shift'] = ret_shift_am
+                t['am_shift'] = am_shift
                 save_tmp(t)
-                #3. Apply new value of shift_am
+                #3. Apply new value of am_shift
                 main.Gen_Sp(t['am_shift'])
                 cmd = 'ss_done'
                 client_socket.sendall(cmd.encode())
-
-            elif command == 'fg':
-                lines = np.loadtxt("data/var.txt",usecols=0)
-                int_shift_am_rcv = int(lines[1])
-                main.Gen_Dp('alice', int_shift_am_rcv, 0)
 
             elif command == 'fs_b':
                 lines = np.loadtxt("data/var.txt",usecols=0)

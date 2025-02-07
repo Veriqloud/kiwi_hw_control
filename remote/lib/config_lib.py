@@ -1,6 +1,6 @@
 import subprocess, time, mmap
 
-import gen_seq
+import lib.gen_seq as gen_seq
 
 def save_default(data):
     with open("config/default.txt", 'w') as f:
@@ -10,7 +10,8 @@ def save_default(data):
 
 def get_default():
     d = {}
-    floatlist = ['vca', 'am_bias']
+    floatlist = ['vca', 'am_bias', 'qdistance', 
+                 'angle0', 'angle1', 'angle2', 'angle3']
     with open("config/default.txt") as f:
         lines = f.readlines()
         for l in lines[1:]:
@@ -31,6 +32,7 @@ def save_tmp(data):
 def get_tmp():
     t = {}
     floatlist = ['qdistance']
+    strlist = ['spd_mode', 'am_pulse', 'pm_mode', 'feedback']
     with open("config/tmp.txt") as f:
         lines = f.readlines()
         for l in lines:
@@ -39,6 +41,8 @@ def get_tmp():
             value = s[1]
             if key in floatlist:
                 t[key] = float(value) 
+            elif key in strlist:
+                t[key] = value
             else:
                 t[key] = int(value) 
     return t
@@ -392,23 +396,13 @@ def WriteFPGA():
     print("Set JESD configuration for FPGA finished")
     file.close()
 
-def Write_Sequence_Dacs(rf_am):
+def Seq_Dacs_Off():
     #Write dpram_max_addr port out 
     Base_Addr = 0x00030000
     Write(Base_Addr + 16, 0x0000a0a0) #sequence64
     #Write data to dpram_dac0 and dpram_dac1
     Base_seq0 = Base_Addr + 0x1000  #Addr_axi_sequencer + addr_dpram
-    if (rf_am == 'off_am'):
-        seq_list = gen_seq.seq_dac0_off(64,0) #dac0_off(cycle_num, shift_pm) # am: off, pm: seq64
-    if (rf_am == 'off_pm'):
-        seq_list = gen_seq.seq_dac1_off(2, [-0.95,0.95], 64,0,0) # am: double pulse, pm: 0
-    elif (rf_am == 'sp'):
-        # seq_list = gen_seq.seq_dacs_sp_10(64,0,0) # am: single pulse, pm: seq64
-        seq_list = gen_seq.seq_dacs_sp(2, [-0.95,0.95], 64,0,0) # am: single pulse, pm: seq64
-    elif (rf_am == 'dp'):
-        # seq_list = gen_seq.seq_dacs_dp_10(64,0,0) # am: double pulse, pm: seq64
-        # seq_list = gen_seq.seq_dacs_dp(2, [-0.95,0.95], 64,0,0,0) # am: double pulse, pm: seq64
-        seq_list = gen_seq.seq_dacs_dp(2, [-0.95,0.95], 64,0,0,0) # am: double pulse, pm: seq64
+    seq_list = gen_seq.seq_dacs_off() 
 
     vals = []
     for ele in seq_list:
@@ -417,7 +411,6 @@ def Write_Sequence_Dacs(rf_am):
     fd = open("/dev/xdma0_user", 'r+b', buffering=0)
     write_to_dev(fd, Base_seq0, 0, vals)
     fd.close()
-    print("Set sequence for drpam_dac0 and dpram_dac1 finished")
 
 
 # def Write_Sequence_Params():
@@ -487,16 +480,85 @@ def Write_Sequence_Rng():
     fd = open("/dev/xdma0_user", 'r+b', buffering=0)
     write_to_dev(fd, Base_seq0, 0, vals)
     fd.close()
-    print("Initialie fake rng sequence equal 0 ")
+    print("Initialize fake rng sequence equal 0 ")
 
 
 #Write parameter of amplitude and delay for signal on DAC1 (QDAC, signal for PM)
 #2's compliment in dac
 #shift only apllies for mode 2|mode 3
 #in mode 0, data comes from dpram_sequence, move samples in file -> shift (run test_sig.py ) 
-def Write_Dac1_Shift(rng_mode, amp0, amp1, amp2, amp3, shift):
+#def Write_Dac1_Shift(rng_mode, amp0, amp1, amp2, amp3, shift):
+#    Base_Addr = 0x00030000
+#    amp_list = [amp0,amp1,amp2,amp3]
+#    amp_out_list = []
+#    for amp in amp_list:
+#        if (amp >= 0):
+#            amp_hex = round(32767*amp)
+#        elif (amp < 0):
+#            amp_hex = 32768+32768+round(32767*amp)
+#        amp_out_list.append(amp_hex)
+#    shift_hex = hex(shift)
+#    up_offset = 0x4000
+#    shift_hex_up_offset = (int(up_offset)<<16 | shift)
+#    division_sp = hex(1000)
+#    fastdac_amp1_hex = (amp_out_list[1]<<16 | amp_out_list[0])
+#    fastdac_amp2_hex = (amp_out_list[3]<<16 | amp_out_list[2])
+#    Write(Base_Addr + 8, fastdac_amp1_hex)
+#    Write(Base_Addr + 24, fastdac_amp2_hex)
+#    Write(Base_Addr + 4, shift_hex_up_offset)
+#    Write(Base_Addr + 32, division_sp)
+#
+#    #Write bit0 of slv_reg5 to choose RNG mode
+#    #1: Real rng from usb | 0: rng read from dpram
+#    #Write bit1 of slv_reg5 to choose dac1_sequence mode
+#    #1: random amplitude mode | 0: fix sequence mode
+#    #Write bit2 of slv_reg5 to choose feedback mode
+#    #1: feedback on | 0: feedback off
+#    #----------------------------------------------
+#    #Write slv_reg5:
+#    #0x0: Fix sequence for dac1, input to dpram
+#    #0x02: Random amplitude, with fake rng
+#    #0x03: Random amplitude, with true rng
+#    #0x06: Random amplitude, with fake rng, feedback on
+#    #0x07: Random amplitude, with true rng, feedback on
+#    Write(Base_Addr + 20, hex(rng_mode))
+#    #Trigger for switching domain
+#    Write(Base_Addr + 12,0x1)
+#    Write(Base_Addr + 12,0x0)
+
+def Write_Pm_Mode(seq='seq64', feedback='off'):
     Base_Addr = 0x00030000
-    amp_list = [amp0,amp1,amp2,amp3]
+    if feedback=='off':
+        fb = 0
+    else:
+        fb = 4
+    if mode=='seq64':
+        Write(Base_Addr + 20, hex(0))
+    elif mode=='fake_rng':
+        Write(Base_Addr + 20, hex(2+fb))
+    elif mode=='true_rng':
+        Write(Base_Addr + 20, hex(3+fb))
+    else:
+        print("wrong sequence argument")
+        exit()
+    #Trigger for switching domain
+    Write(Base_Addr + 12,0x1)
+    Write(Base_Addr + 12,0x0)
+
+def Write_Pm_Shift(shift):
+    Base_Addr = 0x00030000
+    shift_hex = hex(shift)
+    up_offset = 0x4000
+    shift_hex_up_offset = (int(up_offset)<<16 | shift)
+    division_sp = hex(1000)
+    Write(Base_Addr + 4, shift_hex_up_offset)
+    Write(Base_Addr + 32, division_sp)
+    print("pm_shift written: ", shift)
+
+
+def Write_Angles(a0, a1, a2, a3):
+    Base_Addr = 0x00030000
+    amp_list = [a0,a1,a2,a3]
     amp_out_list = []
     for amp in amp_list:
         if (amp >= 0):
@@ -504,34 +566,14 @@ def Write_Dac1_Shift(rng_mode, amp0, amp1, amp2, amp3, shift):
         elif (amp < 0):
             amp_hex = 32768+32768+round(32767*amp)
         amp_out_list.append(amp_hex)
-    shift_hex = hex(shift)
-    up_offset = 0x4000
-    shift_hex_up_offset = (int(up_offset)<<16 | shift)
-    division_sp = hex(1000)
     fastdac_amp1_hex = (amp_out_list[1]<<16 | amp_out_list[0])
     fastdac_amp2_hex = (amp_out_list[3]<<16 | amp_out_list[2])
     Write(Base_Addr + 8, fastdac_amp1_hex)
     Write(Base_Addr + 24, fastdac_amp2_hex)
-    Write(Base_Addr + 4, shift_hex_up_offset)
-    Write(Base_Addr + 32, division_sp)
-
-    #Write bit0 of slv_reg5 to choose RNG mode
-    #1: Real rng from usb | 0: rng read from dpram
-    #Write bit1 of slv_reg5 to choose dac1_sequence mode
-    #1: random amplitude mode | 0: fix sequence mode
-    #Write bit2 of slv_reg5 to choose feedback mode
-    #1: feedback on | 0: feedback off
-    #----------------------------------------------
-    #Write slv_reg5:
-    #0x0: Fix sequence for dac1, input to dpram
-    #0x02: Random amplitude, with fake rng
-    #0x03: Random amplitude, with true rng
-    #0x06: Random amplitude, with fake rng, feedback on
-    #0x07: Random amplitude, with true rng, feedback on
-    Write(Base_Addr + 20, hex(rng_mode))
     #Trigger for switching domain
     Write(Base_Addr + 12,0x1)
     Write(Base_Addr + 12,0x0)
+    print("angles written: ", a0, a1, a2, a3)
 
 #Read back the FGPA registers configured for JESD
 def ReadFPGA():
@@ -834,9 +876,28 @@ def Time_Calib_Reg(command,t0, gc_back, gate0, width0, gate1, width1):
     Write(BaseAddr + 36,0x0)
     Write(BaseAddr + 36,0x2)# turn bit[1] to high to enable register setting
 
+def Soft_Gate_Filter(state):
+    if state=="on":
+        command = 2
+    elif state=="off":
+        command = 1
+    else:
+        exit("wrong argument to Soft_Gate_Finter()")
+    BaseAddr = 0x00000000
+    Write(BaseAddr + 32,hex(int(command))) #command = 1: raw | =2: with gate
+    Write(BaseAddr + 36,0x0)
+    Write(BaseAddr + 36,0x2)# turn bit[1] to high to enable register setting
+
 def Set_t0(t0):
     BaseAddr = 0x00000000
     Write(BaseAddr + 24,hex(int(t0))) #shift tdc time = 0
+    Write(BaseAddr + 36,0x0)
+    Write(BaseAddr + 36,0x2)# turn bit[1] to high to enable register setting
+
+def Write_Soft_Gates(gate0, width0, gate1, width1):
+    BaseAddr = 0x00000000
+    Write(BaseAddr + 16,hex(int(width0<<24 | gate0))) #gate0
+    Write(BaseAddr + 20,hex(int(width1<<24 | gate1))) #gate1
     Write(BaseAddr + 36,0x0)
     Write(BaseAddr + 36,0x2)# turn bit[1] to high to enable register setting
 

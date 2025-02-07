@@ -274,7 +274,8 @@ def seq_dacs_sp_10(cycle_num,shift_pm, shift_am):
         sp_final_list = [i+j for i,j in zip(list1,list0_sp)]
     return sp_final_list
 
-def seq_dacs_off(cycle_num):
+def seq_dacs_off():
+    cycle_num = 64
     list0_off = dac0_off(cycle_num)
     list1_off = dac1_off(cycle_num)
     for k in range (cycle_num):

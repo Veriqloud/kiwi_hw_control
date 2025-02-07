@@ -5,7 +5,8 @@ import time
 import numpy as np
 import datetime 
 import mmap
-import gen_seq, cal_lib
+import lib.gen_seq as gen_seq
+import lib.cal_lib as cal_lib
 from lib.config_lib import *
 
 
@@ -547,34 +548,72 @@ def Ddr_Status():
         time.sleep(0.1)
 
 
-
 #------------------------------MAIN----------------------------------------------------------------------------------
+
+def init_ltc():
+    Config_Ltc()
+
+def init_fda():
+    Config_Fda()
+    Seq_Dacs_Off()
+    Write_Sequence_Rng()
+    d = get_default()
+    Write_Angles(d['angle0'], d['angle1'], d['angle2'], d['angle3'])
+    t = get_tmp()
+    Write_Pm_Shift(t['pm_shift'])
+
+def init_sync():
+    Sync_Ltc()
+
+def init_sda():
+    Config_Sda()
+    t = get_tmp()
+    d = get_default()
+    Set_Vca(d['vca'])
+    Set_Am_Bias(t['am_bias'])
+
+def init_rst_default():
+    d = {}
+    d['vca'] = 4
+    d['qdistance'] = 0.08
+    d['angle0'] = 0
+    d['angle1'] = 0
+    d['angle2'] = 0
+    d['angle3'] = 0
+    save_default(d)
+
+def init_rst_tmp():
+    t = {}
+    t['am_pulse'] = 'off'
+    t['am_shift'] = 0
+    t['am_bias'] = 0
+    t['pm_mode'] = 'seq64'
+    t['pm_shift'] = 0
+    save_tmp(t)
+
+def init_all():
+    init_ltc()
+    init_sync()
+    init_fda()
+    init_sda()
+
+
 def main():
     def init(args):
         if args.ltc:
-            Config_Ltc()
+            init_ltc()
         elif args.fda:
-            Config_Fda()
+            init_fda()
         elif args.sync:
-            Sync_Ltc()
+            init_sync()
         elif args.sda:
-            Config_Sda()
-            d = get_default()
-            Set_Vca(d['vca'])
-            Set_Am_Bias(d['am_bias'])
-        elif args.fda:
-            Config_Fda()
+            init_sda()
         elif args.all:
-            Config_Ltc()
-            Sync_Ltc()
-            Write_Sequence_Dacs('off_am')
-            Write_Sequence_Rng()
-            Write_Dac1_Shift(2, 0, 0, 0, 0, 0)
-            Config_Fda()
-            Config_Sda()
-            d = get_default()
-            Set_Vca(d['vca'])
-            Set_Am_Bias(d['am_bias'])
+            init_all()
+        elif args.rst_default:
+            init_rst_default()
+        elif args.rst_tmp:
+            init_rst_tmp()
     def set(args):
         if not(args.vca==None):
             Set_Vca(args.vca)
@@ -602,7 +641,7 @@ def main():
             t = get_tmp()
             t['am_shift'] = args.am_shift
             save_tmp(t)
-            if t['am_pulse']==0:
+            if t['am_pulse']=='single':
                 Gen_Sp(t['am_shift'])
             else:
                 Gen_Dp(t['am_shift'], t['qdistance'])
@@ -610,15 +649,16 @@ def main():
             t = get_tmp()
             if args.am_pulse=='single':
                 Gen_Sp(t['am_shift'])
-                t['am_pulse'] = 0
+                t['am_pulse'] = 'single'
                 save_tmp(t)
             elif args.am_pulse=='double':
                 Gen_Dp(t['am_shift'], t['qdistance'])
-                t['am_pulse'] = 1
+                t['am_pulse'] = 'double'
                 save_tmp(t)
-
-        
-
+            elif args.am_pulse=='off':
+                t['am_pulse'] = 'off'
+                Write_Sequence_Dacs('off_am')
+                save_tmp(t)
 
         elif args.feedback:
             angles = np.loadtxt("config/angles.txt", dtype=float)
@@ -634,26 +674,6 @@ def main():
 
 
 
-
-    def debug(args):
-        if args.reset_defaults:
-            d = {}
-            d['vca'] = 4
-            d['am_bias'] = 0
-            d['shift'] = 0
-            save_default(d)
-        if args.reset_tmp:
-            t = {}
-            t['rng_mode'] = 0
-            t['feedback'] = 0
-            t['am_pulse'] = 0
-            t['am_shift'] = 0
-            t['qdistance'] = 0.08
-            save_tmp(t)
-
-
-
-
             
 
 
@@ -663,7 +683,6 @@ def main():
 
     parser_init = subparsers.add_parser('init')
     parser_set = subparsers.add_parser('set')
-    parser_debug = subparsers.add_parser('debug')
 
 ######### init ###########
     parser_init.add_argument("--all", action="store_true", 
@@ -676,6 +695,10 @@ def main():
                              help="init slow dac")
     parser_init.add_argument("--sync", action="store_true", 
                              help="sync to PPS")
+    parser_init.add_argument("--rst_default", action="store_true", 
+                             help="reset default parameters in config/default.txt")
+    parser_init.add_argument("--rst_tmp", action="store_true", 
+                             help="reset tmp file in config/default.txt")
 
 
 ######### set ###########
@@ -698,16 +721,10 @@ def main():
     #parser_alice.add_argument("--init",action="store_true",help="initialize Alice")
 
 
-######### debug ###########
-    parser_debug.add_argument("--reset_defaults", action="store_true", 
-                              help="reset values stored in config/default.txt")
-    parser_debug.add_argument("--reset_tmp", action="store_true", 
-                              help="reset values stored in config/tmp.txt")
 
 
 
     parser_init.set_defaults(func=init)
-    parser_debug.set_defaults(func=debug)
     parser_set.set_defaults(func=set)
 
     args = parser.parse_args()

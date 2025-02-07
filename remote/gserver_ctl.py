@@ -8,6 +8,7 @@ import subprocess, sys, argparse
 import numpy as np
 from lib.Aurea import Aurea
 import gmain as main
+from lib.config_lib import get_tmp, save_tmp, Set_t0
 
 
 # def Write(base_add, value):
@@ -26,14 +27,10 @@ PORT = 9999  # Port to listen on
 BUFFER_SIZE = 64  # Increased buffer size for sending data
 
 # Create TCP socket
-print("waiting0")
 server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, BUFFER_SIZE)
-print("waiting")
 server_socket.bind((HOST, PORT))
-print("waiting2")
 server_socket.listen(1)
-print("waiting3")
 
 print(f"Server listening on {HOST}:{PORT}")
 conn, addr = server_socket.accept()  # Accept incoming connection
@@ -50,28 +47,8 @@ try:
 
         response = ''
         if command == 'init':
-            exit()
-            main.Config_Ltc()
-            main.Sync_Ltc()
-            main.Write_Sequence_Dacs('dp')
-            main.Write_Sequence_Rng()
-            main.Write_Dac1_Shift(2, 0, 0, 0, 0, 0)
-            main.Config_Fda()
-            main.Config_Sda()
-            main.Config_Jic()
-            main.Time_Calib_Reg(1, 0, 0, 0, 0, 0, 0)
-            main.Time_Calib_Init()
-            aurea = Aurea()
-            aurea.mode("continuous")
-            aurea.deadtime(100)
-            t = {}
-            t['rng_mode'] = 0
-            t['feedback'] = 0
-            t['first_peak'] = 20
-            t['gate_delayf0'] = 0
-            t['gate_delayf1'] = 0
-            t['gate_delayf2'] = 0
-            save_tmp(t)
+            main.init_all()
+            response = "init done"
         if command == 'find_am_bias':
             for i in range(21):
                 cmd = conn.recv(BUFFER_SIZE).decode().strip()
@@ -89,9 +66,11 @@ try:
             #var_file.close()
             #Response end of command
 
-        elif command == 'sp':
-            time.sleep(2)
+        elif command == 'find_sp':
+            #time.sleep(2)
             t = get_tmp()
+
+            Set_t0(10) # to be able to manually tune to the left if required
 
             # make sure the SPD is in the correct setting
             if (t['spd_mode'] == 'gated') or (t['spd_deadtime']!=100):
@@ -101,33 +80,15 @@ try:
 
             #1.detection single pulse at shift_am 0
             global ret_shift_am
-            ret_first_peak, ret_shift_am = main.Measure_Sp()
+            shift_am, t0  = main.Measure_Sp(20000)
+            Set_t0(10+t0)
+            t['t0'] = t0
+            save_tmp(t)
 
             #2. send back shift_am value to alice
-            conn.sendall(ret_shift_am.to_bytes(4,byteorder='big'))
-            #3. detection single pulse at new shift_am
-            cmd = conn.recv(BUFFER_SIZE).decode().strip()
-            if cmd == 'ss_done':
-                time.sleep(2)
-                global ret_fp2, ret_sa2
-                ret_fp2, ret_sa2 = main.Measure_Sp(20000)
-                #Write new first peak to tmp.txt
-                t['first_peak'] = ret_fp2
-            #4. Response end of the command
+            conn.sendall(shift_am.to_bytes(4,byteorder='big'))
             response = "Gen_Sp 2 rounds done"
 
-        elif command == 'fg':
-            # make sure the SPD is in the correct setting
-            if (t['spd_mode'] == 'gated') or (t['spd_deadtime']!=100):
-                aurea = Aurea()
-                aurea.mode("continuous")
-                aurea.deadtime(100)
-
-            t = get_tmp()
-            ret_fp2 = t['first_peak']
-            main.Gen_Dp(ret_fp2)
-            response = "Gen_Dp done"
-       
         elif command == 'fs_b':
             lines = np.loadtxt("data/var.txt",usecols=0)
             ret_shift_am = int(lines[0])

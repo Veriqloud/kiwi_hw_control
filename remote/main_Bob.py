@@ -5,7 +5,8 @@ import time
 import numpy as np
 import datetime 
 import mmap
-import gen_seq, cal_lib
+import lib.gen_seq as gen_seq
+import lib.cal_lib as cal_lib
 from lib.config_lib import *
 from lib.Aurea import Aurea
 
@@ -92,12 +93,12 @@ def Download_Time(num_clicks, fileprefix="time"):
     command ="test_tdc/tdc_bin2txt "+binfile+" "+txtfile
     s = subprocess.check_call(command, shell = True)
 
-def Seq64():
+def Seq64(shift_pm=0):
     Base_Addr = 0x00030000
     Write(Base_Addr + 16, 0x0000a0a0) #sequence64
     #Write data to dpram_dac0 and dpram_dac1
     Base_seq0 = Base_Addr + 0x1000  #Addr_axi_sequencer + addr_dpram
-    seq_list = gen_seq.seq_dac0_off(64,0) # am: off, pm: seq64
+    seq_list = gen_seq.seq_dac0_off(64,shift_pm) # am: off, pm: seq64
 
     vals = []
     for ele in seq_list:
@@ -116,118 +117,30 @@ def Measure_Sp(num_clicks):
     Download_Time(num_clicks, fileprefix="histogram_sp")
 
     ref_time = np.loadtxt("data/tdc/histogram_sp.txt",usecols=1,unpack=True,dtype=np.int32)
-    ref_time_arr = (ref_time*20%25000)/20
+    ref_time_arr = ref_time%1250
     #Find first peak of histogram
     first_peak = cal_lib.Find_First_Peak(ref_time_arr)
     print("First peak: ",first_peak)
     peak_target = 40
+    # corse shift using AM (steps are periode/10, i.e. 1.25ns)
     shift_am = ((peak_target-first_peak)%625)/62.5
     print("shift_am", shift_am)
-    shift_am_out = int((shift_am-0.5)%10)
-    t0 = (peak_target - first_peak - shift_am_out*62.5) % 625
-    print("Shift for am: ",shift_am_out)
-    print("Shift for t0: ",t0)
-    return first_peak, shift_am_out
+    shift_am_out = int(shift_am)%10
+    # fine shift using t0 (t0 is added to the timestamps)
+    t0 = round((peak_target - first_peak - shift_am_out*62.5) % 625)
+    print("Suggested am_shift: ",shift_am_out)
+    print("Suggested t0: ",t0)
+    return shift_am_out, t0
 
-def Gen_Dp(first_peak):
-    Seq64()
 
-    Time_Calib_Reg(1, 0, 0, 0, 0, 0, 0)
-
-    #Get detection result
-    Download_Time(50000, fileprefix="histogram_dp")
-
-    #Generate gate signal
-    print("Generate Gate signal for APD")
-    # gate_initial = [105,355]
-    gate_initial = [0,339]
-    # delay_time = (((first_peak + 80) - gate_initial[1])%625)*20
-    delay_time = ((first_peak + 80 + 625) - gate_initial[1])*20
-    print("Estimate delay time : ", delay_time, "ps")
-    tune_delay_val = int(np.floor(delay_time/4166))
-    print("Tune delay: ", tune_delay_val)
-    ttl_reset()
-    write_delay_master(2,tune_delay_val,50,1) #tap = 50 -> delay = 0.166ns
-    write_delay_slaves(50,1,50,1)
-    params_en()
-    total_fine_delay = delay_time%4166
-    fine_step = int(total_fine_delay/160) #fixing tap = 50
-    print("Estimate fine step: ",fine_step)
-    if (fine_step <= 9):
-        for i in range(fine_step):
-            trigger_fine_master()
-    else:
-        if (fine_step <= 18):
-            for i in range(9):
-                trigger_fine_master()
-                # time.sleep(1)
-            for i in range(fine_step - 9):
-                trigger_fine_slv1()
-                # time.sleep(1)
-        else:
-            if (fine_step <= 27):
-                for i in range(9):
-                    trigger_fine_master()
-                    # time.sleep(1)
-                    trigger_fine_slv1()
-                    # time.sleep(1)
-                for i in range(fine_step-18):
-                    trigger_fine_slv2()
-                    # time.sleep(1)
-            else:
-                for i in range(9):
-                    trigger_fine_master()
-                    # time.sleep(1)
-                    trigger_fine_slv1()
-                    # time.sleep(1)
-                    trigger_fine_slv2()
-                    # time.sleep(1)                                
-
-    #APD switch to gated mode
-    subprocess.run("cd /home/vq-user/Aurea_API/OEM_API_Linux/Examples/Python && python Aurea.py --mode gated && python Aurea.py --dt 10 && python Aurea.py --eff 20 ", shell = True)
-
-    Get_Stream(0x00000000+40,'/dev/xdma0_c2h_2','data/tdc/output_gate_apd.bin',50000)
-    command ="test_tdc/tdc_bin2txt data/tdc/output_gate_apd.bin data/tdc/histogram_gate_apd.txt"
-    s = subprocess.check_call(command, shell = True)
-
-    #Find_Gate
-    ref_time = np.loadtxt("data/tdc/histogram_gate_apd.txt",usecols=1,unpack=True,dtype=np.int32)
-    ref_time_arr = (ref_time*20%12500)/20
-    #Generate bin counts and bin edges
-    counts,bins_edges = np.histogram(ref_time_arr,bins=625)
-    gw = 60
-    print("first peak return: ", first_peak)
-    gate1_start = int((first_peak - 5)%625)
-    gate0_start = int((gate1_start - 110)%625)
-    print(f"gate0_start : {gate0_start}")
-    print(f"gate1_start : {gate1_start}")
-    #Set gate parameter
-    Time_Calib_Reg(2, 0, 0, gate0_start, gw, gate1_start, gw)
-    #Get detection result
-    print("OUTPUT GATED DETECTION")
-    Get_Stream(0x00000000+40,'/dev/xdma0_c2h_2','data/tdc/output_gated.bin',100000)
-    command ="test_tdc/tdc_bin2txt data/tdc/output_gated.bin data/tdc/histogram_gated.txt"
-    s = subprocess.check_call(command, shell = True)
-
-def Verify_Shift_B(party,shift_am):
-    Base_Addr = 0x00030000
-    Write(Base_Addr + 16, 0x0000a0a0) #sequence64
-    #Write data to dpram_dac0 and dpram_dac1
-    Base_seq0 = Base_Addr + 0x1000  #Addr_axi_sequencer + addr_dpram
+def Verify_Shift_B():
     for i in range(10):
-        seq_list = gen_seq.seq_dacs_dp(2,[-0.95,0.95],64,i,320,shift_am) # am: off, pm: seq64
-        vals = []
-        for ele in seq_list:
-            vals.append(int(ele,0))
-        fd = open("/dev/xdma0_user", 'r+b', buffering=0)
-        write_to_dev(fd, Base_seq0, 0, vals)
-        fd.close()
-        Write_Dac1_Shift(0,0,0,0,0,0)
+        Seq64(shift_pm=i)
+        Write_Pm_Mode(seq='seq64')
+
         # print("Set seq64 for PM, shift value from find_shift")
         print("Get detection result")
         Get_Stream(0x00000000+40,'/dev/xdma0_c2h_2','data/tdc/pm_b_shift_'+str(i+1)+'.bin',40000)
-        # command ="test_tdc/tdc_bin2txt data/tdc/output_gated.bin data/tdc/histogram_gated.txt"
-        # s = subprocess.check_call(command, shell = True)
     for i in range(10):
         command ="test_tdc/tdc_bin2txt data/tdc/pm_b_shift_"+str(i+1)+".bin data/tdc/pm_b_shift_"+str(i+1)+".txt"
         s = subprocess.check_call(command, shell = True)
@@ -758,51 +671,107 @@ def Ddr_Status():
         time.sleep(0.1)
 
 
+def init_ltc():
+    Config_Ltc()
+
+def init_fda():
+    Config_Fda()
+    Seq_Dacs_Off()
+    Write_Sequence_Rng()
+    d = get_default()
+    Write_Angles(d['angle0'], d['angle1'], d['angle2'], d['angle3'])
+    t = get_tmp()
+    Write_Pm_Shift(t['pm_shift'])
+
+def init_sync():
+    Sync_Ltc()
+
+def init_sda():
+    Config_Sda()
+
+def init_jic():
+    Config_Jic()
+
+def init_tdc():
+    Time_Calib_Reg(1, 0, 0, 0, 0, 0, 0)
+    Time_Calib_Init()
+    d = get_default()
+    Write_Soft_Gates(
+            d['soft_gate0'], d['soft_gatew'], d['soft_gate1'], d['soft_gatew'])
+
+def init_ttl():
+    ttl_reset()
+    t = get_tmp()
+    t['gate_delayf0'] = 0
+    t['gate_delayf1'] = 0
+    t['gate_delayf2'] = 0
+    save_tmp(t)
+    d = get_default()
+    Gen_Gate(d['gate_delay'])
+
+
+
+def init_rst_default():
+    d = {}
+    d['gate_delay'] = 6500
+    d['soft_gate0'] = 20
+    d['soft_gate1'] = 540
+    d['soft_gatew'] = 60
+    d['angle0'] = 0
+    d['angle1'] = 0
+    d['angle2'] = 0
+    d['angle3'] = 0
+    save_default(d)
+
+def init_rst_tmp():
+    t = {}
+    t['pm_mode'] = 'seq64'
+    t['pm_shift'] = 0
+    t['feedback'] = 0
+    t['first_peak'] = 20
+    t['gate_delayf0'] = 0
+    t['gate_delayf1'] = 0
+    t['gate_delayf2'] = 0
+    t['t0'] = 0
+    t['spd_mode'] = 'continuous'
+    t['spd_deadtime'] = 100
+    save_tmp(t)
+
+def init_all():
+    init_ltc()
+    init_sync()
+    init_fda()
+    init_sda()
+    init_jic()
+    init_tdc()
+    init_ttl()
+
+
+
 
 #------------------------------MAIN----------------------------------------------------------------------------------
 def main():
     def init(args):
         if args.ltc:
-            Config_Ltc()
+            init_ltc()
         elif args.fda:
-            Config_Fda()
+            init_fda()
         elif args.sync:
-            Sync_Ltc()
+            init_sync()
         elif args.sda:
-            Config_Sda()
-            d = get_default()
-        elif args.fda:
-            Config_Fda()
+            init_sda()
         elif args.jic:
-            Config_Jic()
+            init_jic()
         elif args.tdc:
-            Time_Calib_Reg(1, 0, 0, 0, 0, 0, 0)
-            Time_Calib_Init()
+            init_tdc()
         elif args.ttl:
-            ttl_reset()
-            t = get_tmp()
-            t['gate_delayf0'] = 0
-            t['gate_delayf1'] = 0
-            t['gate_delayf2'] = 0
-            save_tmp(t)
+            init_ttl()
         elif args.all:
-            Config_Ltc()
-            Sync_Ltc()
-            Write_Sequence_Dacs('dp')
-            Write_Sequence_Rng()
-            Write_Dac1_Shift(2, 0, 0, 0, 0, 0)
-            Config_Fda()
-            Config_Sda()
-            Config_Jic()
-            Time_Calib_Reg(1, 0, 0, 0, 0, 0, 0)
-            Time_Calib_Init()
-            ttl_reset()
-            Gen_Gate(0)
-            t = get_tmp()
-            t['gate_delayf0'] = 0
-            t['gate_delayf1'] = 0
-            t['gate_delayf2'] = 0
-            save_tmp(t)
+            init_all()
+        elif args.rst_default:
+            init_rst_default()
+        elif args.rst_tmp:
+            init_rst_tmp()
     def set(args):
         if args.rng_mode:
             angles = np.loadtxt("config/angles.txt", dtype=float)
@@ -857,6 +826,14 @@ def main():
                 if (vol>5 or vol <0):
                     exit ("voltage not in the good range")
                 Set_vol(ch,vol)
+        elif args.soft_gate_filter:
+            Soft_Gate_Filter(args.soft_gate_filter)
+        elif args.soft_gates:
+            g0 = args.soft_gates[0]
+            g1 = args.soft_gates[1]
+            w = args.soft_gates[2]
+            Set_Soft_Gates(g0, w, g1, w)
+
     def get(args):
         if args.counts:
             Count_Mon()
@@ -868,22 +845,7 @@ def main():
 
 
     def debug(args):
-        if args.reset_defaults:
-            d = {}
-            d['gate_delay'] = 0
-            save_default(d)
-        elif args.reset_tmp:
-            t = {}
-            t['rng_mode'] = 0
-            t['feedback'] = 0
-            t['first_peak'] = 20
-            t['gate_delayf0'] = 0
-            t['gate_delayf1'] = 0
-            t['gate_delayf2'] = 0
-            t['first_peak'] = 0
-            t['t0'] = 0
-            save_tmp(t)
-        elif args.t0 is not None:
+        if args.t0 is not None:
             #Time_Calib_Reg(1, args.t0, 0, 0, 0, 0, 0)
             Set_t0(args.t0)
         elif args.measure is not None:
@@ -921,6 +883,10 @@ def main():
                              help="sync to PPS")
     parser_init.add_argument("--ttl", action="store_true", 
                              help="delay module for the SPD gate")
+    parser_init.add_argument("--rst_default", action="store_true", 
+                             help="reset default parameters in config/default.txt")
+    parser_init.add_argument("--rst_tmp", action="store_true", 
+                             help="reset tmp file in config/default.txt")
 
 
 ######### set ###########
@@ -936,7 +902,11 @@ def main():
                             help="dead time in us; recommended: 15us for gated; 50us for freerunning")
     parser_set.add_argument("--spd_eff", choices=['10', '20', '30'], 
                             help="detection efficiency in percent; strongly recommended: 20")
-
+    parser_set.add_argument("--soft_gate_filter", choices=['off', 'on'], 
+                            help="filter events through time gates")
+    parser_set.add_argument("--soft_gates", nargs=3, type=int, 
+                            metavar=['gate0 gate1 width'],
+                            help="set gate positions and width")
     
     parser_set.add_argument("--pol_bias",nargs=4, type=float, metavar="V",  help="float [0,5] V")
     
@@ -947,10 +917,6 @@ def main():
 
 
 ######### debug ###########
-    parser_debug.add_argument("--reset_defaults", action="store_true", 
-                              help="reset values stored in config/default.txt")
-    parser_debug.add_argument("--reset_tmp", action="store_true", 
-                              help="reset values stored in config/tmp.txt")
     parser_debug.add_argument("--t0", type=int, 
                               help = "set t0")
     parser_debug.add_argument("--measure", action="store_true", 
