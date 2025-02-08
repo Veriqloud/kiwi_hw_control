@@ -13,7 +13,7 @@ from lib.config_lib import *
 def Set_Vca(voltage):
     if (voltage>5) or (voltage<0):
         print("Voltage out of range. Choose a value between 0 and 5")
-        exit
+        exit()
     Set_vol(7, voltage)
 
 def Set_Am_Bias(voltage):
@@ -56,64 +56,27 @@ def Start_gc():
     
 
 def Gen_Sp(shift_am):
-    # shift_am = 0
-    Base_Addr = 0x00030000
-    Write(Base_Addr + 16, 0x0000a0a0) #sequence64
-    #Write data to dpram_dac0 and dpram_dac1
-    Base_seq0 = Base_Addr + 0x1000  #Addr_axi_sequencer + addr_dpram
-    seq_list = gen_seq.seq_dacs_sp(2, [-0.95,0.95], 64,0,shift_am) # am: double pulse, pm: seq64
-
-    vals = []
-    for ele in seq_list:
-        vals.append(int(ele,0))
-
-    fd = open("/dev/xdma0_user", 'r+b', buffering=0)
-    write_to_dev(fd, Base_seq0, 0, vals)
-    fd.close()
-    print("Set sequence dp for dpram_dac0 and seq64 for dpram_dac1")
-    Write_Dac1_Shift(2,0,0,0,0,0)
-    print("Set mode 2 for fake rng")
+    seqlist = gen_seq.seq_dacs_sp(2, [-0.95,0.95], 64,0,shift_am) # am: double pulse, pm: seq64
+    Write_Seqlist(seqlist)
+    print("Set sequence sp for dpram_dac0 and seq64 for dpram_dac1")
+    Write_Pm_Mode('seq64')
 
 def Gen_Dp(shift_am, qdistance):
-    # shift_am = 2
-    # qdistance = 0.08
-    Base_Addr = 0x00030000
-    Write(Base_Addr + 16, 0x0000a0a0) #sequence64
-    #Write data to dpram_dac0 and dpram_dac1
-    Base_seq0 = Base_Addr + 0x1000  #Addr_axi_sequencer + addr_dpram
-    #seq_list = gen_seq.seq_dacs_dp(2, [-0.95,0.95], 64,0,0,shift_am) # am: double pulse, pm: seq64
-    seq_list = gen_seq.seq_dacs_dp(2, [-1+qdistance,1-qdistance], 64,0,0,shift_am) # am: double pulse, pm: seq64
-
-    vals = []
-    for ele in seq_list:
-        vals.append(int(ele,0))
-
-    fd = open("/dev/xdma0_user", 'r+b', buffering=0)
-    write_to_dev(fd, Base_seq0, 0, vals)
-    fd.close()
+    seqlist = gen_seq.seq_dacs_dp(2, [-1+qdistance,1-qdistance], 64,0,0,shift_am) # am: double pulse, pm: seq64
+    Write_Seqlist(seqlist)
+    Write_Pm_Mode('seq64')
     print("Set sequence dp for dpram_dac0 and seq64 for dpram_dac1")
-    Write_Dac1_Shift(2,0,0,0,0,0)
-    print("Set mode 2 for fake rng")
 
-def Verify_Shift_B(party,shift_am):
-    Write_Dac1_Shift(2,0,0,0,0,0)
-    print("Set phase of PM to zero")
+#def Verify_Shift_B(party,shift_am):
+#    Write_Dac1_Shift(2,0,0,0,0,0)
+#    print("Set phase of PM to zero")
 
 
 def Verify_Shift_A(party, shift_pm, shift_am):
-    Base_Addr = 0x00030000
-    Write(Base_Addr + 16, 0x0000a0a0) #sequence64
-    # Write data to dpram_dac0 and dpram_dac1
-    Base_seq0 = Base_Addr + 0x1000  #Addr_axi_sequencer + addr_dpram
-    seq_list = gen_seq.seq_dacs_dp(2, [-0.95,0.95], 64,shift_pm,510,shift_am) # am: off, pm: seq64
-    vals = []
-    for ele in seq_list:
-        vals.append(int(ele,0))
-    fd = open("/dev/xdma0_user", 'r+b', buffering=0)
-    write_to_dev(fd, Base_seq0, 0, vals)
-    fd.close()
-    Write_Dac1_Shift(0,0,0,0,0,0)
-    print("Set seq64 for PM, sweep shift value ")
+    seqlist = gen_seq.seq_dacs_dp(2, [-0.95,0.95], 64,shift_pm,510,shift_am) # am: off, pm: seq64
+    Write_Seqlist(seqlist)
+    Write_Pm_Mode('seq64')
+    print("Set seq64 for PM")
 
 def Find_Best_Shift(party):
     best_shift = cal_lib.Best_Shift(party)
@@ -561,6 +524,7 @@ def init_fda():
     Write_Angles(d['angle0'], d['angle1'], d['angle2'], d['angle3'])
     t = get_tmp()
     Write_Pm_Shift(t['pm_shift'])
+    Write_Pm_Mode(mode='seq64')
 
 def init_sync():
     Sync_Ltc()
@@ -576,6 +540,9 @@ def init_rst_default():
     d = {}
     d['vca'] = 4
     d['qdistance'] = 0.08
+    t['am_bias'] = 0
+    t['am_shift'] = 0
+    t['pm_shift'] = 0
     d['angle0'] = 0
     d['angle1'] = 0
     d['angle2'] = 0
@@ -585,10 +552,7 @@ def init_rst_default():
 def init_rst_tmp():
     t = {}
     t['am_pulse'] = 'off'
-    t['am_shift'] = 0
-    t['am_bias'] = 0
     t['pm_mode'] = 'seq64'
-    t['pm_shift'] = 0
     save_tmp(t)
 
 def init_all():

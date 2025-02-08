@@ -396,6 +396,19 @@ def WriteFPGA():
     print("Set JESD configuration for FPGA finished")
     file.close()
 
+def Write_Seqlist(seqlist):
+    Base_Addr = 0x00030000
+    Write(Base_Addr + 16, 0x0000a0a0) #sequence64
+    #Write data to dpram_dac0 and dpram_dac1
+    Base_seq0 = Base_Addr + 0x1000  #Addr_axi_sequencer + addr_dpram
+    vals = []
+    for ele in seq_list:
+        vals.append(int(ele,0))
+    fd = open("/dev/xdma0_user", 'r+b', buffering=0)
+    write_to_dev(fd, Base_seq0, 0, vals)
+    fd.close()
+
+
 def Seq_Dacs_Off():
     #Write dpram_max_addr port out 
     Base_Addr = 0x00030000
@@ -413,60 +426,6 @@ def Seq_Dacs_Off():
     fd.close()
 
 
-# def Write_Sequence_Params():
-#     Base_Addr = 0x00030000
-#     #Write dpram_max_addr port out
-#     #[22:16]: max_addr_seq1
-#     #[6:0]:   max_addr_seq0
-#     Write(Base_Addr + 16, 0x0000a0a0) #sequence64
-#     #Write dpram_rng_max_addr port out
-#     #[14:0]: 0x4e20 = 20000
-#     #Write(Base_Addr + 28, 0x4e20) #for 0.5ms distance
-#     #dpram_rng_max_addr for sequence 16 qubit
-#     Write(Base_Addr + 28, 0x0100) #for 256 values test ddr
-
-# #Write samples to DAC0 (IDAC, signal for AM)
-# def Write_Sequence(rf_am):
-#     Base_seq0 = 0x00030000 + 0x1000  #Addr_axi_sequencer + addr_dpram
-#     if (rf_am == 'off_am'):
-#         file0 = open('data/fda/lyes_test/seq_dac0_off.txt','r') # am: off, pm: seq64
-#     if (rf_am == 'off_pm'):
-#         file0 = open('data/fda/lyes_test/seq_dac1_off.txt','r') # am: double pulse, pm: 0
-#     elif (rf_am == 'sp'):
-#         file0 = open('data/fda/lyes_test/seq_dacs_sp.txt','r') # am: single pulse, pm: seq64
-#     elif (rf_am == 'dp'):
-#         file0 = open('data/fda/lyes_test/seq_dacs_dp.txt','r') # am: double pulse, pm: seq64
-
-#     counter = 0
-#     for l in file0.readlines():
-#         counter += 1
-#         Base_seq = str(hex(int(Base_seq0) + (counter-1)*4))
-#         Write(Base_seq, l)
-#         #print(Base_seq)
-#         #print(l)
-#     print("Set sequence for DAC0 finished")
-#     file0.close()
-
-# def Write_Sequence_Rng():
-    # Base_Addr = 0x00030000
-    # #Write dpram_rng_max_addr port out
-    # #[14:0]: 0x4e20 = 20000
-    # #Write(Base_Addr + 28, 0x4e20) #for 0.5ms distance
-    # #dpram_rng_max_addr for sequence 16 qubit
-    # Write(Base_Addr + 28, 0x0100) #for 256 values test ddr
-    # #Write data to rng_dpram
-    # Base_seq0 = 0x00030000 + 0x2000  #Addr_axil_sequencer +   addr_dpram
-    # file0 = open('data/fda/seqrng_gen/SeqRng_ddr0.txt','r') #Use this file for testing ddr
-    # #file0 = open('data/fda/seqrng_gen/SeqRng.txt','r') #Use this file for 0.5ms distance
-    # # counter = 0
-    # # for l in file0.readlines():
-    # #     counter += 1
-    # #     Base_seq = str(hex(int(Base_seq0) + (counter-1)*4))
-    # #     Write(Base_seq, l)
-    # #     #print(Base_seq)
-    # #     #print(l)
-    # # print("Set rng sequence for DAC1 finished")
-    # # file0.close()
 def Write_Sequence_Rng():
     Base_Addr = 0x00030000
     Base_seq0 = 0x00030000 + 0x2000  #Addr_axil_sequencer +   addr_dpram
@@ -526,7 +485,7 @@ def Write_Sequence_Rng():
 #    Write(Base_Addr + 12,0x1)
 #    Write(Base_Addr + 12,0x0)
 
-def Write_Pm_Mode(seq='seq64', feedback='off'):
+def Write_Pm_Mode(mode='seq64', feedback='off'):
     Base_Addr = 0x00030000
     if feedback=='off':
         fb = 0
@@ -659,15 +618,6 @@ def Get_Id_Fda():
     revision = Get_reg(2,'fda','0x08','0x80','0x06','0x00')
     print("type: ",chip_type,"id: ", id1,id2,"revision: ", revision)
 
-# def Set_Fda():
-    #Write_Sequence()
-    #WriteFPGAFunc()
-    # WriteFPGA()
-    # En_reset_jesd()
-    # Set_reg_powerup()
-    # Set_reg_plls()
-    # Set_reg_seq1() #seq1 include power, serdespll, dacpll
-    # Set_reg_seq2()
 
 
 

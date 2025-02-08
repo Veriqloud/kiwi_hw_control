@@ -94,19 +94,9 @@ def Download_Time(num_clicks, fileprefix="time"):
     s = subprocess.check_call(command, shell = True)
 
 def Seq64(shift_pm=0):
-    Base_Addr = 0x00030000
-    Write(Base_Addr + 16, 0x0000a0a0) #sequence64
-    #Write data to dpram_dac0 and dpram_dac1
-    Base_seq0 = Base_Addr + 0x1000  #Addr_axi_sequencer + addr_dpram
-    seq_list = gen_seq.seq_dac0_off(64,shift_pm) # am: off, pm: seq64
-
-    vals = []
-    for ele in seq_list:
-        vals.append(int(ele,0))
-
-    fd = open("/dev/xdma0_user", 'r+b', buffering=0)
-    write_to_dev(fd, Base_seq0, 0, vals)
-    fd.close()
+    seqlist = gen_seq.seq_dac0_off(64,shift_pm) # am: off, pm: seq64
+    Write_Seqlist(seqlist)
+    Write_Pm_Mode('seq64')
     print("Set sequence off_am for dpram_dac0 and seq64 for dpram_dac1")
 
 def Measure_Sp(num_clicks):
@@ -682,6 +672,7 @@ def init_fda():
     Write_Angles(d['angle0'], d['angle1'], d['angle2'], d['angle3'])
     t = get_tmp()
     Write_Pm_Shift(t['pm_shift'])
+    Write_Pm_Mode(mode='seq64')
 
 def init_sync():
     Sync_Ltc()
@@ -713,26 +704,26 @@ def init_ttl():
 
 def init_rst_default():
     d = {}
-    d['gate_delay'] = 6500
-    d['soft_gate0'] = 20
-    d['soft_gate1'] = 540
-    d['soft_gatew'] = 60
+    t['pm_shift'] = 0
     d['angle0'] = 0
     d['angle1'] = 0
     d['angle2'] = 0
     d['angle3'] = 0
+    d['gate_delay'] = 6500
+    d['soft_gate0'] = 20
+    d['soft_gate1'] = 540
+    d['soft_gatew'] = 60
+    t['t0'] = 0
     save_default(d)
 
 def init_rst_tmp():
     t = {}
     t['pm_mode'] = 'seq64'
-    t['pm_shift'] = 0
     t['feedback'] = 0
     t['first_peak'] = 20
     t['gate_delayf0'] = 0
     t['gate_delayf1'] = 0
     t['gate_delayf2'] = 0
-    t['t0'] = 0
     t['spd_mode'] = 'continuous'
     t['spd_deadtime'] = 100
     save_tmp(t)
