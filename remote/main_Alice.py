@@ -58,6 +58,9 @@ def Start_gc():
     
     
 def Update_Dac():
+    # update from tmp.txt
+    # Generate sequences for dac0 and dac1 and write to device.
+    # Update am_shift and pm_shift
     t = get_tmp()
     if t['am_mode'] == 'off':
         dac0 = gen_seq.dac0_off(64)

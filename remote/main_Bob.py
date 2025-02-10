@@ -12,6 +12,9 @@ from lib.Aurea import Aurea
 
 
 def Update_Dac():
+    # update from tmp.txt
+    # Generate sequences for dac0 and dac1 and write to device.
+    # Update am_shift and pm_shift
     t = get_tmp()
     dac0 = gen_seq.dac0_off(64)
 
@@ -77,6 +80,9 @@ def Config_Fda():
 #-------------------------PULSE GATE APD-------------------------------
 
 def Gen_Gate():
+    # generate gate pulse for SPD
+    # read delay from tmp.txt
+    # calculate and update corse and fine delays
     t = get_tmp()
     delay = t['gate_delay']
     timestep = 3.383    # fine delay timestep in ps
@@ -140,19 +146,15 @@ def Download_Time(num_clicks, fileprefix="time"):
     command ="test_tdc/tdc_bin2txt "+binfile+" "+txtfile
     s = subprocess.check_call(command, shell = True)
 
-def Seq64(shift_pm=0):
-    seqlist = gen_seq.seq_dac0_off(64,shift_pm) # am: off, pm: seq64
-    Write_Seqlist(seqlist)
-    Write_Pm_Mode('seq64')
-    print("Set sequence off_am for dpram_dac0 and seq64 for dpram_dac1")
 
-def Measure_Sp(num_clicks):
-    Seq64()
-
-    #Time_Calib_Reg(1, 0, 0, 0, 0, 0, 0)
-    #Get detection result
+def Measure_Sp(num_clicks=20000):
+    if (t['spd_mode'] == 'gated') or (t['spd_deadtime']!=100):
+        aurea = Aurea()
+        aurea.mode("continuous")
+        aurea.deadtime(100)
+        update_tmp('spd_mode', 'continuous')
+        update_tmp('spd_deadtime', 100)
     Download_Time(num_clicks, fileprefix="histogram_sp")
-
     ref_time = np.loadtxt("data/tdc/histogram_sp.txt",usecols=1,unpack=True,dtype=np.int32)
     ref_time_arr = ref_time%1250
     #Find first peak of histogram
@@ -169,6 +171,19 @@ def Measure_Sp(num_clicks):
     print("Suggested t0: ",t0)
     return shift_am_out, t0
 
+def Verify_Gates(num_clicks=20000):
+    if t['spd_mode'] == 'continuous':
+        aurea = Aurea()
+        aurea.mode("gated")
+        aurea.deadtime(15)
+        update_tmp('spd_mode', 'gated')
+        update_tmp('spd_deadtime', 15)
+    t = get_tmp()
+    t['pm_mode'] = 'seq64'
+    t['feedack'] = 'off'
+    save_tmp(t)
+    Update_Dac()
+    Download_Time(num_clicks, "histogram_dp")
 
 def Verify_Shift_B():
     for i in range(10):

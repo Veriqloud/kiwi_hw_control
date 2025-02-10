@@ -9,13 +9,6 @@ import gmain as main
 from lib.config_lib import get_tmp, save_tmp
 
 
-# def Write(base_add, value):
-#     str_base = str(base_add)
-#     str_value = str(value)
-#     command ="../../tools/reg_rw /dev/xdma0_user "+ str_base + " w "+ str_value 
-#     #print(command)
-#     s = subprocess.check_call(command, shell = True)
-
 # Client configuration
 SERVER_HOST = '192.168.1.77'  # Server's IP address
 SERVER_PORT = 9999  # Server's port
@@ -23,7 +16,6 @@ SERVER_PORT = 9999  # Server's port
 BUFFER_SIZE = 64  # Increased buffer size for receiving data
 # ROUNDS = 1  # Number of rounds to perform
 # DELAY_BETWEEN_ROUNDS = 2  # Delay between rounds in seconds
-
 
 
 
@@ -68,19 +60,17 @@ def client_start(commands_in):
 
             elif command == 'find_sp':
                 #1.Send single pulse, am_shift 0
-                main.Gen_Sp(0)
+                update_tmp('am_shift', 0)
+                update_tmp('am_mode', 'single')
+                Update_Dac()
                 #2. Receive am_shift value from Bob
                 global int_shift_am_rcv
                 shift_am_rcv = client_socket.recv(4)
                 am_shift = int.from_bytes(shift_am_rcv, byteorder='big')
-                #Write am_shift value to tmp.txt
-                t = get_tmp()
-                t['am_shift'] = am_shift
-                save_tmp(t)
-                #3. Apply new value of am_shift
-                main.Gen_Sp(t['am_shift'])
-                cmd = 'ss_done'
-                client_socket.sendall(cmd.encode())
+                update_tmp['am_shift'] = am_shift
+                Update_Dac()
+                #cmd = 'ss_done'
+                #client_socket.sendall(cmd.encode())
 
             elif command == 'fs_b':
                 lines = np.loadtxt("data/var.txt",usecols=0)

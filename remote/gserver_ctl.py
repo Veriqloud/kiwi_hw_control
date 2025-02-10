@@ -11,14 +11,6 @@ import gmain as main
 from lib.config_lib import get_tmp, save_tmp, Set_t0
 
 
-# def Write(base_add, value):
-#     str_base = str(base_add)
-#     str_value = str(value)
-#     command ="../../tools/reg_rw /dev/xdma0_user "+ str_base + " w "+ str_value 
-#     #print(command)
-#     s = subprocess.check_call(command, shell = True)
-
-
 
 # Server configuration
 HOST = '192.168.1.77'  # Localhost
@@ -67,24 +59,16 @@ try:
             #Response end of command
 
         elif command == 'find_sp':
-            #time.sleep(2)
             t = get_tmp()
-
-            Set_t0(10) # to be able to manually tune to the left if required
-
-            # make sure the SPD is in the correct setting
-            if (t['spd_mode'] == 'gated') or (t['spd_deadtime']!=100):
-                aurea = Aurea()
-                aurea.mode("continuous")
-                aurea.deadtime(100)
+            update_tmp('t0', 10) #to have some space to the left
+            Update_Softgate()
 
             #1.detection single pulse at shift_am 0
             global ret_shift_am
             shift_am, t0  = main.Measure_Sp(20000)
             Set_t0(10+t0)
-            t['t0'] = t0
-            save_tmp(t)
-
+            update_tmp('t0', 10+t0)
+            
             #2. send back shift_am value to alice
             conn.sendall(shift_am.to_bytes(4,byteorder='big'))
             response = "Gen_Sp 2 rounds done"
