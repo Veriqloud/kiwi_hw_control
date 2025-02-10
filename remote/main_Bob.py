@@ -11,6 +11,50 @@ from lib.config_lib import *
 from lib.Aurea import Aurea
 
 
+def Update_Dac():
+    t = get_tmp()
+    dac0 = gen_seq.dac0_off(64)
+
+    if t['pm_mode'] == 'off':
+        dac1 = gen_seq.dac1_sample(np.zeros(64), t['pm_shift'])
+    elif t['pm_mode'] == 'seq64':
+        Write_Pm_Mode('seq64')
+        dac1 = gen_seq.dac1_sample(gen_seq.lin_seq_2(), t['pm_shift'])
+    elif t['pm_mode'] == 'seq64tight':
+        Write_Pm_Mode('seq64')
+        dac1 = gen_seq.dac1_sample_tight(gen_seq.lin_seq_2(), t['pm_shift'])
+    elif t['pm_mode'] == 'fake_rng':
+        Write_Pm_Mode('fake_rng', t['feedback'])
+        dac1 = gen_seq.dac1_sample(np.zeros(64), 0)
+    elif t['pm_mode'] == 'true_rng':
+        Write_Pm_Mode('true_rng', t['feedback'])
+        dac1 = gen_seq.dac1_sample(np.zeros(64), 0)
+    
+    Write_To_Dac(dac0, dac1)
+    Write_Pm_Shift(t['pm_shift'])
+    print("Updated Dac sequence")
+
+def Update_Angles():
+    t = get_tmp()
+    Write_Angles(t['angle0'], t['angle1'], t['angle2'], t['angle3'])
+
+
+def Update_Softgate():
+    t = get_tmp()
+    command = 1 if t['soft_gate']=='off' else 2
+    g0 = t['soft_gate0']
+    g1 = t['soft_gate1']
+    w = t['soft_gatew']
+    Time_Calib_Reg(command, t['t0'], 0, g0, w, g1, w)
+            
+
+def Update_Pol():
+    t = get_tmp()
+    p = [t['pol0'], t['pol1'], t['pol2'], t['pol3']]
+    for ch,vol in enumerate(p):
+        if (vol>5 or vol <0):
+            exit ("voltage not in the good range")
+        Set_vol(ch,vol)
 
 
 def Config_Fda():
@@ -32,7 +76,9 @@ def Config_Fda():
 
 #-------------------------PULSE GATE APD-------------------------------
 
-def Gen_Gate(delay):
+def Gen_Gate():
+    t = get_tmp()
+    delay = t['gate_delay']
     timestep = 3.383    # fine delay timestep in ps
     delay_au = round(delay/timestep)
     fine_max = 404      # corresponds to 1/3 of coarse delay
@@ -65,6 +111,7 @@ def Gen_Gate(delay):
     t['gate_delayf2'] = fine2_abs
     save_tmp(t)
 
+    print("gate pulse delay set to", delay/1000, "sn")
     print(coarse, fine0, fine1, fine2)
     print(coarse, direction0, direction1, direction2)
 
@@ -664,18 +711,25 @@ def Ddr_Status():
 def init_ltc():
     Config_Ltc()
 
-def init_fda():
-    Config_Fda()
-    Seq_Dacs_Off()
-    Write_Sequence_Rng()
-    d = get_default()
-    Write_Angles(d['angle0'], d['angle1'], d['angle2'], d['angle3'])
-    t = get_tmp()
-    Write_Pm_Shift(t['pm_shift'])
-    Write_Pm_Mode(mode='seq64')
-
 def init_sync():
     Sync_Ltc()
+
+def init_fda():
+    Write_Sequence_Rng()
+    d = get_default()
+    t = get_tmp()
+    t['angle0'] = d['angle0']
+    t['angle1'] = d['angle1']
+    t['angle2'] = d['angle2']
+    t['angle3'] = d['angle3']
+    t['pm_shift'] = d['pm_shift']
+    t['pm_mode'] = 'off'
+    save_tmp(t)
+    Update_Angles()
+    Update_Dac()
+    Config_Fda()
+
+
 
 def init_sda():
     Config_Sda()
@@ -684,11 +738,15 @@ def init_jic():
     Config_Jic()
 
 def init_tdc():
-    Time_Calib_Reg(1, 0, 0, 0, 0, 0, 0)
-    Time_Calib_Init()
     d = get_default()
-    Write_Soft_Gates(
-            d['soft_gate0'], d['soft_gatew'], d['soft_gate1'], d['soft_gatew'])
+    t = get_tmp()
+    t['gate_delay'] = d['gate_delay']
+    t['soft_gate0'] = d['soft_gate0']
+    t['soft_gate1'] = d['soft_gate1']
+    t['soft_gatew'] = d['soft_gatew']
+    t['t0'] = d['t0']
+    Update_Softgate()
+    Time_Calib_Init()
 
 def init_ttl():
     ttl_reset()
@@ -696,15 +754,16 @@ def init_ttl():
     t['gate_delayf0'] = 0
     t['gate_delayf1'] = 0
     t['gate_delayf2'] = 0
-    save_tmp(t)
     d = get_default()
-    Gen_Gate(d['gate_delay'])
+    t['gate_delay'] = d['gate_delay']
+    save_tmp(t)
+    Gen_Gate()
 
 
 
 def init_rst_default():
     d = {}
-    t['pm_shift'] = 0
+    d['pm_shift'] = 0
     d['angle0'] = 0
     d['angle1'] = 0
     d['angle2'] = 0
@@ -713,23 +772,35 @@ def init_rst_default():
     d['soft_gate0'] = 20
     d['soft_gate1'] = 540
     d['soft_gatew'] = 60
-    t['t0'] = 0
+    d['t0'] = 0
     save_default(d)
 
 def init_rst_tmp():
     t = {}
     t['pm_mode'] = 'seq64'
+    t['pm_shift'] = 0
     t['feedback'] = 'off'
-    t['first_peak'] = 20
+    t['angle0'] = 0
+    t['angle1'] = 0
+    t['angle2'] = 0
+    t['angle3'] = 0
+    t['first_peak'] = 0
     t['gate_delayf0'] = 0
     t['gate_delayf1'] = 0
     t['gate_delayf2'] = 0
     t['spd_mode'] = 'continuous'
     t['spd_deadtime'] = 100
+    t['spd_eff'] = 20
     t['pol0'] = 0
     t['pol1'] = 0
     t['pol2'] = 0
     t['pol3'] = 0
+    t['gate_delay'] = 0
+    t['soft_gate'] = 'off'
+    t['soft_gate0'] = 0
+    t['soft_gate1'] = 0
+    t['soft_gatew'] = 0
+    t['t0'] = 0
     save_tmp(t)
 
 def init_all():
@@ -768,66 +839,64 @@ def main():
         elif args.rst_tmp:
             init_rst_tmp()
     def set(args):
-        if args.rng_mode:
-            angles = np.loadtxt("config/angles.txt", dtype=float)
-            d = get_default()
-            if args.rng_mode=='seq':
-                mode = 0
-            elif args.rng_mode=='fake_rng':
-                mode = 2
-            elif args.rng_mode=='true_rng':
-                mode = 3
-            t = get_tmp()
-            Write_Dac1_Shift(mode+(t['feedback']<<2), angles[0], angles[1], angles[2], angles[3], d['shift'])
-            t['rng_mode'] = mode
-            save_tmp(t)
+        if args.pm_mode:
+            update_tmp('pm_mode', args.pm_mode)
+            Update_Dac()
+        elif args.pm_shift is not None:
+            update_tmp('pm_shift', args.pm_shift)
+            Update_Dac()
         elif args.feedback:
-            angles = np.loadtxt("config/angles.txt", dtype=float)
-            d = get_default()
+            update_tmp('feedback', args.feedback)
+            Update_Dac()
+        elif args.angles:
             t = get_tmp()
-            if args.feedback=="on":
-                feedback = 1
-            elif args.feedback=="off":
-                feedback = 0
-            Write_Dac1_Shift(t['rng_mode']+(feedback<<2), angles[0], angles[1], angles[2], angles[3], d['shift'])
-            t['feedback'] = feedback
+            t['angle0'] = args.angles[0]
+            t['angle1'] = args.angles[1]
+            t['angle2'] = args.angles[2]
+            t['angle3'] = args.angles[3]
             save_tmp(t)
+            Update_Angles()
         elif args.spd_mode:
             print("opening SPD...")
             aurea = Aurea()
             if args.spd_mode=="free":
+                update_tmp('spd_mode', 'continuous')
                 aurea.mode("continuous")
             elif args.spd_mode=="gated":
-                d = get_default()
+                update_tmp('spd_mode', 'gated')
                 aurea.mode("gated")
-                Gen_Gate(d['gate_delay'])
         elif not (args.spd_deadtime==None):
             print("opening SPD...")
             aurea = Aurea()
             aurea.deadtime(args.spd_deadtime)
+            update_tmp('spd_deadtime', args.spd_deadtime)
         elif not (args.spd_eff==None):
             print("opening SPD...")
             aurea = Aurea()
             aurea.effi(int(args.spd_eff))
+            update_tmp('spd_eff', args.spd_eff)
         elif not (args.spd_delay==None):
             delay = int(args.spd_delay*1000)    # translate to ps
-            Gen_Gate(delay)
-            d = get_default()
-            d['gate_delay'] = delay
-            save_default(d)
-            print("gate pulse delay set to", delay/1000, "sn")
+            update_tmp('spd_delay', delay)
+            Gen_Gate()
         elif args.pol_bias is not None:
-            for ch,vol in enumerate(args.pol_bias):
-                if (vol>5 or vol <0):
-                    exit ("voltage not in the good range")
-                Set_vol(ch,vol)
+            t = get_tmp()
+            t['pol0'] = args.pol_bias[0]
+            t['pol1'] = args.pol_bias[0]
+            t['pol2'] = args.pol_bias[0]
+            t['pol3'] = args.pol_bias[0]
+            save_tmp(t)
+            Update_Pol()
         elif args.soft_gate_filter:
             Soft_Gate_Filter(args.soft_gate_filter)
+            update_tmp('soft_gate', args.soft_gate_filter)
         elif args.soft_gates:
-            g0 = args.soft_gates[0]
-            g1 = args.soft_gates[1]
-            w = args.soft_gates[2]
-            Set_Soft_Gates(g0, w, g1, w)
+            t = get_tmp()
+            t['soft_gate0'] = args.soft_gates[0]
+            t['soft_gate1'] = args.soft_gates[1]
+            t['soft_gatew'] = args.soft_gates[2]
+            save_tmp(t)
+            Update_Softgate()
 
     def get(args):
         if args.counts:
@@ -902,6 +971,8 @@ def main():
     parser_set.add_argument("--soft_gates", nargs=3, type=int, 
                             metavar=['gate0 gate1 width'],
                             help="set gate positions and width")
+    parser_set.add_argument("--pm_mode", choices=['seq64', 'seq64tight', 'fake_rng', 'true_rng'],
+                            help="fixed periodic sequece, fake rng or real rng")
     
     parser_set.add_argument("--pol_bias",nargs=4, type=float, metavar="V",  help="float [0,5] V")
     
@@ -909,6 +980,10 @@ def main():
                             help="get SPD counts")
     parser_get.add_argument("--time", type=int, metavar="num_counts",
                             help="download timestamps of spd clicks")
+    parser_set.add_argument("--angles", nargs=4, type=float, 
+                            help="float [-1,1]")
+    parser_set.add_argument("--pm_shift", type=int, metavar=("steps"), 
+                            help="time shift signal for phase modulator in steps of 1.25ns")
 
 
 ######### debug ###########

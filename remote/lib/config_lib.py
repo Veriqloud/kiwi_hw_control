@@ -43,9 +43,9 @@ def get_tmp():
     return : dictionary from config/tmp.txt
     """
     t = {}
-    floatlist = ['qdistance', 'pol0', 'pol1', 'pol2', 'pol3',
+    floatlist = ['qdistance', 'pol0', 'pol1', 'pol2', 'pol3', 'vca', 'am_bias',
                  'angle0', 'angle1', 'angle2', 'angle3']
-    strlist = ['spd_mode', 'am_pulse', 'pm_mode', 'feedback']
+    strlist = ['spd_mode', 'am_mode', 'pm_mode', 'feedback', 'soft_gate']
     with open("config/tmp.txt") as f:
         lines = f.readlines()
         for l in lines:
@@ -63,7 +63,7 @@ def get_tmp():
 def update_tmp(key, element):
     t = get_tmp()
     t[key] = element
-    save_tmp(element)
+    save_tmp(t)
 
 def write_to_dev(fd, offset, addr, array_of_u32):
     """ 
@@ -414,34 +414,35 @@ def WriteFPGA():
     print("Set JESD configuration for FPGA finished")
     file.close()
 
-def Write_Seqlist(seqlist):
+
+## write seq listst to dac for dpram operation
+def Write_To_Dac(seqlist_dac0, seqlist_dac1):
     Base_Addr = 0x00030000
     Write(Base_Addr + 16, 0x0000a0a0) #sequence64
     #Write data to dpram_dac0 and dpram_dac1
     Base_seq0 = Base_Addr + 0x1000  #Addr_axi_sequencer + addr_dpram
-    vals = []
-    for ele in seq_list:
-        vals.append(int(ele,0))
+    seqlist = seqlist_dac1*2**16 + seqlist_dac0
     fd = open("/dev/xdma0_user", 'r+b', buffering=0)
-    write_to_dev(fd, Base_seq0, 0, vals)
+    write_to_dev(fd, Base_seq0, 0, seqlist.tolist())
     fd.close()
 
 
-def Seq_Dacs_Off():
-    #Write dpram_max_addr port out 
-    Base_Addr = 0x00030000
-    Write(Base_Addr + 16, 0x0000a0a0) #sequence64
-    #Write data to dpram_dac0 and dpram_dac1
-    Base_seq0 = Base_Addr + 0x1000  #Addr_axi_sequencer + addr_dpram
-    seq_list = gen_seq.seq_dacs_off() 
 
-    vals = []
-    for ele in seq_list:
-        vals.append(int(ele,0))
-
-    fd = open("/dev/xdma0_user", 'r+b', buffering=0)
-    write_to_dev(fd, Base_seq0, 0, vals)
-    fd.close()
+#def Seq_Dacs_Off():
+#    #Write dpram_max_addr port out 
+#    Base_Addr = 0x00030000
+#    Write(Base_Addr + 16, 0x0000a0a0) #sequence64
+#    #Write data to dpram_dac0 and dpram_dac1
+#    Base_seq0 = Base_Addr + 0x1000  #Addr_axi_sequencer + addr_dpram
+#    seq_list = gen_seq.seq_dacs_off() 
+#
+#    vals = []
+#    for ele in seq_list:
+#        vals.append(int(ele,0))
+#
+#    fd = open("/dev/xdma0_user", 'r+b', buffering=0)
+#    write_to_dev(fd, Base_seq0, 0, vals)
+#    fd.close()
 
 
 def Write_Sequence_Rng():
@@ -531,8 +532,10 @@ def Write_Pm_Shift(shift):
     division_sp = hex(1000)
     Write(Base_Addr + 4, shift_hex_up_offset)
     Write(Base_Addr + 32, division_sp)
+    #Trigger for switching domain
+    Write(Base_Addr + 12,0x1)
+    Write(Base_Addr + 12,0x0)
     print("pm_shift written: ", shift)
-    update_tmp('pm_shift', shift)
 
 
 def Write_Angles(a0, a1, a2, a3):
@@ -553,12 +556,6 @@ def Write_Angles(a0, a1, a2, a3):
     Write(Base_Addr + 12,0x1)
     Write(Base_Addr + 12,0x0)
     print("angles written: ", a0, a1, a2, a3)
-    t = get_tmp()
-    t['angle0'] = a0
-    t['angle1'] = a1
-    t['angle2'] = a2
-    t['angle3'] = a3
-    save_tmp(t)
 
 #Read back the FGPA registers configured for JESD
 def ReadFPGA():
@@ -896,3 +893,15 @@ def Time_Calib_Init():
     Config_Tdc() #Get digital data from TDC chip
     Reset_gc() #Reset global counter
     Start_gc() #Global counter start counting at the next PPS
+
+#def Write_Seqlist_old(seqlist):
+#    Base_Addr = 0x00030000
+#    Write(Base_Addr + 16, 0x0000a0a0) #sequence64
+#    #Write data to dpram_dac0 and dpram_dac1
+#    Base_seq0 = Base_Addr + 0x1000  #Addr_axi_sequencer + addr_dpram
+#    vals = []
+#    for ele in seq_list:
+#        vals.append(int(ele,0))
+#    fd = open("/dev/xdma0_user", 'r+b', buffering=0)
+#    write_to_dev(fd, Base_seq0, 0, vals)
+#    fd.close()

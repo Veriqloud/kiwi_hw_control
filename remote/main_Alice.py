@@ -56,22 +56,39 @@ def Start_gc():
     print("Global counter starts counting up from some pps")
 
     
+    
+def Update_Dac():
+    t = get_tmp()
+    if t['am_mode'] == 'off':
+        dac0 = gen_seq.dac0_off(64)
+    elif t['am_mode'] == 'single':
+        dac0 = gen_seq.dac0_single(64, t['am_shift'])
+    elif t['am_mode'] == 'double':
+        dac0 = gen_seq.dac0_double(64, t['qdistance'], t['am_shift'])
 
-def Gen_Sp(shift_am):
-    seqlist = gen_seq.seq_dacs_sp(2, [-0.95,0.95], 64,0,shift_am) # am: double pulse, pm: seq64
-    Write_Seqlist(seqlist)
-    print("Set sequence sp for dpram_dac0 and seq64 for dpram_dac1")
-    Write_Pm_Mode('seq64')
+    if t['pm_mode'] == 'off':
+        dac1 = gen_seq.dac1_sample(np.zeros(64), t['pm_shift'])
+    elif t['pm_mode'] == 'seq64':
+        Write_Pm_Mode('seq64')
+        dac1 = gen_seq.dac1_sample(gen_seq.lin_seq_2(), t['pm_shift'])
+    elif t['pm_mode'] == 'seq64tight':
+        Write_Pm_Mode('seq64')
+        dac1 = gen_seq.dac1_sample_tight(gen_seq.lin_seq_2(), t['pm_shift'])
+    elif t['pm_mode'] == 'fake_rng':
+        Write_Pm_Mode('fake_rng')
+        dac1 = gen_seq.dac1_sample(np.zeros(64), 0)
+    elif t['pm_mode'] == 'true_rng':
+        Write_Pm_Mode('true_rng')
+        dac1 = gen_seq.dac1_sample(np.zeros(64), 0)
+    
+    Write_To_Dac(dac0, dac1)
+    Write_Pm_Shift(t['pm_shift'])
+    print("Updated Dac sequence")
+    
 
-def Gen_Dp(shift_am, qdistance):
-    seqlist = gen_seq.seq_dacs_dp(2, [-1+qdistance,1-qdistance], 64,0,0,shift_am) # am: double pulse, pm: seq64
-    Write_Seqlist(seqlist)
-    Write_Pm_Mode('seq64')
-    print("Set sequence dp for dpram_dac0 and seq64 for dpram_dac1")
-
-#def Verify_Shift_B(party,shift_am):
-#    Write_Dac1_Shift(2,0,0,0,0,0)
-#    print("Set phase of PM to zero")
+def Update_Angles():
+    t = get_tmp()
+    Write_Angles(t['angle0'], t['angle1'], t['angle2'], t['angle3'])
 
 
 def Verify_Shift_A(party, shift_pm, shift_am):
@@ -518,17 +535,26 @@ def Ddr_Status():
 def init_ltc():
     Config_Ltc()
 
-def init_fda():
-    Config_Fda()
-    Seq_Dacs_Off()
-    Write_Sequence_Rng()
-    d = get_default()
-    Write_Angles(d['angle0'], d['angle1'], d['angle2'], d['angle3'])
-    Write_Pm_Shift(d['pm_shift'])
-    Write_Pm_Mode(mode='seq64')
-
 def init_sync():
     Sync_Ltc()
+
+def init_fda():
+    Write_Sequence_Rng()
+    d = get_default()
+    t = get_tmp()
+    t['angle0'] = d['angle0']
+    t['angle1'] = d['angle1']
+    t['angle2'] = d['angle2']
+    t['angle3'] = d['angle3']
+    t['am_shift'] = d['am_shift']
+    t['pm_shift'] = d['pm_shift']
+    t['am_mode'] = 'off'
+    t['pm_mode'] = 'off'
+    t['qdistance'] = d['qdistance']
+    save_tmp(t)
+    Update_Angles()
+    Update_Dac()
+    Config_Fda()
 
 def init_sda():
     Config_Sda()
@@ -540,9 +566,9 @@ def init_rst_default():
     d = {}
     d['vca'] = 4
     d['qdistance'] = 0.08
-    t['am_bias'] = 0
-    t['am_shift'] = 0
-    t['pm_shift'] = 0
+    d['am_bias'] = 0
+    d['am_shift'] = 0
+    d['pm_shift'] = 0
     d['angle0'] = 0
     d['angle1'] = 0
     d['angle2'] = 0
@@ -551,14 +577,18 @@ def init_rst_default():
 
 def init_rst_tmp():
     t = {}
-    t['am_pulse'] = 'off'
+    t['am_mode'] = 'off'
+    t['am_shift'] = 0
     t['pm_mode'] = 'seq64'
+    t['pm_shift'] = 0
     t['vca'] = 0
     t['am_bias'] = 0
     t['angle0'] = 0
     t['angle1'] = 0
     t['angle2'] = 0
     t['angle3'] = 0
+    t['qdistance'] = 0
+
     save_tmp(t)
 
 def init_all():
@@ -590,46 +620,28 @@ def main():
         elif args.am_bias is not None:
             Set_Am_Bias(args.am_bias)
         elif args.qdistance is not None:
-            t = get_tmp()
-            Gen_Dp(t['am_shift'], args.qdistance)
             update_tmp('qdistance', args.qdistance)
+            Update_Dac()
         elif args.pm_mode:
-            t = get_tmp()
-            Write_Pm_Mode(args.pm_mode, t['feedback'])
+            update_tmp('pm_mode', args.pm_mode)
+            Update_Dac()
+        elif args.pm_shift is not None:
+            update_tmp('pm_shift', args.pm_shift)
+            Update_Dac()
         elif args.am_shift is not None:
+            update_tmp('am_shift', args.am_shift)
+            Update_Dac()
+        elif args.am_mode:
+            update_tmp('am_mode', args.am_mode)
+            Update_Dac()
+        elif args.angles:
             t = get_tmp()
-            t['am_shift'] = args.am_shift
+            t['angle0'] = args.angles[0]
+            t['angle1'] = args.angles[1]
+            t['angle2'] = args.angles[2]
+            t['angle3'] = args.angles[3]
             save_tmp(t)
-            if t['am_pulse']=='single':
-                Gen_Sp(t['am_shift'])
-            else:
-                Gen_Dp(t['am_shift'], t['qdistance'])
-        elif args.am_pulse:
-            t = get_tmp()
-            if args.am_pulse=='single':
-                Gen_Sp(t['am_shift'])
-                t['am_pulse'] = 'single'
-                save_tmp(t)
-            elif args.am_pulse=='double':
-                Gen_Dp(t['am_shift'], t['qdistance'])
-                t['am_pulse'] = 'double'
-                save_tmp(t)
-            elif args.am_pulse=='off':
-                t['am_pulse'] = 'off'
-                Write_Sequence_Dacs('off_am')
-                save_tmp(t)
-
-        elif args.feedback:
-            angles = np.loadtxt("config/angles.txt", dtype=float)
-            d = get_default()
-            t = get_tmp()
-            if args.feedback=="on":
-                feedback = 1
-            elif args.feedback=="off":
-                feedback = 0
-            Write_Dac1_Shift(t['rng_mode']+(feedback<<2), angles[0], angles[1], angles[2], angles[3], d['shift'])
-            t['feedback'] = feedback
-            save_tmp(t)
+            Update_Angles()
 
 
 
@@ -665,18 +677,19 @@ def main():
                             help="voltage controlled attenuator; float [0,5] V")
     parser_set.add_argument("--am_bias", type=float, metavar=("voltage"), 
                             help="bias of amplitude modulator; float [-10,10] V")
-    parser_set.add_argument("--am_pulse", choices=['off', 'single', 'double'],
+    parser_set.add_argument("--am_mode", choices=['off', 'single', 'double'],
                             help="send single pulse or double pulse")
     parser_set.add_argument("--am_shift", type=int, metavar=("steps"), 
                             help="time shift pulse generation in steps of 1.25ns")
+    parser_set.add_argument("--pm_shift", type=int, metavar=("steps"), 
+                            help="time shift signal for phase modulator in steps of 1.25ns")
     parser_set.add_argument("--qdistance", type=float, metavar="value", 
                             help="fine tune double pulse separation; float [0,0.5]; good value is 0.08")
-    parser_set.add_argument("--pm_mode", choices=['seq', 'fake_rng', 'true_rng'],
+    parser_set.add_argument("--pm_mode", choices=['seq64', 'seq64tight', 'fake_rng', 'true_rng'],
                             help="fixed periodic sequece, fake rng or real rng")
+    parser_set.add_argument("--angles", nargs=4, type=float,
+                            help="float [-1,1]")
     
-    parser_set.add_argument("--feedback", choices=['on', 'off'], 
-                            help="balance interferometer")
-
     #parser_alice.add_argument("--init",action="store_true",help="initialize Alice")
 
 
