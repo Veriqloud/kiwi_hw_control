@@ -719,13 +719,17 @@ def init_rst_default():
 def init_rst_tmp():
     t = {}
     t['pm_mode'] = 'seq64'
-    t['feedback'] = 0
+    t['feedback'] = 'off'
     t['first_peak'] = 20
     t['gate_delayf0'] = 0
     t['gate_delayf1'] = 0
     t['gate_delayf2'] = 0
     t['spd_mode'] = 'continuous'
     t['spd_deadtime'] = 100
+    t['pol0'] = 0
+    t['pol1'] = 0
+    t['pol2'] = 0
+    t['pol3'] = 0
     save_tmp(t)
 
 def init_all():

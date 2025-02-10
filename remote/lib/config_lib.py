@@ -3,12 +3,18 @@ import subprocess, time, mmap
 import lib.gen_seq as gen_seq
 
 def save_default(data):
+    """
+    data : dictionary to be saved to config/tmp.txt
+    """
     with open("config/default.txt", 'w') as f:
         f.write("# tab separated\n")
         for i in data.items():
             f.write(i[0]+"\t"+str(i[1])+"\n")
 
 def get_default():
+    """
+    return : dictionary from config/default.txt
+    """
     d = {}
     floatlist = ['vca', 'am_bias', 'qdistance', 
                  'angle0', 'angle1', 'angle2', 'angle3']
@@ -25,13 +31,20 @@ def get_default():
     return d
 
 def save_tmp(data):
+    """
+    data : dictionary to be saved to config/tmp.txt
+    """
     with open("config/tmp.txt", 'w') as f:
         for i in data.items():
             f.write(i[0]+"\t"+str(i[1])+"\n")
 
 def get_tmp():
+    """
+    return : dictionary from config/tmp.txt
+    """
     t = {}
-    floatlist = ['qdistance']
+    floatlist = ['qdistance', 'pol0', 'pol1', 'pol2', 'pol3',
+                 'angle0', 'angle1', 'angle2', 'angle3']
     strlist = ['spd_mode', 'am_pulse', 'pm_mode', 'feedback']
     with open("config/tmp.txt") as f:
         lines = f.readlines()
@@ -46,6 +59,11 @@ def get_tmp():
             else:
                 t[key] = int(value) 
     return t
+
+def update_tmp(key, element):
+    t = get_tmp()
+    t[key] = element
+    save_tmp(element)
 
 def write_to_dev(fd, offset, addr, array_of_u32):
     """ 
@@ -503,6 +521,7 @@ def Write_Pm_Mode(mode='seq64', feedback='off'):
     #Trigger for switching domain
     Write(Base_Addr + 12,0x1)
     Write(Base_Addr + 12,0x0)
+    update_tmp('pm_mode', mode)
 
 def Write_Pm_Shift(shift):
     Base_Addr = 0x00030000
@@ -513,6 +532,7 @@ def Write_Pm_Shift(shift):
     Write(Base_Addr + 4, shift_hex_up_offset)
     Write(Base_Addr + 32, division_sp)
     print("pm_shift written: ", shift)
+    update_tmp('pm_shift', shift)
 
 
 def Write_Angles(a0, a1, a2, a3):
@@ -533,6 +553,12 @@ def Write_Angles(a0, a1, a2, a3):
     Write(Base_Addr + 12,0x1)
     Write(Base_Addr + 12,0x0)
     print("angles written: ", a0, a1, a2, a3)
+    t = get_tmp()
+    t['angle0'] = a0
+    t['angle1'] = a1
+    t['angle2'] = a2
+    t['angle3'] = a3
+    save_tmp(t)
 
 #Read back the FGPA registers configured for JESD
 def ReadFPGA():

@@ -15,9 +15,11 @@ def Set_Vca(voltage):
         print("Voltage out of range. Choose a value between 0 and 5")
         exit()
     Set_vol(7, voltage)
+    update_tmp('vca', voltage)
 
 def Set_Am_Bias(voltage):
     Set_vol(4, voltage)
+    update_tmp('am_bias', voltage)
 
 
 def Config_Fda():
@@ -522,8 +524,7 @@ def init_fda():
     Write_Sequence_Rng()
     d = get_default()
     Write_Angles(d['angle0'], d['angle1'], d['angle2'], d['angle3'])
-    t = get_tmp()
-    Write_Pm_Shift(t['pm_shift'])
+    Write_Pm_Shift(d['pm_shift'])
     Write_Pm_Mode(mode='seq64')
 
 def init_sync():
@@ -531,10 +532,9 @@ def init_sync():
 
 def init_sda():
     Config_Sda()
-    t = get_tmp()
     d = get_default()
     Set_Vca(d['vca'])
-    Set_Am_Bias(t['am_bias'])
+    Set_Am_Bias(d['am_bias'])
 
 def init_rst_default():
     d = {}
@@ -553,6 +553,12 @@ def init_rst_tmp():
     t = {}
     t['am_pulse'] = 'off'
     t['pm_mode'] = 'seq64'
+    t['vca'] = 0
+    t['am_bias'] = 0
+    t['angle0'] = 0
+    t['angle1'] = 0
+    t['angle2'] = 0
+    t['angle3'] = 0
     save_tmp(t)
 
 def init_all():
@@ -579,28 +585,17 @@ def main():
         elif args.rst_tmp:
             init_rst_tmp()
     def set(args):
-        if not(args.vca==None):
+        if args.vca is not None:
             Set_Vca(args.vca)
-        elif not(args.am_bias == None):
+        elif args.am_bias is not None:
             Set_Am_Bias(args.am_bias)
-        elif not(args.qdistance==None):
+        elif args.qdistance is not None:
             t = get_tmp()
             Gen_Dp(t['am_shift'], args.qdistance)
-            t['qdistance'] = args.qdistance
-            save_tmp(t)
-        elif args.rng_mode:
-            angles = np.loadtxt("config/angles.txt", dtype=float)
-            d = get_default()
-            if args.rng_mode=='seq':
-                mode = 0
-            elif args.rng_mode=='fake_rng':
-                mode = 2
-            elif args.rng_mode=='true_rng':
-                mode = 3
+            update_tmp('qdistance', args.qdistance)
+        elif args.pm_mode:
             t = get_tmp()
-            Write_Dac1_Shift(mode+(t['feedback']<<2), angles[0], angles[1], angles[2], angles[3], d['shift'])
-            t['rng_mode'] = mode
-            save_tmp(t)
+            Write_Pm_Mode(args.pm_mode, t['feedback'])
         elif args.am_shift is not None:
             t = get_tmp()
             t['am_shift'] = args.am_shift
@@ -676,7 +671,7 @@ def main():
                             help="time shift pulse generation in steps of 1.25ns")
     parser_set.add_argument("--qdistance", type=float, metavar="value", 
                             help="fine tune double pulse separation; float [0,0.5]; good value is 0.08")
-    parser_set.add_argument("--rng_mode", choices=['seq', 'fake_rng', 'true_rng'],
+    parser_set.add_argument("--pm_mode", choices=['seq', 'fake_rng', 'true_rng'],
                             help="fixed periodic sequece, fake rng or real rng")
     
     parser_set.add_argument("--feedback", choices=['on', 'off'], 
