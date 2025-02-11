@@ -1,37 +1,30 @@
 #!/bin/python
 import numpy as np, matplotlib.pyplot as plt
 
-time = np.loadtxt("time.txt", usecols=1)
-time = time%1250
+#names = ['single.txt', 'double.txt', 'off.txt', 'softgate.txt']
+names = ['verify_gate_off.txt', 'verify_gate_double.txt']
 
-time2 = np.loadtxt("time2.txt", usecols=1)
-time2 = time2%1250
+time = []
+hist = []
+bins = np.arange(0, 1251, 2) - 1
+for name in names:
+    t = np.loadtxt(name, usecols=1)
+    t = t%1250
+    h, b = np.histogram(t, bins=bins)
+    hist.append(h)
 
-time3 = np.loadtxt("time3.txt", usecols=1)
-time3 = time3%1250
 
-time4 = np.loadtxt("time4.txt", usecols=1)
-time4 = time4%1250
 
-y,b = np.histogram(time, bins=500)
-y2,b = np.histogram(time2, bins=b)
-y3,b = np.histogram(time3, bins=b)
-y4,b = np.histogram(time4, bins=b)
+for h in hist:
+    plt.plot(bins[:-1]+1, h)
 
-plt.plot(b[:-1], y, 'blue')
-plt.plot(b[:-1], y2, 'green')
-plt.plot(b[:-1], y3, 'red')
-plt.plot(b[:-1], y4, 'orange')
-plt.vlines([625], [0], [np.max(y)], 'black')
+plt.axvline(625, color= 'black')
+plt.axvline(20, color= 'red')
+plt.axvline(80, color= 'red')
+plt.axvline(530, color= 'red')
+plt.axvline(590, color= 'red')
 plt.ylim(0)
 plt.show()
 
 
-#time = np.loadtxt("../time.txt", usecols=1)
-#time = time%1250
-#
-#y,b = np.histogram(time, bins=500)
-#
-#plt.plot(b[:-1], y)
-#plt.show()
 

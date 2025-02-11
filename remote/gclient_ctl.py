@@ -6,7 +6,7 @@ import struct  # For unpacking data size
 import subprocess, sys, argparse
 import numpy as np
 import gmain as main
-from lib.config_lib import get_tmp, save_tmp
+from lib.config_lib import get_tmp, save_tmp, update_tmp
 
 
 # Client configuration
@@ -62,15 +62,24 @@ def client_start(commands_in):
                 #1.Send single pulse, am_shift 0
                 update_tmp('am_shift', 0)
                 update_tmp('am_mode', 'single')
-                Update_Dac()
+                main.Update_Dac()
                 #2. Receive am_shift value from Bob
                 global int_shift_am_rcv
                 shift_am_rcv = client_socket.recv(4)
                 am_shift = int.from_bytes(shift_am_rcv, byteorder='big')
-                update_tmp['am_shift'] = am_shift
-                Update_Dac()
+                update_tmp('am_shift', am_shift)
+                main.Update_Dac()
                 #cmd = 'ss_done'
                 #client_socket.sendall(cmd.encode())
+
+            elif command == 'verify_gates':
+                update_tmp('am_mode', 'off')
+                main.Update_Dac()
+                print(client_socket.recv(4))
+                update_tmp('am_mode', 'double')
+                main.Update_Dac()
+
+
 
             elif command == 'fs_b':
                 lines = np.loadtxt("data/var.txt",usecols=0)

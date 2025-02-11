@@ -93,7 +93,6 @@ def Gen_Gate():
     fine1_abs = int((delay_au%(fine_max*3)) >= fine_max) * fine_max
     fine2_abs = int((delay_au%(fine_max*3)) >= 2*fine_max) * fine_max
 
-    t = get_tmp()
 
     fine0 = fine0_abs - t['gate_delayf0']
     direction0 = 1 if fine0 > 0 else 0
@@ -148,6 +147,7 @@ def Download_Time(num_clicks, fileprefix="time"):
 
 
 def Measure_Sp(num_clicks=20000):
+    t = get_tmp()
     if (t['spd_mode'] == 'gated') or (t['spd_deadtime']!=100):
         aurea = Aurea()
         aurea.mode("continuous")
@@ -760,8 +760,13 @@ def init_tdc():
     t['soft_gate1'] = d['soft_gate1']
     t['soft_gatew'] = d['soft_gatew']
     t['t0'] = d['t0']
+    t['spd_deadtime'] = d['deadtime_cont']
+    save_tmp(t)
     Update_Softgate()
     Time_Calib_Init()
+    aurea = Aurea()
+    aurea.deadtime(t['spd_deadtime'])
+    aurea.mode("continuous")
 
 def init_ttl():
     ttl_reset()
@@ -783,11 +788,13 @@ def init_rst_default():
     d['angle1'] = 0
     d['angle2'] = 0
     d['angle3'] = 0
-    d['gate_delay'] = 6500
+    d['gate_delay'] = 6000
     d['soft_gate0'] = 20
-    d['soft_gate1'] = 540
+    d['soft_gate1'] = 530
     d['soft_gatew'] = 60
     d['t0'] = 0
+    d['deadtime_cont'] = 20
+    d['deadtime_gated'] = 10
     save_default(d)
 
 def init_rst_tmp():
@@ -891,8 +898,8 @@ def main():
             aurea.effi(int(args.spd_eff))
             update_tmp('spd_eff', args.spd_eff)
         elif not (args.spd_delay==None):
-            delay = int(args.spd_delay*1000)    # translate to ps
-            update_tmp('spd_delay', delay)
+            delay = args.spd_delay    # translate to ps
+            update_tmp('gate_delay', delay)
             Gen_Gate()
         elif args.pol_bias is not None:
             t = get_tmp()
@@ -903,8 +910,8 @@ def main():
             save_tmp(t)
             Update_Pol()
         elif args.soft_gate_filter:
-            Soft_Gate_Filter(args.soft_gate_filter)
             update_tmp('soft_gate', args.soft_gate_filter)
+            Update_Softgate()
         elif args.soft_gates:
             t = get_tmp()
             t['soft_gate0'] = args.soft_gates[0]
@@ -975,8 +982,8 @@ def main():
                             help="balance interferometer")
     parser_set.add_argument("--spd_mode", choices=['free', 'gated'], 
                             help="free running or gated")
-    parser_set.add_argument("--spd_delay", type=float, metavar="time",  
-                            help="delay time in ns [range..]")
+    parser_set.add_argument("--spd_delay", type=int, metavar="time",  
+                            help="delay time in ps")
     parser_set.add_argument("--spd_deadtime", type=float, metavar="time",
                             help="dead time in us; recommended: 15us for gated; 50us for freerunning")
     parser_set.add_argument("--spd_eff", choices=['10', '20', '30'], 

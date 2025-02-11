@@ -8,7 +8,7 @@ import subprocess, sys, argparse
 import numpy as np
 from lib.Aurea import Aurea
 import gmain as main
-from lib.config_lib import get_tmp, save_tmp, Set_t0
+from lib.config_lib import get_tmp, save_tmp, update_tmp, Set_t0
 
 
 
@@ -61,7 +61,7 @@ try:
         elif command == 'find_sp':
             t = get_tmp()
             update_tmp('t0', 10) #to have some space to the left
-            Update_Softgate()
+            main.Update_Softgate()
 
             #1.detection single pulse at shift_am 0
             global ret_shift_am
@@ -72,6 +72,21 @@ try:
             #2. send back shift_am value to alice
             conn.sendall(shift_am.to_bytes(4,byteorder='big'))
             response = "Gen_Sp 2 rounds done"
+
+        elif command == 'verify_gates':
+            t = get_tmp()
+            update_tmp('soft_gate', 'off')
+            main.Update_Softgate()
+            aurea = Aurea()
+            aurea.mode("gated")
+            main.Download_Time(10000, 'verify_gate_off')
+            conn.sendall("done".encode())
+            main.Download_Time(10000, 'verify_gate_double')
+            aurea.mode("continuous")
+            update_tmp('spd_mode', 'continous')
+            response = "Verify gates done"
+
+
 
         elif command == 'fs_b':
             lines = np.loadtxt("data/var.txt",usecols=0)

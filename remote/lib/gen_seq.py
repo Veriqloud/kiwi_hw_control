@@ -24,6 +24,7 @@ def dac0_off(cycle_num):
 
 def dac0_single(cycle_num, shift):
     cycle_num = cycle_num // 2
+    shift = shift + 2
     transition = np.array([-1, np.sin(-np.pi/4), 0, np.sin(np.pi/4), 1])
     rest = np.linspace(1, -1, 20-len(transition))
     seq0 = np.zeros(20)
@@ -33,11 +34,8 @@ def dac0_single(cycle_num, shift):
     seqs = np.zeros(cycle_num * 20)
     for i in range(cycle_num):
         seq[i*20:i*20+20] = seq0
-    if shift:
-        seqs[shift:] = seq[:-shift]
-        seqs[:shift] = seq[-shift:]
-    else:
-        seqs = seq
+    seqs[shift:] = seq[:-shift]
+    seqs[:shift] = seq[-shift:]
     return np.array(seqs*32767 + 32768, dtype=int)
 
 def dac0_double(cycle_num, distance, shift):
