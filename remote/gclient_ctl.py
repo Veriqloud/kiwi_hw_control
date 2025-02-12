@@ -82,31 +82,31 @@ def client_start(commands_in):
 
 
             elif command == 'fs_b':
-                lines = np.loadtxt("data/var.txt",usecols=0)
-                int_shift_am_rcv = int(lines[1])
-                main.Verify_Shift_B('alice',int_shift_am_rcv)
+                t = get_tmp()
+                t['am_mode'] = 'double'
+                t['pm_mode'] = 'off'
+                save_tmp(t)
+                Update_Dac()
 
             elif command == 'fs_a':
-                lines = np.loadtxt("data/var.txt",usecols=0)
-                int_shift_am_rcv = int(lines[1])
-                for i in range(10):
-                    main.Verify_Shift_A('alice',i,int_shift_am_rcv)
-                    # main.Verify_Shift_A('alice',i,2)
-                    #tell bob setting is done on alice
+                t = get_tmp()
+                t['am_mode'] = 'double'
+                t['pm_mode'] = 'seq64'
+                for s in range(10):
+                    t['pm_shift'] = s
+                    save_tmp(t)
+                    Update_Dac()
                     cmd = 'shift_done'
                     client_socket.sendall(cmd.encode())
-                    #Receive detection done from Bob
                     cmd_rcv = client_socket.recv(4)
                     int_cmd_rcv = int.from_bytes(cmd_rcv,byteorder='big')
                     print(int_cmd_rcv) #should return 7
-                #Receive shift_pm value from bob and write it to var file
-                shift_pm_rcv = client_socket.recv(4)
-                int_shift_pm_rcv = int.from_bytes(shift_pm_rcv,byteorder='big')
-                print("Received shift_pm from bob: ", int_shift_pm_rcv)
-                #Save best shift of Alice reveiced from Bob to var file
-                lines = np.loadtxt("data/var.txt",dtype=str,encoding='utf-8')
-                lines[2] = str(int_shift_pm_rcv)
-                np.savetxt("data/var.txt",lines,fmt="%s",encoding='utf-8')
+                pm_shift_rcv = client_socket.recv(4)
+                pm_shift = int.from_bytes(pm_shift_rcv, byteorder='big')
+                print("Received shift_pm from bob: ", pm_shift)
+                update_tmp('pm_shift', pm_shift)
+                Update_Dac()
+
 
             elif command == 'fd_b':
                 main.Write_Dac1_Shift(2,0,0,0,0,0)

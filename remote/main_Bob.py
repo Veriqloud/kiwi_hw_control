@@ -185,17 +185,17 @@ def Verify_Gates(num_clicks=20000):
     Update_Dac()
     Download_Time(num_clicks, "histogram_dp")
 
-def Verify_Shift_B():
-    for i in range(10):
-        Seq64(shift_pm=i)
-        Write_Pm_Mode(seq='seq64')
-
-        # print("Set seq64 for PM, shift value from find_shift")
-        print("Get detection result")
-        Get_Stream(0x00000000+40,'/dev/xdma0_c2h_2','data/tdc/pm_b_shift_'+str(i+1)+'.bin',40000)
-    for i in range(10):
-        command ="test_tdc/tdc_bin2txt data/tdc/pm_b_shift_"+str(i+1)+".bin data/tdc/pm_b_shift_"+str(i+1)+".txt"
-        s = subprocess.check_call(command, shell = True)
+#def Verify_Shift_B():
+#    for i in range(10):
+#        Seq64(shift_pm=i)
+#        Write_Pm_Mode(seq='seq64')
+#
+#        # print("Set seq64 for PM, shift value from find_shift")
+#        print("Get detection result")
+#        Get_Stream(0x00000000+40,'/dev/xdma0_c2h_2','data/tdc/pm_b_shift_'+str(i+1)+'.bin',40000)
+#    for i in range(10):
+#        command ="test_tdc/tdc_bin2txt data/tdc/pm_b_shift_"+str(i+1)+".bin data/tdc/pm_b_shift_"+str(i+1)+".txt"
+#        s = subprocess.check_call(command, shell = True)
 
 
 def Verify_Shift_A(party, shift_pm, shift_am):

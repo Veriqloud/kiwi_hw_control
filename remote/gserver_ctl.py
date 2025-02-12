@@ -89,31 +89,37 @@ try:
 
 
         elif command == 'fs_b':
-            lines = np.loadtxt("data/var.txt",usecols=0)
-            ret_shift_am = int(lines[0])
-            main.Verify_Shift_B('bob',ret_shift_am)
-            ret_shift_pm_b = main.Find_Best_Shift('bob')
-            #Write best shift on Bob to var file
-            lines = np.loadtxt("data/var.txt",dtype=str,encoding='utf-8')
-            lines[2] = str(ret_shift_pm_b)
-            np.savetxt("data/var.txt",lines,fmt="%s",encoding='utf-8')
+            t = get_tmp()
+            t['pm_mode'] = 'seq64'
+            t['feedback'] = 'off'
+            if t['spd_mode'] == 'continuous':
+                aurea = Aurea()
+                aurea.mode('gated')
+                t['spd_mode'] = 'gated'
+            for s in range(10):
+                t['pm_shift'] = s
+                save_tmp(t)
+                Update_Dac()
+                Download_Time(10000, 'pm_b_shift_'+str(s))
+            pm_shift = main.Find_Best_Shift('bob')
+            update_tmp('pm_shift', pm_shift)
             response = "Find Shift Bob done"
        
         elif command == 'fs_a':
-            lines = np.loadtxt("data/var.txt",usecols=0)
-            ret_shift_am = int(lines[0])
-            for i in range(10):
+            t = get_tmp()
+            t['pm_mode'] = 'off'
+            t['feedback'] = 'off'
+            save_tmp()
+            Update_Dac()
+            for s in range(10):
                 cmd = conn.recv(BUFFER_SIZE).decode().strip()
                 if cmd == 'shift_done':
-                    time.sleep(1)
-                    main.Verify_Shift_A('bob',i,ret_shift_am)
-                    #Send command 7 to tell detection for 1 round is done
+                    Download_Time(10000, 'pm_a_shift_'+str(s))
                     cmd = int(7)
                     conn.sendall(cmd.to_bytes(4,byteorder='big'))
-            ret_shift_pm_a = main.Find_Best_Shift('alice')
-            #Send back shift_pm value to alice
-            conn.sendall(ret_shift_pm_a.to_bytes(4,byteorder='big'))
-            #Response end of command
+
+            pm_shift = main.Find_Best_Shift('alice')
+            conn.sendall(pm_shift.to_bytes(4,byteorder='big'))
             response = 'Find shift alice done'
        
         elif command == 'fd_b':
