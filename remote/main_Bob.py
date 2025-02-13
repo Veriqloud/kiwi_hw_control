@@ -10,6 +10,29 @@ import lib.cal_lib as cal_lib
 from lib.config_lib import *
 from lib.Aurea import Aurea
 
+def Ensure_Spd_Mode(mode):
+    deadtime_cont = 20
+    deadtime_gated = 15
+    t = get_tmp()
+    if mode=='continuous':
+        if (t['spd_mode'] != 'continuous') or (t['spd_deadtime']!=deadtime_cont):
+            aurea = Aurea()
+            aurea.mode("continuous")
+            aurea.deadtime(deadtime_cont)
+            aurea.close()
+            t['spd_mode'] = 'continuous'
+            t['spd_deadtime'] = deadtime_cont
+    elif mode=='gated':
+        if (t['spd_mode'] != 'gated') or (t['spd_deadtime']!=deadtime_gated):
+            aurea = Aurea()
+            aurea.mode("gated")
+            aurea.deadtime(deadtime_gated)
+            aurea.close()
+            t['spd_mode'] = 'gated'
+            t['spd_deadtime'] = deadtime_gated
+    else:
+        exit("wrong mode")
+    save_tmp(t)
 
 def Update_Dac():
     # update from tmp.txt
@@ -35,7 +58,6 @@ def Update_Dac():
     
     Write_To_Dac(dac0, dac1)
     Write_Pm_Shift(t['pm_shift'])
-    print("Updated Dac sequence")
 
 def Update_Angles():
     t = get_tmp()
@@ -116,9 +138,9 @@ def Gen_Gate():
     t['gate_delayf2'] = fine2_abs
     save_tmp(t)
 
-    print("gate pulse delay set to", delay/1000, "sn")
-    print(coarse, fine0, fine1, fine2)
-    print(coarse, direction0, direction1, direction2)
+    #print("gate pulse delay set to", delay/1000, "sn")
+    #print(coarse, fine0, fine1, fine2)
+    #print(coarse, direction0, direction1, direction2)
 
 
 
@@ -147,13 +169,7 @@ def Download_Time(num_clicks, fileprefix="time"):
 
 
 def Measure_Sp(num_clicks=20000):
-    t = get_tmp()
-    if (t['spd_mode'] == 'gated') or (t['spd_deadtime']!=100):
-        aurea = Aurea()
-        aurea.mode("continuous")
-        aurea.deadtime(100)
-        update_tmp('spd_mode', 'continuous')
-        update_tmp('spd_deadtime', 100)
+    Ensure_Spd_Mode('continuous')
     Download_Time(num_clicks, fileprefix="histogram_sp")
     ref_time = np.loadtxt("data/tdc/histogram_sp.txt",usecols=1,unpack=True,dtype=np.int32)
     ref_time_arr = ref_time%1250
@@ -171,13 +187,19 @@ def Measure_Sp(num_clicks=20000):
     print("Suggested t0: ",t0)
     return shift_am_out, t0
 
+def Measure_Sp64(num_clicks=10000):
+    Ensure_Spd_Mode('gated')
+    Download_Time(num_clicks, fileprefix='single64')
+    data = np.loadtxt('data/tdc/single64.txt', usecols=(2,4))
+    gc = (data[:,0]%32)*2 + data[:,1]
+    h, b = np.histogram(gc, bins=np.arange(65))
+    coarse_shift = (h.argmax() - 1) % 64
+    coarse_shift = coarse_shift*10
+    return int(coarse_shift)
+
+
 def Verify_Gates(num_clicks=20000):
-    if t['spd_mode'] == 'continuous':
-        aurea = Aurea()
-        aurea.mode("gated")
-        aurea.deadtime(15)
-        update_tmp('spd_mode', 'gated')
-        update_tmp('spd_deadtime', 15)
+    Ensure_Spd_Mode('gated')
     t = get_tmp()
     t['pm_mode'] = 'seq64'
     t['feedack'] = 'off'
@@ -904,9 +926,9 @@ def main():
         elif args.pol_bias is not None:
             t = get_tmp()
             t['pol0'] = args.pol_bias[0]
-            t['pol1'] = args.pol_bias[0]
-            t['pol2'] = args.pol_bias[0]
-            t['pol3'] = args.pol_bias[0]
+            t['pol1'] = args.pol_bias[1]
+            t['pol2'] = args.pol_bias[2]
+            t['pol3'] = args.pol_bias[3]
             save_tmp(t)
             Update_Pol()
         elif args.soft_gate_filter:
@@ -984,7 +1006,7 @@ def main():
                             help="free running or gated")
     parser_set.add_argument("--spd_delay", type=int, metavar="time",  
                             help="delay time in ps")
-    parser_set.add_argument("--spd_deadtime", type=float, metavar="time",
+    parser_set.add_argument("--spd_deadtime", type=int, metavar="time",
                             help="dead time in us; recommended: 15us for gated; 50us for freerunning")
     parser_set.add_argument("--spd_eff", choices=['10', '20', '30'], 
                             help="detection efficiency in percent; strongly recommended: 20")

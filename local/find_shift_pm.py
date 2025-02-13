@@ -6,45 +6,46 @@ from scipy.optimize import curve_fit
 # from scipy.signal import find_peaks
 
 
-def shift_unit(j,party):
-	times_ref_click0=[]
-	times_ref_click1=[]
-	if party == 'alice':
-		int_click_gated = np.loadtxt("pm_shift_data/pm_a_shift_"+str(j+1)+".txt",usecols=(2,3,4),unpack=True, dtype=np.int64)
-	elif party == 'bob':
-		int_click_gated = np.loadtxt("pm_shift_data/pm_b_shift_"+str(j+1)+".txt",usecols=(2,3,4),unpack=True, dtype=np.int64)
+def shift_unit(j,party, gc_compensation=26):
+    times_ref_click0=[]
+    times_ref_click1=[]
+    if party == 'alice':
+        int_click_gated = np.loadtxt("pm_shift_data/pm_a_shift_"+str(j)+".txt",usecols=(2,3,4),unpack=True, dtype=np.int64)
+    elif party == 'bob':
+        int_click_gated = np.loadtxt("pm_shift_data/pm_b_shift_"+str(j)+".txt",usecols=(2,3,4),unpack=True, dtype=np.int64)
 
-	seq = 64  #[q_bins]
-	# time_range = seq
-	for i in range(len(int_click_gated[1])):
-	    if (int_click_gated[1][i] == 0):
-	        if (int_click_gated[2][i] == 0):
-	            gc_q = (int_click_gated[0][i]%(seq/2))*2
-	        elif(int_click_gated[2][i] == 1):
-	            gc_q = (int_click_gated[0][i]%(seq/2))*2 + 1
-	        times_ref_click0.append(gc_q)
+    int_click_gated[0] = int_click_gated[0] + gc_compensation
+    seq = 64  #[q_bins]
+    # time_range = seq
+    for i in range(len(int_click_gated[1])):
+        if (int_click_gated[1][i] == 0):
+            if (int_click_gated[2][i] == 0):
+                gc_q = (int_click_gated[0][i]%(seq/2))*2
+            elif(int_click_gated[2][i] == 1):
+                gc_q = (int_click_gated[0][i]%(seq/2))*2 + 1
+            times_ref_click0.append(gc_q)
 
-	    elif (int_click_gated[1][i] == 1):
-	        if (int_click_gated[2][i] == 0):
-	            gc_q = (int_click_gated[0][i]%(seq/2))*2
-	        elif(int_click_gated[2][i] == 1):
-	            gc_q = (int_click_gated[0][i]%(seq/2))*2 + 1
-	        times_ref_click1.append(gc_q)
-	return times_ref_click0, times_ref_click1
+        elif (int_click_gated[1][i] == 1):
+            if (int_click_gated[2][i] == 0):
+                gc_q = (int_click_gated[0][i]%(seq/2))*2
+            elif(int_click_gated[2][i] == 1):
+                gc_q = (int_click_gated[0][i]%(seq/2))*2 + 1
+            times_ref_click1.append(gc_q)
+    return times_ref_click0, times_ref_click1
 
 def sine_function(x, A, B, C, D):
     return A*np.sin(B*2*np.pi*x + C) + D
 
 def fre_est(x,y):
-	fft_result = np.fft.fft(y)
-	frequencies = np.fft.fftfreq(len(x), x[1] - x[0])  # Frequencies corresponding to FFT
-	power_spectrum = np.abs(fft_result)**2  # Power spectrum
+    fft_result = np.fft.fft(y)
+    frequencies = np.fft.fftfreq(len(x), x[1] - x[0])  # Frequencies corresponding to FFT
+    power_spectrum = np.abs(fft_result)**2  # Power spectrum
 
-	# Find the peak frequency
-	positive_frequencies = frequencies[frequencies > 0]
-	positive_power = power_spectrum[frequencies > 0]
-	dominant_frequency = positive_frequencies[np.argmax(positive_power)]
-	return dominant_frequency
+    # Find the peak frequency
+    positive_frequencies = frequencies[frequencies > 0]
+    positive_power = power_spectrum[frequencies > 0]
+    dominant_frequency = positive_frequencies[np.argmax(positive_power)]
+    return dominant_frequency
 
 def fit_sine(party):
     fig, sin_his = plt.subplots(5, 2, figsize=(12, 10))
@@ -61,24 +62,24 @@ def fit_sine(party):
         n0[1::2] = n0[1::2][::-1]
         n1[1::2] = n1[1::2][::-1]
 
-	# 	delta_cnt0 = max(n0) - min(n0)
-	# 	delta_cnt1 = max(n1) - min(n1)
-	# 	if (delta_cnt0 > 0):
-	# 		delta_cnt0_arr.append((int(delta_cnt0),i))
+    #     delta_cnt0 = max(n0) - min(n0)
+    #     delta_cnt1 = max(n1) - min(n1)
+    #     if (delta_cnt0 > 0):
+    #         delta_cnt0_arr.append((int(delta_cnt0),i))
 
-	# #Fit sine only for top max amplitude
-	# for k,i in delta_cnt0_arr:
-		#times_ref_click0, times_ref_click1 = shift_unit(i,party)
-		#n0, bins0, patches = sin_his[i].hist(times_ref_click0, 64, density=False,color='g',alpha=0.01)
-		#n1, bins1, patches = sin_his[i].hist(times_ref_click1, 64, density=False,color='r',alpha=0.01)
-		#bin_center0 = (bins0[:-1] + bins0[1:])/2
-		#bin_center1 = (bins1[:-1] + bins1[1:])/2
+    # #Fit sine only for top max amplitude
+    # for k,i in delta_cnt0_arr:
+        #times_ref_click0, times_ref_click1 = shift_unit(i,party)
+        #n0, bins0, patches = sin_his[i].hist(times_ref_click0, 64, density=False,color='g',alpha=0.01)
+        #n1, bins1, patches = sin_his[i].hist(times_ref_click1, 64, density=False,color='r',alpha=0.01)
+        #bin_center0 = (bins0[:-1] + bins0[1:])/2
+        #bin_center1 = (bins1[:-1] + bins1[1:])/2
 
         amp_guess = (max(n0)-min(n0))/2
         fre_guess = np.pi*2*10*fre_est(bin_center0,n0)
         phase_guess = 0
         offset_guess = np.mean(n0)
-        param_bounds = ([0, 1, -np.pi, -np.inf],[200, 3, np.pi, np.inf])	# print(amp_guess)
+        param_bounds = ([0, 1, -np.pi, -np.inf],[200, 3, np.pi, np.inf])    # print(amp_guess)
         # print(fre_guess)
         # FIT SIN
         # initial_guess_0 = [100, 2.5, 0, 150]
@@ -110,48 +111,48 @@ def fit_sine(party):
         sin_his[i].scatter(x=bin_center1,y=n1)
         # sin_his[i].set_xlabel('time [20ps]')
         sin_his[i].set_ylabel('cnts', fontsize=8)
-        sin_his[i].tick_params(axis='both',labelsize=8)	
+        sin_his[i].tick_params(axis='both',labelsize=8)    
         # sin_his[i].set_title(f'shift {i}',fontsize=8)
         sin_his[i].legend(prop={'size':8},loc='upper center', bbox_to_anchor=(0.5,-0.15), ncol=1)
         sin_his[i].set_ylim(0)
 
     return return_arr
-	#Find shift with min error
-	# print("Error array", error_arr)
-	# min_error = min(error_arr, key=lambda t: t[0])
-	# best_shift = min_error[3]
-	# max_amp = max(error_arr, key=lambda t: abs(t[1])*t[2])
-	# best_shift = max_amp[3]
-	# print("Best shift: ", best_shift)
+    #Find shift with min error
+    # print("Error array", error_arr)
+    # min_error = min(error_arr, key=lambda t: t[0])
+    # best_shift = min_error[3]
+    # max_amp = max(error_arr, key=lambda t: abs(t[1])*t[2])
+    # best_shift = max_amp[3]
+    # print("Best shift: ", best_shift)
 
-	# plt.subplots_adjust(hspace=0.3, wspace=0.3)
-	# mng = plt.get_current_fig_manager()
-	# mng.full_screen_toggle()
-	# plt.tight_layout()
-	# plt.show()
+    # plt.subplots_adjust(hspace=0.3, wspace=0.3)
+    # mng = plt.get_current_fig_manager()
+    # mng.full_screen_toggle()
+    # plt.tight_layout()
+    # plt.show()
 
 def best_shift(party):
-	return_arr = fit_sine(party)
-	# print(return_arr)
+    return_arr = fit_sine(party)
+    # print(return_arr)
 
-	amp_fre_arr=[]
-	for amp,fre,i in return_arr:
-		if (abs(amp) < 1000):
-			if (0.1<fre<5):
-				amp_fre_arr.append(((abs(amp)*fre),i))
-				print(amp, fre, i)
+    amp_fre_arr=[]
+    for amp,fre,i in return_arr:
+        if (abs(amp) < 1000):
+            if (0.1<fre<5):
+                amp_fre_arr.append(((abs(amp)*fre),i))
+                print(amp, fre, i)
 
-	max_ele = max(amp_fre_arr, key=lambda t: t[0])
-	best_shift = max_ele[1]
-	print("Best shift: ", best_shift)
+    max_ele = max(amp_fre_arr, key=lambda t: t[0])
+    best_shift = max_ele[1]
+    print("Best shift: ", best_shift)
 
 
-	plt.subplots_adjust(hspace=0.3, wspace=0.3)
-	mng = plt.get_current_fig_manager()
-	mng.full_screen_toggle()
-	plt.tight_layout()
-	plt.show()
+    plt.subplots_adjust(hspace=0.3, wspace=0.3)
+    mng = plt.get_current_fig_manager()
+    mng.full_screen_toggle()
+    plt.tight_layout()
+    plt.show()
 
 
 # best_shift('alice')
-best_shift('bob')
+best_shift('alice')

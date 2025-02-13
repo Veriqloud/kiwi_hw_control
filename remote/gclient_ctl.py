@@ -68,9 +68,16 @@ def client_start(commands_in):
                 shift_am_rcv = client_socket.recv(4)
                 am_shift = int.from_bytes(shift_am_rcv, byteorder='big')
                 update_tmp('am_shift', am_shift)
+                update_tmp('am_mode', 'single64')
                 main.Update_Dac()
-                #cmd = 'ss_done'
-                #client_socket.sendall(cmd.encode())
+                rcv_message = client_socket.recv(4)
+                coarse_shift = int.from_bytes(rcv_message, byteorder='big')
+
+                am_shift = (am_shift + coarse_shift) % 640
+                print("updateding am_shift to", am_shift)
+                update_tmp('am_shift', am_shift)
+                main.Update_Dac()
+
 
             elif command == 'verify_gates':
                 update_tmp('am_mode', 'off')
@@ -86,7 +93,7 @@ def client_start(commands_in):
                 t['am_mode'] = 'double'
                 t['pm_mode'] = 'off'
                 save_tmp(t)
-                Update_Dac()
+                main.Update_Dac()
 
             elif command == 'fs_a':
                 t = get_tmp()
@@ -95,7 +102,7 @@ def client_start(commands_in):
                 for s in range(10):
                     t['pm_shift'] = s
                     save_tmp(t)
-                    Update_Dac()
+                    main.Update_Dac()
                     cmd = 'shift_done'
                     client_socket.sendall(cmd.encode())
                     cmd_rcv = client_socket.recv(4)
@@ -105,7 +112,7 @@ def client_start(commands_in):
                 pm_shift = int.from_bytes(pm_shift_rcv, byteorder='big')
                 print("Received shift_pm from bob: ", pm_shift)
                 update_tmp('pm_shift', pm_shift)
-                Update_Dac()
+                main.Update_Dac()
 
 
             elif command == 'fd_b':

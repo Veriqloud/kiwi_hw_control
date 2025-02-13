@@ -63,18 +63,29 @@ try:
             update_tmp('t0', 10) #to have some space to the left
             main.Update_Softgate()
 
-            #1.detection single pulse at shift_am 0
+            # detection single pulse at shift_am 0
             global ret_shift_am
             shift_am, t0  = main.Measure_Sp(20000)
             Set_t0(10+t0)
             update_tmp('t0', 10+t0)
             
-            #2. send back shift_am value to alice
+            # send back shift_am value to alice
             conn.sendall(shift_am.to_bytes(4,byteorder='big'))
+
+            # detect single64 pulse and send to Alice
+            update_tmp('soft_gate', 'on')
+            main.Update_Softgate()
+            coarse_shift = main.Measure_Sp64()
+            conn.sendall(coarse_shift.to_bytes(4,byteorder='big'))
+
+
+
+
+
+
             response = "Gen_Sp 2 rounds done"
 
         elif command == 'verify_gates':
-            t = get_tmp()
             update_tmp('soft_gate', 'off')
             main.Update_Softgate()
             aurea = Aurea()
@@ -83,7 +94,7 @@ try:
             conn.sendall("done".encode())
             main.Download_Time(10000, 'verify_gate_double')
             aurea.mode("continuous")
-            update_tmp('spd_mode', 'continous')
+            update_tmp('spd_mode', 'continuous')
             response = "Verify gates done"
 
 
@@ -92,29 +103,39 @@ try:
             t = get_tmp()
             t['pm_mode'] = 'seq64'
             t['feedback'] = 'off'
+            t['soft_gate'] = 'on'
             if t['spd_mode'] == 'continuous':
                 aurea = Aurea()
                 aurea.mode('gated')
                 t['spd_mode'] = 'gated'
+            save_tmp(t)
+            main.Update_Softgate()
             for s in range(10):
                 t['pm_shift'] = s
                 save_tmp(t)
-                Update_Dac()
-                Download_Time(10000, 'pm_b_shift_'+str(s))
+                main.Update_Dac()
+                main.Download_Time(10000, 'pm_b_shift_'+str(s))
             pm_shift = main.Find_Best_Shift('bob')
             update_tmp('pm_shift', pm_shift)
+            main.Update_Dac()
             response = "Find Shift Bob done"
        
         elif command == 'fs_a':
             t = get_tmp()
             t['pm_mode'] = 'off'
             t['feedback'] = 'off'
-            save_tmp()
-            Update_Dac()
+            t['soft_gate'] = 'on'
+            if t['spd_mode'] == 'continuous':
+                aurea = Aurea()
+                aurea.mode('gated')
+                t['spd_mode'] = 'gated'
+            save_tmp(t)
+            main.Update_Softgate()
+            main.Update_Dac()
             for s in range(10):
                 cmd = conn.recv(BUFFER_SIZE).decode().strip()
                 if cmd == 'shift_done':
-                    Download_Time(10000, 'pm_a_shift_'+str(s))
+                    main.Download_Time(10000, 'pm_a_shift_'+str(s))
                     cmd = int(7)
                     conn.sendall(cmd.to_bytes(4,byteorder='big'))
 

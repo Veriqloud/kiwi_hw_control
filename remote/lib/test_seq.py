@@ -8,27 +8,31 @@ shift =0
 
 #seq_old = (gen_seq.dac0_single_old(4, 6))
 #ls2 = gen_seq.lin_seq_2()
-seq_old = gen_seq.dac1_sample_old(gen_seq.lin_seq_2(), 0, shift)
+#seq_old = gen_seq.dac1_sample_old(gen_seq.lin_seq_2(), 0, shift)
 seq = gen_seq.dac1_sample(gen_seq.lin_seq_2(), shift)
 seq_tight = gen_seq.dac1_sample_tight(gen_seq.lin_seq_2(), shift)
+seq_single = gen_seq.dac0_single(64, shift)
+seq_single_single = gen_seq.dac0_single_single(64, shift)
 
 #seq = gen_seq.dac0_single(4, 6)
 
 #print(seq)
-a = []
-for e in seq_old:
-    a.append(int(e, 16))
+#a = []
+#for e in seq_old:
+#    a.append(int(e, 16))
 
 
 #print(a)
-print(len(a))
-a = np.array(a)
+#print(len(a))
+#a = np.array(a)
 
-print(a[:10])
+#print(a[:10])
 
-plt.plot(a[:50], marker='x')
-plt.plot(seq[:50], marker='o')
-plt.plot(seq_tight[:50], marker='p')
+#plt.plot(a[:50], marker='x')
+#plt.plot(seq, marker='o')
+#plt.plot(seq_tight, marker='p')
+plt.plot(seq_single*0.98, marker='p')
+plt.plot(seq_single_single, marker='p')
 plt.axvline(3 + shift, color='black')
 plt.axvline(10/12.5*5 + 3 + shift, color='black')
 plt.show()

@@ -68,6 +68,8 @@ def Update_Dac():
         dac0 = gen_seq.dac0_single(64, t['am_shift'])
     elif t['am_mode'] == 'double':
         dac0 = gen_seq.dac0_double(64, t['qdistance'], t['am_shift'])
+    elif t['am_mode'] == 'single64':
+        dac0 = gen_seq.dac0_single_single(64, t['am_shift'])
 
     if t['pm_mode'] == 'off':
         dac1 = gen_seq.dac1_sample(np.zeros(64), t['pm_shift'])
@@ -680,8 +682,8 @@ def main():
                             help="voltage controlled attenuator; float [0,5] V")
     parser_set.add_argument("--am_bias", type=float, metavar=("voltage"), 
                             help="bias of amplitude modulator; float [-10,10] V")
-    parser_set.add_argument("--am_mode", choices=['off', 'single', 'double'],
-                            help="send single pulse or double pulse")
+    parser_set.add_argument("--am_mode", choices=['off', 'single', 'double', 'single64'],
+                            help="send single pulse at 40MHz or double pulse at 80MHz or single64 at 80MHz/64")
     parser_set.add_argument("--am_shift", type=int, metavar=("steps"), 
                             help="time shift pulse generation in steps of 1.25ns")
     parser_set.add_argument("--pm_shift", type=int, metavar=("steps"), 
