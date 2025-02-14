@@ -450,20 +450,14 @@ def Write_To_Dac(seqlist_dac0, seqlist_dac1):
 #    fd.close()
 
 
-def Write_Sequence_Rng():
+def Write_To_Fake_Rng(seqlist):
     Base_Addr = 0x00030000
     Base_seq0 = 0x00030000 + 0x2000  #Addr_axil_sequencer +   addr_dpram
-    dpram_max_addr = 8
+    dpram_max_addr = len(seqlist)/8     # memory is for 4 bit values 
     Write(Base_Addr + 28, hex(dpram_max_addr)) 
-    list_rng_zero = gen_seq.seq_rng_zero(dpram_max_addr)
-    
-    vals = []
-    for l in list_rng_zero:
-        vals.append(int(l, 0))
     fd = open("/dev/xdma0_user", 'r+b', buffering=0)
-    write_to_dev(fd, Base_seq0, 0, vals)
+    write_to_dev(fd, Base_seq0, 0, seqlist)
     fd.close()
-    print("Initialize fake rng sequence equal 0 ")
 
 
 #Write parameter of amplitude and delay for signal on DAC1 (QDAC, signal for PM)

@@ -144,69 +144,90 @@ def dac1_sample_tight(seq, shift):
 
 #-----------------------Sequence Rng Gen----------------------------------------------
 
-def seq_rng_zero(dpram_max_addr):
-    ele = ['00000000']
-    list_rng_zero =  ele*int(dpram_max_addr/8)  
-    # Writes    
-    list_rng_zero_return = []
-    for x in list_rng_zero: 
-        list_rng_zero_return.append("0x{:08x}".format(int(x,16)))
-    # print(list_rng_zero_return)
-    return list_rng_zero_return
+#def seq_rng_zero(dpram_max_addr):
+#    ele = ['00000000']
+#    list_rng_zero =  ele*int(dpram_max_addr/8)  
+#    # Writes    
+#    list_rng_zero_return = []
+#    for x in list_rng_zero: 
+#        list_rng_zero_return.append("0x{:08x}".format(int(x,16)))
+#    # print(list_rng_zero_return)
+#    return list_rng_zero_return
 
-# def seq_rng_ddr0():
-def seq_rng_short(dpram_max_addr):
-    ele = ['00000000']
-    list_rng_short =  ['00000008'] + ele*int(dpram_max_addr/8 - 1)  
-    # Writes    
-    list_rng_short_return = []
-    for x in list_rng_short: 
-        list_rng_short_return.append("0x{:08x}".format(int(x,16)))
-    # print(list_rng_short_return)
-    return list_rng_short_return
+## def seq_rng_ddr0():
+#def seq_rng_short(dpram_max_addr):
+#    ele = ['00000000']
+#    list_rng_short =  ['00000008'] + ele*int(dpram_max_addr/8 - 1)  
+#    # Writes    
+#    list_rng_short_return = []
+#    for x in list_rng_short: 
+#        list_rng_short_return.append("0x{:08x}".format(int(x,16)))
+#    # print(list_rng_short_return)
+#    return list_rng_short_return
 
-def seq_rng_long(dpram_max_addr, non_zero_size):
-    ele = ['00000000']
-    ele_non_zero = ['aaaaaaaa']
-    # ele_non_zero0 = ['aaaaaaaa']
-    # ele_non_zero1 = ['000000aa']
+def seq_rng_single(num_words):
+    # the first angle is nr 1, the rest is nr 0.
+    # a word is 32bit = 16 angles
+    word0 = 1
+    message = np.zeros(num_words, dtype=np.int32)
+    message[0] = word0
+    return message
 
-    x = non_zero_size%8
-    y = np.floor(non_zero_size/8)
-    if (x == 0):
-        list_non_zero = ele_non_zero*int(y)
-        list_rng_long = list_non_zero + ele*(int(dpram_max_addr/8) - int(y))
-    elif (x == 1):
-        list_non_zero = ele_non_zero*int(y) + ['0000000a']
-        list_rng_long = list_non_zero + ele*(int(dpram_max_addr/8) - int(y+1))
-    elif (x == 2):
-        list_non_zero = ele_non_zero*int(y) + ['000000aa']
-        list_rng_long = list_non_zero + ele*(int(dpram_max_addr/8) - int(y+1))
-    elif (x == 3):
-        list_non_zero = ele_non_zero*int(y) + ['00000aaa']
-        list_rng_long = list_non_zero + ele*(int(dpram_max_addr/8) - int(y+1))
-    elif (x == 4):
-        list_non_zero = ele_non_zero*int(y) + ['0000aaaa']
-        list_rng_long = list_non_zero + ele*(int(dpram_max_addr/8) - int(y+1))
-    elif (x == 5):
-        list_non_zero = ele_non_zero*int(y) + ['000aaaaa']
-        list_rng_long = list_non_zero + ele*(int(dpram_max_addr/8) - int(y+1))
-    elif (x == 6):
-        list_non_zero = ele_non_zero*int(y) + ['00aaaaaa']
-        list_rng_long = list_non_zero + ele*(int(dpram_max_addr/8) - int(y+1))
-    elif (x == 7):
-        list_non_zero = ele_non_zero*int(y) + ['0aaaaaaa']
-        list_rng_long = list_non_zero + ele*(int(dpram_max_addr/8) - int(y+1))
+def seq_rng_block(num_words, num_nonzero_words):
+    # a block of angles nr 1, rest is nr 0.
+    # a word is 32bit = 16 angles
+    word0 = 0
+    for i in range(16):
+        word0 = word0 + (1<<(i*2))
 
-    # list_rng_long =  ele_non_zero*int(non_zero_size/8) + ele*int(non_zero_size/8) + ele_non_zero*int(non_zero_size/8) + ele*(int(dpram_max_addr/8) - int(non_zero_size*3/8))  
-    # list_rng_long =  ele_non_zero*int(non_zero_size/8) + ele*(int(dpram_max_addr/8) - int(non_zero_size/8))  
-    # list_rng_long =  ele_non_zero0*2 + ele_non_zero1 + ele*(int(dpram_max_addr/8) - 3)  
-    # Writes    
-    list_rng_long_return = []
-    for x in list_rng_long: 
-        list_rng_long_return.append("0x{:08x}".format(int(x,16)))
-    # print(list_rng_long_return)
-    return list_rng_long_return
+    message = np.zeros(num_words, dtype=np.int32)
+    message[:num_nonzero_words] = word0
+    return message
+
+    
+
+#def seq_rng_long(dpram_max_addr, non_zero_size):
+#    ele = ['00000000']
+#    ele_non_zero = ['aaaaaaaa']
+#    # ele_non_zero0 = ['aaaaaaaa']
+#    # ele_non_zero1 = ['000000aa']
+#
+#    x = non_zero_size%8
+#    y = np.floor(non_zero_size/8)
+#    if (x == 0):
+#        list_non_zero = ele_non_zero*int(y)
+#        list_rng_long = list_non_zero + ele*(int(dpram_max_addr/8) - int(y))
+#    elif (x == 1):
+#        list_non_zero = ele_non_zero*int(y) + ['0000000a']
+#        list_rng_long = list_non_zero + ele*(int(dpram_max_addr/8) - int(y+1))
+#    elif (x == 2):
+#        list_non_zero = ele_non_zero*int(y) + ['000000aa']
+#        list_rng_long = list_non_zero + ele*(int(dpram_max_addr/8) - int(y+1))
+#    elif (x == 3):
+#        list_non_zero = ele_non_zero*int(y) + ['00000aaa']
+#        list_rng_long = list_non_zero + ele*(int(dpram_max_addr/8) - int(y+1))
+#    elif (x == 4):
+#        list_non_zero = ele_non_zero*int(y) + ['0000aaaa']
+#        list_rng_long = list_non_zero + ele*(int(dpram_max_addr/8) - int(y+1))
+#    elif (x == 5):
+#        list_non_zero = ele_non_zero*int(y) + ['000aaaaa']
+#        list_rng_long = list_non_zero + ele*(int(dpram_max_addr/8) - int(y+1))
+#    elif (x == 6):
+#        list_non_zero = ele_non_zero*int(y) + ['00aaaaaa']
+#        list_rng_long = list_non_zero + ele*(int(dpram_max_addr/8) - int(y+1))
+#    elif (x == 7):
+#        list_non_zero = ele_non_zero*int(y) + ['0aaaaaaa']
+#        list_rng_long = list_non_zero + ele*(int(dpram_max_addr/8) - int(y+1))
+#
+#    # list_rng_long =  ele_non_zero*int(non_zero_size/8) + ele*int(non_zero_size/8) + ele_non_zero*int(non_zero_size/8) + ele*(int(dpram_max_addr/8) - int(non_zero_size*3/8))  
+#    # list_rng_long =  ele_non_zero*int(non_zero_size/8) + ele*(int(dpram_max_addr/8) - int(non_zero_size/8))  
+#    # list_rng_long =  ele_non_zero0*2 + ele_non_zero1 + ele*(int(dpram_max_addr/8) - 3)  
+#    # Writes    
+#    list_rng_long_return = []
+#    for x in list_rng_long: 
+#        list_rng_long_return.append("0x{:08x}".format(int(x,16)))
+#    # print(list_rng_long_return)
+#    return list_rng_long_return
 
 
 

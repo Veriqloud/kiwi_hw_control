@@ -483,60 +483,35 @@ def Find_Opt_Delay_A(shift_pm):
 
 
 def Find_Opt_Delay_B(shift_pm):
-    #dpram_rng_max_addr
-    Base_Addr = 0x00030000
-    Base_seq0 = 0x00030000 + 0x2000  #Addr_axil_sequencer +   addr_dpram
-    dpram_max_addr = 32
-    Write(Base_Addr + 28, hex(dpram_max_addr))
-    #Write data to rng_dpram
-    list_rng = gen_seq.seq_rng_short(dpram_max_addr)
-    vals = []
-    for l in list_rng:
-        vals.append(int(l, 0))
-    fd = open("/dev/xdma0_user", 'r+b', buffering=0)
-    write_to_dev(fd, Base_seq0, 0, vals)
-    fd.close()
-    #Write amplitude
-    amp = np.array([0,0, 0.45, 0])
-    Write_Dac1_Shift(6, amp[0], amp[1], amp[2], amp[3], shift_pm)
-    #Reset jesd module
-    # WriteFPGA()
+    # generate a sequence of 64 angles where the first one stands out
+    Write_To_Fake_Rng(gen_seq.seq_rng_single(4))
+    update_tmp('pm_mode', 'fake_rng')
+    Update_Dac()
+
     En_reset_jesd()
-    # Config_Fda()
-    # Config_Fda()
-    print("Apply phase in period of 32 gcs")
+
     time.sleep(3)
     #Get detection result
-    Get_Stream(0x00000000+40,'/dev/xdma0_c2h_2','data/tdc/output_gated.bin',150000)
-    command ="test_tdc/tdc_bin2txt data/tdc/output_gated.bin data/tdc/histogram_gated.txt"
-    s = subprocess.check_call(command, shell = True)
+    Download_Time(150000, 'fd_single')
     #Process to get delay val
-    int_click_gated = np.loadtxt("data/tdc/histogram_gated.txt",usecols=(2,3,4),unpack=True, dtype=np.int64)
 
-    seq = dpram_max_addr*2  #[q_bins]
-    times_ref_click0 = []
-    times_ref_click1 = []
-    for i in range(len(int_click_gated[1])):
-        if (int_click_gated[1][i] == 0):
-            if (int_click_gated[2][i] == 0):
-                gc_q = (int_click_gated[0][i]%(dpram_max_addr))*2
-            elif(int_click_gated[2][i] == 1):
-                gc_q = (int_click_gated[0][i]%(dpram_max_addr))*2 + 1
-            times_ref_click0.append(gc_q)
-        elif (int_click_gated[1][i] == 1):
-            if (int_click_gated[2][i] == 0):
-                gc_q = (int_click_gated[0][i]%(seq/2))*2
-            elif(int_click_gated[2][i] == 1):
-                gc_q = (int_click_gated[0][i]%(seq/2))*2 + 1
-            times_ref_click1.append(gc_q)
+    data = np.loadtxt("data/tdc/fd_single.txt",usecols=(2,3,4), dtype=np.int64)
+    gc = data[:,0] 
+    r = data[:,1]
+    q_pos = data[:,2]
 
+    gc0 = (gc[r==0]%32)*2 + q_pos[r==0] 
+    gc1 = (gc[r==1]%32)*2 + q_pos[r==1] 
 
-    n0, bins0 = np.histogram(times_ref_click0, seq)
-    n1, bins1 = np.histogram(times_ref_click1, seq)
-    # bin_center0 = (bins0[:-1] + bins0[1:])/2
-    # bin_center1 = (bins1[:-1] + bins1[1:])/2
+    bins = np.arange(65)
+    h0, b = np.histogram(gc0, bins=bins)
+    h1, b = np.histogram(gc1, bins=bins)
 
-    index = np.argmax(np.abs(n1-n0))
+    h = h0-h1
+    m = h.mean()
+    h = h-m
+
+    index = np.argmax(np.abs(h))
     print("Fiber delay of Bob: ",index, " [q_bins]")
 
 def Test_delay():
