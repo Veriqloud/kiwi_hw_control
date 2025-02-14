@@ -6,7 +6,7 @@ from scipy.optimize import curve_fit
 # from scipy.signal import find_peaks
 
 
-def shift_unit(j,party, gc_compensation=26):
+def shift_unit(j,party, gc_compensation=0):
     times_ref_click0=[]
     times_ref_click1=[]
     if party == 'alice':

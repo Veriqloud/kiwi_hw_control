@@ -65,6 +65,11 @@ def update_tmp(key, element):
     t[key] = element
     save_tmp(t)
 
+def update_default(key, element):
+    d = get_default()
+    d[key] = element
+    save_default(d)
+
 def write_to_dev(fd, offset, addr, array_of_u32):
     """ 
     fd           : file descriptor of the xdma file; elements of the file are bytes

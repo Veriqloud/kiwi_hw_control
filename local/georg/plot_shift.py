@@ -4,8 +4,9 @@ import numpy as np, matplotlib.pyplot as plt
 #names = ['single.txt', 'double.txt', 'off.txt', 'softgate.txt']
 
 names = ['../pm_shift_data/pm_a_shift_0.txt']
+#names = ['time.txt', 'time2.txt']
 
-gc_shift = 0
+gc_shift = 26
 
 hist0 = []
 hist1 = []
@@ -36,9 +37,11 @@ h, b = np.histogram(gc0, bins=bins)
 
 print(h.argmax())
 
-plt.plot(bins[:-1], hist0[0], 'o')
-plt.plot(bins[:-1], hist1[0], 'o')
-plt.plot(bins[:-1], h)
+plt.plot(bins[:-1], hist0[0], color='b')
+plt.plot(bins[:-1], hist1[0], color='g')
+#plt.plot(bins[:-1], hist0[1], color='g')
+#plt.plot(bins[:-1], hist1[1], color='g')
+#plt.plot(bins[:-1], h)
 
 plt.ylim(0)
 plt.show()

@@ -40,7 +40,7 @@ def dac0_single(cycle_num, shift):
 
 def dac0_single_single(cycle_num, shift):
     cycle_num = cycle_num
-    shift = shift + 2
+    shift = shift + 3   # needs to be shifted one more to overlap with dac0_single in real
     transition = np.array([-1, np.sin(-np.pi/4), 0, np.sin(np.pi/4), 1])
     len_const = cycle_num*5 - 2*len(transition)
     up = np.ones(len_const)

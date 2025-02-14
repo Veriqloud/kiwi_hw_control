@@ -3,14 +3,14 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-shift =0 
+shift = 474
 
 
 #seq_old = (gen_seq.dac0_single_old(4, 6))
 #ls2 = gen_seq.lin_seq_2()
 #seq_old = gen_seq.dac1_sample_old(gen_seq.lin_seq_2(), 0, shift)
-seq = gen_seq.dac1_sample(gen_seq.lin_seq_2(), shift)
-seq_tight = gen_seq.dac1_sample_tight(gen_seq.lin_seq_2(), shift)
+#seq = gen_seq.dac1_sample(gen_seq.lin_seq_2(), shift)
+#seq_tight = gen_seq.dac1_sample_tight(gen_seq.lin_seq_2(), shift)
 seq_single = gen_seq.dac0_single(64, shift)
 seq_single_single = gen_seq.dac0_single_single(64, shift)
 

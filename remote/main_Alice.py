@@ -567,10 +567,27 @@ def init_sda():
     Set_Vca(d['vca'])
     Set_Am_Bias(d['am_bias'])
 
+def init_apply_default():
+    d = get_default()
+    t = get_tmp()
+    t['vca'] = d['vca'] 
+    t['qdistance'] = d['qdistance']
+    t['am_bias'] = d['am_bias']
+    t['am_shift'] = d['am_shift']
+    t['pm_shift'] = d['pm_shift']
+    t['angle0'] = d['angle0']
+    t['angle1'] = d['angle1']
+    t['angle2'] = d['angle2']
+    t['angle3'] = d['angle3']
+    save_tmp(t)
+    Set_Vca(t['vca'])
+    Update_Dac()
+    Update_Angles()
+
 def init_rst_default():
     d = {}
-    d['vca'] = 4
-    d['qdistance'] = 0.08
+    d['vca'] = 3
+    d['qdistance'] = 0.1
     d['am_bias'] = 0
     d['am_shift'] = 0
     d['pm_shift'] = 0
@@ -601,6 +618,7 @@ def init_all():
     init_sync()
     init_fda()
     init_sda()
+    init_apply_default()
 
 
 def main():
@@ -619,6 +637,8 @@ def main():
             init_rst_default()
         elif args.rst_tmp:
             init_rst_tmp()
+        elif args.apply_default:
+            init_apply_default()
     def set(args):
         if args.vca is not None:
             Set_Vca(args.vca)
@@ -675,6 +695,8 @@ def main():
                              help="reset default parameters in config/default.txt")
     parser_init.add_argument("--rst_tmp", action="store_true", 
                              help="reset tmp file in config/default.txt")
+    parser_init.add_argument("--apply_default", action="store_true", 
+                             help="apply values from config/default.txt")
 
 
 ######### set ###########

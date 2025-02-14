@@ -161,6 +161,7 @@ def Cont_Det():
     print("Appro click rate: ", str(click_rate), "click/s")
 
 def Download_Time(num_clicks, fileprefix="time"):
+    print("downloading time tags into file", fileprefix+".txt")
     binfile = 'data/tdc/'+fileprefix+'.bin'
     txtfile = 'data/tdc/'+fileprefix+'.txt'
     Get_Stream(0x00000000+40,'/dev/xdma0_c2h_2',binfile, num_clicks)
@@ -187,13 +188,13 @@ def Measure_Sp(num_clicks=20000):
     print("Suggested t0: ",t0)
     return shift_am_out, t0
 
-def Measure_Sp64(num_clicks=10000):
+def Measure_Sp64(num_clicks=20000):
     Ensure_Spd_Mode('gated')
     Download_Time(num_clicks, fileprefix='single64')
     data = np.loadtxt('data/tdc/single64.txt', usecols=(2,4))
     gc = (data[:,0]%32)*2 + data[:,1]
     h, b = np.histogram(gc, bins=np.arange(65))
-    coarse_shift = (h.argmax() - 1) % 64
+    coarse_shift = (1 - h.argmax()) % 64
     coarse_shift = coarse_shift*10
     return int(coarse_shift)
 
@@ -801,11 +802,30 @@ def init_ttl():
     save_tmp(t)
     Gen_Gate()
 
+def init_apply_default():
+    d = get_default()
+    t = get_tmp()
+    t['pm_shift'] = d['pm_shift']
+    t['angle0'] = d['angle0']
+    t['angle1'] = d['angle1']
+    t['angle2'] = d['angle2']
+    t['angle3'] = d['angle3']
+    t['gate_delay'] = d['gate_delay']
+    t['soft_gate0'] = d['soft_gate0']
+    t['soft_gate1'] = d['soft_gate1']
+    t['soft_gatew'] = d['soft_gatew']
+    t['t0'] = d['t0']
+    save_tmp(t)
+    Update_Dac()
+    Update_Angles()
+    Update_Softgate()
+    Gen_Gate()
+
 
 
 def init_rst_default():
     d = {}
-    d['pm_shift'] = 0
+    d['pm_shift'] = 320
     d['angle0'] = 0
     d['angle1'] = 0
     d['angle2'] = 0
@@ -816,7 +836,7 @@ def init_rst_default():
     d['soft_gatew'] = 60
     d['t0'] = 0
     d['deadtime_cont'] = 20
-    d['deadtime_gated'] = 10
+    d['deadtime_gated'] = 15
     save_default(d)
 
 def init_rst_tmp():
@@ -855,6 +875,7 @@ def init_all():
     init_jic()
     init_tdc()
     init_ttl()
+    init_apply_default()
 
 
 
@@ -882,6 +903,8 @@ def main():
             init_rst_default()
         elif args.rst_tmp:
             init_rst_tmp()
+        elif args.apply_default:
+            init_apply_default()
     def set(args):
         if args.pm_mode:
             update_tmp('pm_mode', args.pm_mode)
@@ -995,6 +1018,8 @@ def main():
                              help="reset default parameters in config/default.txt")
     parser_init.add_argument("--rst_tmp", action="store_true", 
                              help="reset tmp file in config/default.txt")
+    parser_init.add_argument("--apply_default", action="store_true", 
+                             help="apply values from config/default.txt")
 
 
 ######### set ###########

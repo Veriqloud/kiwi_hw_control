@@ -6,7 +6,7 @@ import struct  # For unpacking data size
 import subprocess, sys, argparse
 import numpy as np
 import gmain as main
-from lib.config_lib import get_tmp, save_tmp, update_tmp
+from lib.config_lib import get_tmp, save_tmp, update_tmp, update_default, get_default
 
 
 # Client configuration
@@ -35,6 +35,11 @@ def client_start(commands_in):
                 main.init_all()
 
             if command == 'find_am_bias':
+                t = get_tmp()
+                bias_default = t['am_bias']
+                t['am_mode'] = 'off'
+                save_tmp(t)
+                main.Update_Dac()
                 count_rcv_arr = []
                 for i in range(21):
                     main.Set_Am_Bias(-1 + 0.1*i)
@@ -43,20 +48,13 @@ def client_start(commands_in):
                     count_rcv = client_socket.recv(4)
                     int_count_rcv = int.from_bytes(count_rcv, byteorder='big')
                     count_rcv_arr.append(int_count_rcv)
-                print("Min count: ", min(count_rcv_arr), "index: ", count_rcv_arr.index(min(count_rcv_arr)))
-                am_bias_opt = -1 + 0.1*count_rcv_arr.index(min(count_rcv_arr))
+                min_counts = min(count_rcv_arr)
+                min_idx = count_rcv_arr.index(min_counts)
+                print("Min count: ", min_counts , "index: ", min_idx)
+                am_bias_opt = -1 + 0.1*min_idx
                 main.Set_Am_Bias(am_bias_opt)
-                #Initialize var file: am_bias, shift_am, shift_pm
-                #with open("data/var.txt","w") as var_file:
-                #    var_file.write("0.8"+'\n') #am_bias
-                #    var_file.write("1"+'\n')   #shift_am
-                #    var_file.write("0"+'\n')   #shift_pm
-                #    var_file.write("0"+'\n')   #delay_mod
-                #var_file.close()
-                ##Write am_bias voltage to the file
-                #lines = np.loadtxt("data/var.txt",dtype=str,encoding='utf-8')
-                #lines[0] = str(round(am_bias_opt,2))+'\n'
-                #np.savetxt("data/var.txt",lines,fmt="%s",encoding='utf-8')
+                update_tmp('am_bias', round(am_bias_opt, 2))
+                update_default('am_bias', round(am_bias_opt, 2))
 
             elif command == 'find_sp':
                 #1.Send single pulse, am_shift 0
@@ -99,8 +97,11 @@ def client_start(commands_in):
                 t = get_tmp()
                 t['am_mode'] = 'double'
                 t['pm_mode'] = 'seq64'
+                save_tmp(t)
+                d = get_default()
+                pm_shift_coarse = (d['pm_shift']//10) * 10
                 for s in range(10):
-                    t['pm_shift'] = s
+                    t['pm_shift'] = pm_shift_coarse + s
                     save_tmp(t)
                     main.Update_Dac()
                     cmd = 'shift_done'
@@ -111,7 +112,7 @@ def client_start(commands_in):
                 pm_shift_rcv = client_socket.recv(4)
                 pm_shift = int.from_bytes(pm_shift_rcv, byteorder='big')
                 print("Received shift_pm from bob: ", pm_shift)
-                update_tmp('pm_shift', pm_shift)
+                update_tmp('pm_shift', pm_shift_coarse + pm_shift)
                 main.Update_Dac()
 
 

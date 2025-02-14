@@ -8,7 +8,7 @@ import subprocess, sys, argparse
 import numpy as np
 from lib.Aurea import Aurea
 import gmain as main
-from lib.config_lib import get_tmp, save_tmp, update_tmp, Set_t0
+from lib.config_lib import get_tmp, save_tmp, update_tmp, Set_t0, update_default, get_default
 
 
 
@@ -41,30 +41,26 @@ try:
         if command == 'init':
             main.init_all()
             response = "init done"
+
         if command == 'find_am_bias':
             for i in range(21):
                 cmd = conn.recv(BUFFER_SIZE).decode().strip()
                 if cmd == 'sv_done':
-                    time.sleep(0.3)
+                    time.sleep(0.2)
                     current_count = main.Read_Count()
-                    # print(current_count.to_bytes(4,byteorder='big'))
                     conn.sendall(current_count.to_bytes(4,byteorder='big'))
-            #Initialize var file: shift_am, peak, shift_pm
-            #with open("data/var.txt","w") as var_file:
-            #    var_file.write("0"+'\n')     #shift_am
-            #    var_file.write("550"+'\n')   #first peak
-            #    var_file.write("0"+'\n')     #shift_pm
-            #    var_file.write("0"+'\n')     #delay_mod
-            #var_file.close()
-            #Response end of command
+            response = "find_am_bias done"
 
         elif command == 'find_sp':
             t = get_tmp()
-            update_tmp('t0', 10) #to have some space to the left
+            t['t0'] = 10 #to have some space to the left
+            t['soft_gate'] = 'off'
+            save_tmp(t)
             main.Update_Softgate()
 
             # detection single pulse at shift_am 0
             global ret_shift_am
+            print("measure and search single peak")
             shift_am, t0  = main.Measure_Sp(20000)
             Set_t0(10+t0)
             update_tmp('t0', 10+t0)
@@ -75,14 +71,9 @@ try:
             # detect single64 pulse and send to Alice
             update_tmp('soft_gate', 'on')
             main.Update_Softgate()
+            print("measure sp64")
             coarse_shift = main.Measure_Sp64()
             conn.sendall(coarse_shift.to_bytes(4,byteorder='big'))
-
-
-
-
-
-
             response = "Gen_Sp 2 rounds done"
 
         elif command == 'verify_gates':
@@ -100,35 +91,31 @@ try:
 
 
         elif command == 'fs_b':
+            main.Ensure_Spd_Mode('gated')
             t = get_tmp()
             t['pm_mode'] = 'seq64'
             t['feedback'] = 'off'
             t['soft_gate'] = 'on'
-            if t['spd_mode'] == 'continuous':
-                aurea = Aurea()
-                aurea.mode('gated')
-                t['spd_mode'] = 'gated'
             save_tmp(t)
             main.Update_Softgate()
+            d = get_default()
+            pm_shift_coarse = (d['pm_shift']//10) * 10
             for s in range(10):
-                t['pm_shift'] = s
+                t['pm_shift'] = pm_shift_coarse + s
                 save_tmp(t)
                 main.Update_Dac()
                 main.Download_Time(10000, 'pm_b_shift_'+str(s))
             pm_shift = main.Find_Best_Shift('bob')
-            update_tmp('pm_shift', pm_shift)
+            update_tmp('pm_shift', pm_shift_coarse + pm_shift)
             main.Update_Dac()
             response = "Find Shift Bob done"
        
         elif command == 'fs_a':
+            main.Ensure_Spd_Mode('gated')
             t = get_tmp()
             t['pm_mode'] = 'off'
             t['feedback'] = 'off'
             t['soft_gate'] = 'on'
-            if t['spd_mode'] == 'continuous':
-                aurea = Aurea()
-                aurea.mode('gated')
-                t['spd_mode'] = 'gated'
             save_tmp(t)
             main.Update_Softgate()
             main.Update_Dac()

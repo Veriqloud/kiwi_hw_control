@@ -4,7 +4,7 @@ import numpy as np
 from scipy.optimize import curve_fit
 
 
-def Shift_Unit(j,party, gc_compensation=16):
+def Shift_Unit(j,party, gc_compensation=0):
     times_ref_click0=[]
     times_ref_click1=[]
     if party == 'alice':
@@ -54,6 +54,9 @@ def Fit_Sine(party):
         n1, bins1 = np.histogram(times_ref_click1, 64)
         bin_center0 = (bins0[:-1] + bins0[1:])/2
         bin_center1 = (bins1[:-1] + bins1[1:])/2
+        
+        n0[1::2] = n0[1::2][::-1]
+        n1[1::2] = n1[1::2][::-1]
 
 
         amp_guess = (max(n0)-min(n0))/2
