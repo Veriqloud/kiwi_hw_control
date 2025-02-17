@@ -138,7 +138,7 @@ try:
             #print(best_shift_b)
             # main.Find_Opt_Delay_B(best_shift_b)
             # main.Find_Opt_Delay_B((ret_shift_am+4)%10)
-            main.Find_Opt_Delay_B(8)
+            main.Find_Opt_Delay_B()
             response = 'Find delay bob done'
             
         elif command == 'fd_ab_mod':

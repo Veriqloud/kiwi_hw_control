@@ -117,7 +117,9 @@ def client_start(commands_in):
 
 
             elif command == 'fd_b':
-                main.Write_Dac1_Shift(2,0,0,0,0,0)
+                update_tmp('pm_mode', 'off')
+                update_tmp('am_mode', 'double')
+                main.Update_Dac()
 
             elif command == 'fd_ab_mod':
                 lines = np.loadtxt("data/var.txt",usecols=0)

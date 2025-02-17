@@ -544,7 +544,7 @@ def init_sync():
     Sync_Ltc()
 
 def init_fda():
-    Write_Sequence_Rng()
+    Write_To_Fake_Rng(gen_seq.seq_rng_zeros())
     d = get_default()
     t = get_tmp()
     t['angle0'] = d['angle0']
@@ -712,7 +712,7 @@ def main():
                             help="time shift signal for phase modulator in steps of 1.25ns")
     parser_set.add_argument("--qdistance", type=float, metavar="value", 
                             help="fine tune double pulse separation; float [0,0.5]; good value is 0.08")
-    parser_set.add_argument("--pm_mode", choices=['seq64', 'seq64tight', 'fake_rng', 'true_rng'],
+    parser_set.add_argument("--pm_mode", choices=['seq64', 'seq64tight', 'fake_rng', 'true_rng', 'off'],
                             help="fixed periodic sequece, fake rng or real rng")
     parser_set.add_argument("--angles", nargs=4, type=float,
                             help="float [-1,1]")

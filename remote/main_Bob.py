@@ -138,7 +138,7 @@ def Gen_Gate():
     t['gate_delayf2'] = fine2_abs
     save_tmp(t)
 
-    #print("gate pulse delay set to", delay/1000, "sn")
+    print("gate pulse delay set to", delay/1000, "sn")
     #print(coarse, fine0, fine1, fine2)
     #print(coarse, direction0, direction1, direction2)
 
@@ -482,20 +482,25 @@ def Find_Opt_Delay_A(shift_pm):
     # print("Fiber Delay Alice-Bob : ",index, "[index] = ",index*non_zero_addr*2 ," [q_bins]")
 
 
-def Find_Opt_Delay_B(shift_pm):
+def Find_Opt_Delay_B():
     # generate a sequence of 64 angles where the first one stands out
     Write_To_Fake_Rng(gen_seq.seq_rng_single(4))
-    update_tmp('pm_mode', 'fake_rng')
+    t = get_tmp()
+    t['pm_mode'] = 'fake_rng'
+    t['feedback'] = 'on'
+    t['soft_gate'] = 'on'
+    save_tmp(t)
+    Update_Softgate()
     Update_Dac()
 
     En_reset_jesd()
 
     time.sleep(3)
     #Get detection result
-    Download_Time(150000, 'fd_single')
+    Download_Time(50000, 'fd_b_single')
     #Process to get delay val
 
-    data = np.loadtxt("data/tdc/fd_single.txt",usecols=(2,3,4), dtype=np.int64)
+    data = np.loadtxt("data/tdc/fd_b_single.txt",usecols=(2,3,4), dtype=np.int64)
     gc = data[:,0] 
     r = data[:,1]
     q_pos = data[:,2]
@@ -728,7 +733,7 @@ def init_sync():
     Sync_Ltc()
 
 def init_fda():
-    Write_Sequence_Rng()
+    Write_To_Fake_Rng(gen_seq.seq_rng_zeros())
     d = get_default()
     t = get_tmp()
     t['angle0'] = d['angle0']
@@ -1015,7 +1020,7 @@ def main():
     parser_set.add_argument("--soft_gates", nargs=3, type=int, 
                             metavar=['gate0 gate1 width'],
                             help="set gate positions and width")
-    parser_set.add_argument("--pm_mode", choices=['seq64', 'seq64tight', 'fake_rng', 'true_rng'],
+    parser_set.add_argument("--pm_mode", choices=['seq64', 'seq64tight', 'fake_rng', 'true_rng', 'off'],
                             help="fixed periodic sequece, fake rng or real rng")
     
     parser_set.add_argument("--pol_bias",nargs=4, type=float, metavar="V",  help="float [0,5] V")

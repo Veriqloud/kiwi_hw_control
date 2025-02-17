@@ -165,6 +165,10 @@ def dac1_sample_tight(seq, shift):
 #    # print(list_rng_short_return)
 #    return list_rng_short_return
 
+def seq_rng_zeros():
+    message = np.zeros(1, dtype=np.int32)
+    return message
+
 def seq_rng_single(num_words):
     # the first angle is nr 1, the rest is nr 0.
     # a word is 32bit = 16 angles

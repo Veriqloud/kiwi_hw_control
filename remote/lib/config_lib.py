@@ -453,10 +453,10 @@ def Write_To_Dac(seqlist_dac0, seqlist_dac1):
 def Write_To_Fake_Rng(seqlist):
     Base_Addr = 0x00030000
     Base_seq0 = 0x00030000 + 0x2000  #Addr_axil_sequencer +   addr_dpram
-    dpram_max_addr = len(seqlist)/8     # memory is for 4 bit values 
+    dpram_max_addr = len(seqlist)*8     # memory is for 4 bit values 
     Write(Base_Addr + 28, hex(dpram_max_addr)) 
     fd = open("/dev/xdma0_user", 'r+b', buffering=0)
-    write_to_dev(fd, Base_seq0, 0, seqlist)
+    write_to_dev(fd, Base_seq0, 0, seqlist.tolist())
     fd.close()
 
 
@@ -525,7 +525,6 @@ def Write_Pm_Mode(mode='seq64', feedback='off'):
 
 def Write_Pm_Shift(shift):
     Base_Addr = 0x00030000
-    shift_hex = hex(shift)
     up_offset = 0x4000
     shift_hex_up_offset = (int(up_offset)<<16 | shift)
     division_sp = hex(1000)

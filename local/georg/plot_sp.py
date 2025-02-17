@@ -2,8 +2,8 @@
 import numpy as np, matplotlib.pyplot as plt
 
 #names = ['single.txt', 'double.txt', 'off.txt', 'softgate.txt']
-#names = ['histogram_sp.txt', 'verify_gate_off.txt', 'verify_gate_double.txt', 'time.txt']
-names = ['verify_gate_off.txt', 'verify_gate_double.txt', 'time.txt']
+#names = ['time.txt', 'time2.txt', 'time3.txt']
+names = ['verify_gate_off.txt', 'verify_gate_double.txt']
 #names = ['double.txt', 'single.txt', 'single64.txt']
 
 time = []
