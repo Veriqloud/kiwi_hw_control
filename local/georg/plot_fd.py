@@ -21,8 +21,8 @@ for name in names:
     h1, b = np.histogram(gc1, bins=bins)
     
     # revert the alteration of the sequence
-    h0[1::2] = h0[1::2][::-1]
-    h1[1::2] = h1[1::2][::-1]
+#    h0[1::2] = h0[1::2][::-1]
+#    h1[1::2] = h1[1::2][::-1]
 
     hist0.append(h0)
     hist1.append(h1)

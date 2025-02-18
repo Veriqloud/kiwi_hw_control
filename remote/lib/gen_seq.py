@@ -75,31 +75,58 @@ def dac0_double(cycle_num, distance, shift):
 def dac1_sample(seq, shift):
     amp_max = 18000
     sample = np.zeros(len(seq)*10)
-    samples = np.zeros(len(seq)*10)
+    sample2 = np.zeros(len(seq)*10)
+    sample3 = np.zeros(len(seq)*10)
     for i in range(len(seq)):
         a = seq[i]
         # sample based on oscilloscope result to have flat plateaus
-        sample[10*i:10*(i+1)] = [a/2, 0.8*a, a, a, 0.7*a, -0.7*a, -a, -a, -0.8*a, -a/2] 
-    if shift:
-        samples[shift:] = sample[:-shift]
-        samples[:shift] = sample[-shift:]
-    else:
-        samples = sample
-    return np.array(samples*amp_max + 32768, dtype=int)
+        #sample[10*i:10*(i+1)] = [a/2, 0.8*a, a, a, 0.7*a, -0.7*a, -a, -a, -0.8*a, -a/2] 
+        sample[10*i:10*(i+1)] = [0, 0, a, a, 0, 0, -a, -a, 0, 0] 
 
-def dac1_sample_tight(seq, shift):
-    amp_max = 18000
-    sample = np.zeros(len(seq)*10)
-    samples = np.zeros(len(seq)*10)
-    for i in range(len(seq)):
-        a = seq[i]
-        sample[10*i:10*(i+1)] = [0, 0, a/2, a, a/2, 0, -a/2, -a, -a/2, 0] 
+    shift_calib = 28
+    sample2[shift_calib:] = sample[:-shift_calib]
+    sample2[:shift_calib] = sample[-shift_calib:]
+
     if shift:
-        samples[shift:] = sample[:-shift]
-        samples[:shift] = sample[-shift:]
+        sample3[shift:] = sample[:-shift]
+        sample3[:shift] = sample[-shift:]
     else:
-        samples = sample
-    return np.array(samples*amp_max + 32768, dtype=int)
+        sample3 = sample2
+    return np.array(sample3*amp_max + 32768, dtype=int)
+
+#def dac1_sample_same_as_dpram(seq, shift):
+#    amp_max = 18000
+#    shift_calibration = 26  # to get overlap with the fake_rng sequence on the oscilloscope
+#    sample = np.zeros(len(seq)*10)
+#    sample2 = np.zeros(len(seq)*10)
+#    sample3 = np.zeros(len(seq)*10)
+#    for i in range(len(seq)):
+#        a = seq[i]
+#        # sample based on oscilloscope result to have flat plateaus
+#        sample[10*i:10*(i+1)] = [0, a, a, a, a, -a, -a, -a, -a, 0] 
+#    sample2[shift_calibration:] = sample[:-shift_calibration]
+#    sample2[:shift_calibration] = sample[-shift_calibration:]
+#    # user shift 
+#    if shift:
+#        sample3[shift:] = sample2[:-shift]
+#        sample3[:shift] = sample2[-shift:]
+#    else:
+#        sample3 = sample2
+#    return np.array(sample3*amp_max + 32768, dtype=int)
+
+#def dac1_sample_tight(seq, shift):
+#    amp_max = 18000
+#    sample = np.zeros(len(seq)*10)
+#    samples = np.zeros(len(seq)*10)
+#    for i in range(len(seq)):
+#        a = seq[i]
+#        sample[10*i:10*(i+1)] = [0, 0, a/2, a, a/2, 0, -a/2, -a, -a/2, 0] 
+#    if shift:
+#        samples[shift:] = sample[:-shift]
+#        samples[:shift] = sample[-shift:]
+#    else:
+#        samples = sample
+#    return np.array(samples*amp_max + 32768, dtype=int)
 
 
 

@@ -889,6 +889,16 @@ def main():
         if args.pm_mode:
             update_tmp('pm_mode', args.pm_mode)
             Update_Dac()
+        elif args.fake_rng_seq:
+            if args.fake_rng_seq == 'single':
+                Write_To_Fake_Rng(gen_seq.seq_rng_single(4))
+                Update_Dac()
+                En_reset_jesd()
+            elif args.fake_rng_seq == 'off':
+                Write_To_Fake_Rng(gen_seq.seq_rng_zeros())
+                Update_Dac()
+                En_reset_jesd()
+
         elif args.pm_shift is not None:
             update_tmp('pm_shift', args.pm_shift)
             Update_Dac()
@@ -1005,6 +1015,8 @@ def main():
 ######### set ###########
     parser_set.add_argument("--rng_mode", choices=['seq', 'fake_rng', 'true_rng'],
                             help="fixed periodic sequece, fake rng or real rng")
+    parser_set.add_argument("--fake_rng_seq", choices=['off', 'single'],
+                            help="set fake rng sequence")
     parser_set.add_argument("--feedback", choices=['on', 'off'], 
                             help="balance interferometer")
     parser_set.add_argument("--spd_mode", choices=['free', 'gated'], 
