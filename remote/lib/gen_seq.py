@@ -83,13 +83,13 @@ def dac1_sample(seq, shift):
         #sample[10*i:10*(i+1)] = [a/2, 0.8*a, a, a, 0.7*a, -0.7*a, -a, -a, -0.8*a, -a/2] 
         sample[10*i:10*(i+1)] = [0, 0, a, a, 0, 0, -a, -a, 0, 0] 
 
-    shift_calib = 28
+    shift_calib = 28        # calibration to align to fake_rng
     sample2[shift_calib:] = sample[:-shift_calib]
     sample2[:shift_calib] = sample[-shift_calib:]
 
     if shift:
-        sample3[shift:] = sample[:-shift]
-        sample3[:shift] = sample[-shift:]
+        sample3[shift:] = sample2[:-shift]
+        sample3[:shift] = sample2[-shift:]
     else:
         sample3 = sample2
     return np.array(sample3*amp_max + 32768, dtype=int)

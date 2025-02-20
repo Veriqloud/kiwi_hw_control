@@ -57,7 +57,8 @@ def Update_Dac():
         dac1 = gen_seq.dac1_sample(np.zeros(64), 0)
     
     Write_To_Dac(dac0, dac1)
-    Write_Pm_Shift(t['pm_shift'])
+    Write_Pm_Shift(t['pm_shift']%10)
+    print("Dac", t['pm_mode'], t['pm_shift'], t['feedback'])
 
 def Update_Angles():
     t = get_tmp()
@@ -194,8 +195,10 @@ def Measure_Sp64(num_clicks=20000):
     data = np.loadtxt('data/tdc/single64.txt', usecols=(2,4))
     gc = (data[:,0]%32)*2 + data[:,1]
     h, b = np.histogram(gc, bins=np.arange(65))
+    print(h.argmax())
     coarse_shift = (1 - h.argmax()) % 64
     coarse_shift = coarse_shift*10
+    print("Suggested coarse am_shift: ", coarse_shift)
     return int(coarse_shift)
 
 
@@ -443,44 +446,44 @@ def Find_Opt_Delay_AB(party,shift_pm,delay_mod):
         index_arr = np.abs(n1-n0)
         print("Fiber Delay Alice-Bob : ",index, "[index] = ",index*non_zero_addr*2 ," [q_bins]")
 
-def Find_Opt_Delay_A(shift_pm):
-    # Write_Dac1_Shift(6, 0, 0, 0, 0, shift_pm)
-    # Write_Dac1_Shift(2, 0, 0, 0, 0, shift_pm)
-    Write_Dac1_Shift(2, 0, 0, 0, 0, 0)
-    subprocess.run("cd /home/vq-user/Aurea_API/OEM_API_Linux/Examples/Python && python Aurea.py --mode continuous && python Aurea.py --dt 100 ", shell = True)
-    Time_Calib_Reg(1, 0, 0, 0, 0, 0, 0)
-
-    time.sleep(2)
-    Get_Stream(0x00000000+40,'/dev/xdma0_c2h_2','data/tdc/output_fd.bin',20000)
-    command ="test_tdc/tdc_bin2txt data/tdc/output_fd.bin data/tdc/histogram_fd.txt"
-    s = subprocess.check_call(command, shell = True)
-
-    #Process to get delay val
-    int_click_gated = np.loadtxt("data/tdc/histogram_fd.txt",usecols=(2,3,4),unpack=True, dtype=np.int64)
-    print("Get detection result")
-    # seq = dpram_max_addr*2  #[q_bins]
-    # times_ref_click0 = []
-    # times_ref_click1 = []
-    # for i in range(len(int_click_gated[1])):
-    #     if (int_click_gated[1][i] == 0):
-    #         if (int_click_gated[2][i] == 0):
-    #             gc_q = (int_click_gated[0][i]%(seq/2))*2
-    #         elif(int_click_gated[2][i] == 1):
-    #             gc_q = (int_click_gated[0][i]%(seq/2))*2 + 1
-    #         times_ref_click0.append(gc_q)
-    #     elif (int_click_gated[1][i] == 1):
-    #         if (int_click_gated[2][i] == 0):
-    #             gc_q = (int_click_gated[0][i]%(seq/2))*2
-    #         elif(int_click_gated[2][i] == 1):
-    #             gc_q = (int_click_gated[0][i]%(seq/2))*2 + 1
-    #         times_ref_click1.append(gc_q)
-
-    # n0, bins0 = np.histogram(times_ref_click0, int(dpram_max_addr/non_zero_addr))
-    # n1, bins1 = np.histogram(times_ref_click1, int(dpram_max_addr/non_zero_addr))
-    # index = np.argmax(np.abs(n1-n0))
-    # index_arr = np.abs(n1-n0)
-    # print("Fiber Delay Alice-Bob : ",index, "[index] = ",index*non_zero_addr*2 ," [q_bins]")
-
+#def Find_Opt_Delay_A(shift_pm):
+#    # Write_Dac1_Shift(6, 0, 0, 0, 0, shift_pm)
+#    # Write_Dac1_Shift(2, 0, 0, 0, 0, shift_pm)
+#    Write_Dac1_Shift(2, 0, 0, 0, 0, 0)
+#    subprocess.run("cd /home/vq-user/Aurea_API/OEM_API_Linux/Examples/Python && python Aurea.py --mode continuous && python Aurea.py --dt 100 ", shell = True)
+#    Time_Calib_Reg(1, 0, 0, 0, 0, 0, 0)
+#
+#    time.sleep(2)
+#    Get_Stream(0x00000000+40,'/dev/xdma0_c2h_2','data/tdc/output_fd.bin',20000)
+#    command ="test_tdc/tdc_bin2txt data/tdc/output_fd.bin data/tdc/histogram_fd.txt"
+#    s = subprocess.check_call(command, shell = True)
+#
+#    #Process to get delay val
+#    int_click_gated = np.loadtxt("data/tdc/histogram_fd.txt",usecols=(2,3,4),unpack=True, dtype=np.int64)
+#    print("Get detection result")
+#    # seq = dpram_max_addr*2  #[q_bins]
+#    # times_ref_click0 = []
+#    # times_ref_click1 = []
+#    # for i in range(len(int_click_gated[1])):
+#    #     if (int_click_gated[1][i] == 0):
+#    #         if (int_click_gated[2][i] == 0):
+#    #             gc_q = (int_click_gated[0][i]%(seq/2))*2
+#    #         elif(int_click_gated[2][i] == 1):
+#    #             gc_q = (int_click_gated[0][i]%(seq/2))*2 + 1
+#    #         times_ref_click0.append(gc_q)
+#    #     elif (int_click_gated[1][i] == 1):
+#    #         if (int_click_gated[2][i] == 0):
+#    #             gc_q = (int_click_gated[0][i]%(seq/2))*2
+#    #         elif(int_click_gated[2][i] == 1):
+#    #             gc_q = (int_click_gated[0][i]%(seq/2))*2 + 1
+#    #         times_ref_click1.append(gc_q)
+#
+#    # n0, bins0 = np.histogram(times_ref_click0, int(dpram_max_addr/non_zero_addr))
+#    # n1, bins1 = np.histogram(times_ref_click1, int(dpram_max_addr/non_zero_addr))
+#    # index = np.argmax(np.abs(n1-n0))
+#    # index_arr = np.abs(n1-n0)
+#    # print("Fiber Delay Alice-Bob : ",index, "[index] = ",index*non_zero_addr*2 ," [q_bins]")
+#
 
 def Find_Opt_Delay_B():
     # generate a sequence of 64 angles where the first one stands out
@@ -518,6 +521,44 @@ def Find_Opt_Delay_B():
 
     index = np.argmax(np.abs(h))
     print("Fiber delay of Bob: ",index, " [q_bins]")
+    return(int(index))
+
+def Find_Opt_Delay_A():
+    # generate a sequence of 64 angles where the first one stands out
+    t = get_tmp()
+    t['pm_mode'] = 'off'
+    t['feedback'] = 'on'
+    t['soft_gate'] = 'on'
+    save_tmp(t)
+    Update_Softgate()
+    Update_Dac()
+
+    En_reset_jesd()
+
+    time.sleep(3)
+    #Get detection result
+    Download_Time(50000, 'fd_a_single')
+    #Process to get delay val
+
+    data = np.loadtxt("data/tdc/fd_a_single.txt",usecols=(2,3,4), dtype=np.int64)
+    gc = data[:,0] 
+    r = data[:,1]
+    q_pos = data[:,2]
+
+    gc0 = (gc[r==0]%32)*2 + q_pos[r==0] 
+    gc1 = (gc[r==1]%32)*2 + q_pos[r==1] 
+
+    bins = np.arange(65)
+    h0, b = np.histogram(gc0, bins=bins)
+    h1, b = np.histogram(gc1, bins=bins)
+
+    h = h0-h1
+    m = h.mean()
+    h = h-m
+
+    index = np.argmax(np.abs(h))
+    print("Fiber delay of Alice: ",index, " [q_bins]")
+    return(int(index))
 
 def Test_delay():
     Base_Addr = 0x00030000
@@ -817,6 +858,7 @@ def init_rst_default():
     d['t0'] = 0
     d['deadtime_cont'] = 20
     d['deadtime_gated'] = 15
+    d['fiber_delay'] = 0
     save_default(d)
 
 def init_rst_tmp():
@@ -845,6 +887,8 @@ def init_rst_tmp():
     t['soft_gate1'] = 0
     t['soft_gatew'] = 0
     t['t0'] = 0
+    t['fiber_delay_mod'] = 0
+    t['fiber_delay'] = 0
     save_tmp(t)
 
 def init_all():

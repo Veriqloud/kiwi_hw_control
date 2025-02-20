@@ -87,8 +87,8 @@ def Update_Dac():
         dac1 = gen_seq.dac1_sample(np.zeros(64), 0)
     
     Write_To_Dac(dac0, dac1)
-    Write_Pm_Shift(t['pm_shift'])
-    print("Updated Dac sequence")
+    Write_Pm_Shift(t['pm_shift']%10)
+    print("Dac", t['am_mode'], t['pm_mode'], t['am_shift'], t['pm_shift'])
     
 
 def Update_Angles():
@@ -586,15 +586,16 @@ def init_apply_default():
 
 def init_rst_default():
     d = {}
-    d['vca'] = 3
-    d['qdistance'] = 0.1
+    d['vca'] = 2
+    d['qdistance'] = 0.08
     d['am_bias'] = 0
-    d['am_shift'] = 0
-    d['pm_shift'] = 0
+    d['am_shift'] = 514
+    d['pm_shift'] = 514
     d['angle0'] = 0
     d['angle1'] = 0
     d['angle2'] = 0
     d['angle3'] = 0
+    d['fiber_delay'] = 0
     save_default(d)
 
 def init_rst_tmp():
@@ -610,6 +611,8 @@ def init_rst_tmp():
     t['angle2'] = 0
     t['angle3'] = 0
     t['qdistance'] = 0
+    t['fiber_delay_mod'] = 0
+    t['fiber_delay'] = 0
 
     save_tmp(t)
 

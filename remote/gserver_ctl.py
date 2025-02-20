@@ -131,14 +131,13 @@ try:
             response = 'Find shift alice done'
        
         elif command == 'fd_b':
-            # main.Find_Opt_Delay_B(ret_shift_am + 4)
-            #lines = np.loadtxt("data/var.txt",usecols=0)
-            #best_shift_b = int(lines[2])
-            #ret_shift_am = int(lines[0])
-            #print(best_shift_b)
-            # main.Find_Opt_Delay_B(best_shift_b)
-            # main.Find_Opt_Delay_B((ret_shift_am+4)%10)
-            main.Find_Opt_Delay_B()
+            fiber_delay = main.Find_Opt_Delay_B()
+            response = 'Find delay bob done'
+            update_tmp('fiber_delay_mod', fiber_delay)
+        
+        elif command == 'fd_a':
+            fiber_delay = main.Find_Opt_Delay_A()
+            conn.sendall(fiber_delay.to_bytes(4,byteorder='big'))
             response = 'Find delay bob done'
             
         elif command == 'fd_ab_mod':

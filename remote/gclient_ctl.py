@@ -7,6 +7,7 @@ import subprocess, sys, argparse
 import numpy as np
 import gmain as main
 from lib.config_lib import get_tmp, save_tmp, update_tmp, update_default, get_default
+import lib.gen_seq as gen_seq
 
 
 # Client configuration
@@ -72,7 +73,7 @@ def client_start(commands_in):
                 coarse_shift = int.from_bytes(rcv_message, byteorder='big')
 
                 am_shift = (am_shift + coarse_shift) % 640
-                print("updateding am_shift to", am_shift)
+                print("updating am_shift to", am_shift)
                 update_tmp('am_shift', am_shift)
                 main.Update_Dac()
 
@@ -120,7 +121,16 @@ def client_start(commands_in):
                 update_tmp('pm_mode', 'off')
                 update_tmp('am_mode', 'double')
                 main.Update_Dac()
-
+            
+            elif command == 'fd_a':
+                main.Write_To_Fake_Rng(gen_seq.seq_rng_single(4))
+                update_tmp('pm_mode', 'fake_rng')
+                update_tmp('am_mode', 'double')
+                main.Update_Dac()
+                m = client_socket.recv(4)
+                fiber_delay = int.from_bytes(m, byteorder='big')
+                update_tmp('fiber_delay', fiber_delay)
+            
             elif command == 'fd_ab_mod':
                 lines = np.loadtxt("data/var.txt",usecols=0)
                 shift_pm_a = int(lines[2])

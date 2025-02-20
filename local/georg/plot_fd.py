@@ -1,9 +1,9 @@
 #!/bin/python
 import numpy as np, matplotlib.pyplot as plt
 
-#names = ['fd_b_single.txt']
-#names = ['time.txt', 'time2.txt', 'time3.txt', 'time4.txt']
-names = ['time.txt']
+names = ['fd_a_single.txt']
+#names = ['time.txt', 'time2.txt', 'time3.txt', 'time4.txt','time5.txt', 'time6.txt', 'time7.txt', 'time8.txt', 'time9.txt']
+#names = ['time.txt','time2.txt']
 
 
 hist0 = []
@@ -32,9 +32,11 @@ for name in names:
 for i in range(len(hist0)):
     plt.plot(bins[:-1], hist0[i])
     plt.plot(bins[:-1], hist1[i])
+    #plt.plot(bins[:-1], hist[i], label=i)
 
 #plt.plot(bins[:-1], hist0[1])
 #plt.plot(bins[:-1], hist1[1])
+#plt.legend()
 
 plt.show()
 

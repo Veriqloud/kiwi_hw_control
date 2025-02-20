@@ -3,10 +3,10 @@ import numpy as np, matplotlib.pyplot as plt
 
 #names = ['single.txt', 'double.txt', 'off.txt', 'softgate.txt']
 
-names = ['../pm_shift_data/pm_a_shift_0.txt']
+names = ['../pm_shift_data/pm_b_shift_7.txt']
 #names = ['time.txt', 'time2.txt']
 
-gc_shift = 26
+gc_shift =  31
 
 hist0 = []
 hist1 = []
@@ -29,6 +29,7 @@ for name in names:
     hist1.append(h1)
 
 
+#data = np.loadtxt("single64.txt", usecols=(2, 3, 4), dtype=np.int64)
 data = np.loadtxt("time.txt", usecols=(2, 3, 4), dtype=np.int64)
 gc = data[:,0] + gc_shift
 q_pos = data[:,2]

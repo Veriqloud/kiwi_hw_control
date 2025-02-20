@@ -521,7 +521,7 @@ def Write_Pm_Mode(mode='seq64', feedback='off'):
     #Trigger for switching domain
     Write(Base_Addr + 12,0x1)
     Write(Base_Addr + 12,0x0)
-    update_tmp('pm_mode', mode)
+    #update_tmp('pm_mode', mode)
 
 def Write_Pm_Shift(shift):
     Base_Addr = 0x00030000
@@ -533,7 +533,7 @@ def Write_Pm_Shift(shift):
     #Trigger for switching domain
     Write(Base_Addr + 12,0x1)
     Write(Base_Addr + 12,0x0)
-    print("pm_shift written: ", shift)
+    #print("pm_shift written: ", shift)
 
 
 def Write_Angles(a0, a1, a2, a3):
@@ -553,7 +553,7 @@ def Write_Angles(a0, a1, a2, a3):
     #Trigger for switching domain
     Write(Base_Addr + 12,0x1)
     Write(Base_Addr + 12,0x0)
-    print("angles written: ", a0, a1, a2, a3)
+    #print("angles written: ", a0, a1, a2, a3)
 
 #Read back the FGPA registers configured for JESD
 def ReadFPGA():

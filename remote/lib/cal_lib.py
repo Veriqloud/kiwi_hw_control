@@ -48,8 +48,7 @@ def Fit_Sine(party):
     return_arr = []
     delta_cnt0_arr = []
     for i in range(10):
-        print("fit_sin", i)
-        times_ref_click0, times_ref_click1 = Shift_Unit(i,party)
+        times_ref_click0, times_ref_click1 = Shift_Unit(i,party,gc_compensation=31)
         n0, bins0 = np.histogram(times_ref_click0, 64)
         n1, bins1 = np.histogram(times_ref_click1, 64)
         bin_center0 = (bins0[:-1] + bins0[1:])/2
@@ -75,17 +74,14 @@ def Fit_Sine(party):
 
 def Best_Shift(party):
     return_arr = Fit_Sine(party)
-    print(return_arr)
     amp_fre_arr=[]
     print("amp     fre   i")
     for amp,fre,i in return_arr:
-        print(amp, fre, i)
         if (abs(amp) < 1000):
             if (0.1<fre<5):
                 amp_fre_arr.append(((abs(amp)*fre),i))
-                print(f"{abs(amp):06.2f}  {fre:.2f}  {i:.2f}")
+                print(f"{abs(amp):.2f}  {fre:.2f}  {i:.2f}")
 
-    print("flag1")
     max_ele = max(amp_fre_arr, key=lambda t: t[0])
     best_shift = max_ele[1]
     print("Best shift: ", best_shift)
