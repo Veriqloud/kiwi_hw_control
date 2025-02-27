@@ -41,19 +41,19 @@ def Config_Fda():
 
 
 #-------------------------GLOBAL COUNTER-------------------------------------------
-def Reset_gc():
-    Write(0x00000008,0x00) #Start_gc = 0
-    Write(0x00012008,0x01)
-    Write(0x00012008,0x00)
-    time.sleep(2)
-    print("Reset global counter......")
-
-def Start_gc():
-    BaseAddr = 0x00000000
-    Write(BaseAddr + 8, 0x00000000)
-    Write(BaseAddr + 8, 0x00000001)
-    time.sleep(1)
-    print("Global counter starts counting up from some pps")
+#def Reset_gc():
+#    Write(0x00000008,0x00) #Start_gc = 0
+#    Write(0x00012008,0x01)
+#    Write(0x00012008,0x00)
+#    time.sleep(2)
+#    print("Reset global counter......")
+#
+#def Start_gc():
+#    BaseAddr = 0x00000000
+#    Write(BaseAddr + 8, 0x00000000)
+#    Write(BaseAddr + 8, 0x00000001)
+#    time.sleep(1)
+#    print("Global counter starts counting up from some pps")
 
     
     
@@ -72,6 +72,7 @@ def Update_Dac():
         dac0 = gen_seq.dac0_single_single(64, t['am_shift'])
 
     if t['pm_mode'] == 'off':
+        Write_Pm_Mode('seq64')
         dac1 = gen_seq.dac1_sample(np.zeros(64), t['pm_shift'])
     elif t['pm_mode'] == 'seq64':
         Write_Pm_Mode('seq64')
@@ -96,283 +97,77 @@ def Update_Angles():
     Write_Angles(t['angle0'], t['angle1'], t['angle2'], t['angle3'])
 
 
-def Verify_Shift_A(party, shift_pm, shift_am):
-    seqlist = gen_seq.seq_dacs_dp(2, [-0.95,0.95], 64,shift_pm,510,shift_am) # am: off, pm: seq64
-    Write_Seqlist(seqlist)
-    Write_Pm_Mode('seq64')
-    print("Set seq64 for PM")
+#def Verify_Shift_A(party, shift_pm, shift_am):
+#    seqlist = gen_seq.seq_dacs_dp(2, [-0.95,0.95], 64,shift_pm,510,shift_am) # am: off, pm: seq64
+#    Write_Seqlist(seqlist)
+#    Write_Pm_Mode('seq64')
+#    print("Set seq64 for PM")
 
-def Find_Best_Shift(party):
-    best_shift = cal_lib.Best_Shift(party)
-    return best_shift
-
-
-
-def Phase_Drift_Test():
-    #dpram_rng_max_addr
-    Base_Addr = 0x00030000
-    Write(Base_Addr + 28, 0x4e20)
-    #Write_Dac1_shift
-    for j in range(33):
-        Write_Dac1_Shift(2,-1+j*0.0625,-1+j*0.0625,0 ,0,0)
-        Get_Stream(0x00000000+40,'/dev/xdma0_c2h_2','data/tdc/testphase_'+str(j+1)+'.bin',640) 
-
-    for i in range(33):
-        command ="test_tdc/tdc_bin2txt data/tdc/testphase_"+str(i+1)+".bin data/tdc/testphase_"+str(i+1)+".txt"
-        s = subprocess.check_call(command, shell = True)
+#def Find_Best_Shift(party):
+#    best_shift = cal_lib.Best_Shift(party)
+#    return best_shift
 
 
-def Feedback_Phase():
-    #dpram_rng_max_addr
-    Base_Addr = 0x00030000
-    Write(Base_Addr + 28, 0x0008)
-    #Write data to rng_dpram
-    Base_seq0 = 0x00030000 + 0x2000  #Addr_axil_sequencer +   addr_dpram
-    rngseq = 0x1b1b1b1b
-    Write(Base_seq0, rngseq)
-    #Write amplitude
-    #amp = np.array([-0.5,-0.2, 0.2, 0.5])
-    amp = np.array([0.2, 0.2, 0.2, 0.2])
-    Write_Dac1_Shift(14, amp[0], amp[1], amp[2], amp[3], 8)
 
-def Find_Opt_Delay_AB_mod32(party,shift_pm):
-    dpram_max_addr = 32
-    #dpram_rng_max_addr
-    Base_Addr = 0x00030000
-    Base_seq0 = 0x00030000 + 0x2000  #Addr_axil_sequencer +   addr_dpram
-    Write(Base_Addr + 28, hex(dpram_max_addr))
-    #Write data to rng_dpram
-    list_rng = gen_seq.seq_rng_short(dpram_max_addr)
-    vals = []
-    for l in list_rng:
-        vals.append(int(l, 0))
-    fd = open("/dev/xdma0_user", 'r+b', buffering=0)
-    write_to_dev(fd, Base_seq0, 0, vals)
-    fd.close()
-    #Write amplitue
-    amp = np.array([0 ,0, 0.45, 0])
-    Write_Dac1_Shift(2, amp[0], amp[1], amp[2], amp[3], shift_pm)
-    #Reset jesd module
-    # En_reset_jesd()
-    Config_Fda()
-    print("Apply phase in period of 32 gcs")
-
-def Find_Opt_Delay_AB(party,shift_pm,delay_mod):
-    dpram_max_addr = 4000
-    non_zero_addr = 32
-    # start_position = 64 - 44  #40 q_bins returned from mod32
-    start_position = 64 - delay_mod
-    # dpram_max_addr = 4000
-    #with 100km, doesn't work with write to dev() function, maybe need to offset
-    # non_zero_addr = 80
-    if (party == 'alice'):
-        Base_Addr = 0x00030000
-        Base_seq0 = 0x00030000 + 0x2000  #Addr_axil_sequencer +   addr_dpram
-        Write(Base_Addr + 28, hex(dpram_max_addr))
-        #Write data to rng_dpram
-        # list_rng = gen_seq.seq_rng_long(dpram_max_addr,non_zero_addr)
-        list_rng = gen_seq.seq_rng_fd(dpram_max_addr,start_position)
-        vals = []
-        for l in list_rng:
-            vals.append(int(l, 0))
-        fd = open("/dev/xdma0_user", 'r+b', buffering=0)
-        write_to_dev(fd, Base_seq0, 0, vals)
-        fd.close()
-        # file0 = open('data/fda/seqrng_gen/SeqRng.txt','r') #Use this file for 0.5ms distance
-        # counter = 0
-        # for l in file0.readlines():
-        #     counter += 1
-        #     Base_seq = str(hex(int(Base_seq0) + (counter-1)*4))
-        #     Write(Base_seq, l)
-        #     #print(Base_seq)
-        #     #print(l)
-        # print("Set rng sequence for DAC1 finished")
-        # file0.close()
-
-        #Write amplitude
-        amp = np.array([0 ,0, 0.45, 0])
-        Write_Dac1_Shift(2, amp[0], amp[1], amp[2], amp[3], shift_pm)
-        #Reset jesd module
-        En_reset_jesd()
-        # Config_Fda()
-        print("Apply phase for long distance mode")
-        # Config_Fda()
-
-        #Write amplitude
-    if (party == 'bob'):
-        Write_Dac1_Shift(6, 0, 0, 0, 0, shift_pm)
-        time.sleep(10)
-        Get_Stream(0x00000000+40,'/dev/xdma0_c2h_2','data/tdc/output_gated.bin',500000)
-        command ="test_tdc/tdc_bin2txt data/tdc/output_gated.bin data/tdc/histogram_gated.txt"
-        s = subprocess.check_call(command, shell = True)
-
-        #Process to get delay val
-        int_click_gated = np.loadtxt("data/tdc/histogram_gated.txt",usecols=(2,3,4),unpack=True, dtype=np.int64)
-
-        seq = dpram_max_addr*2  #[q_bins]
-        times_ref_click0 = []
-        times_ref_click1 = []
-        for i in range(len(int_click_gated[1])):
-            if (int_click_gated[1][i] == 0):
-                if (int_click_gated[2][i] == 0):
-                    gc_q = (int_click_gated[0][i]%(seq/2))*2
-                elif(int_click_gated[2][i] == 1):
-                    gc_q = (int_click_gated[0][i]%(seq/2))*2 + 1
-                times_ref_click0.append(gc_q)
-            elif (int_click_gated[1][i] == 1):
-                if (int_click_gated[2][i] == 0):
-                    gc_q = (int_click_gated[0][i]%(seq/2))*2
-                elif(int_click_gated[2][i] == 1):
-                    gc_q = (int_click_gated[0][i]%(seq/2))*2 + 1
-                times_ref_click1.append(gc_q)
-
-        n0, bins0 = np.histogram(times_ref_click0, int(dpram_max_addr/non_zero_addr))
-        n1, bins1 = np.histogram(times_ref_click1, int(dpram_max_addr/non_zero_addr))
-        index = np.argmax(np.abs(n1-n0))
-        index_arr = np.abs(n1-n0)
-        print("Fiber Delay Alice-Bob : ",index, "[index] = ",index*non_zero_addr*2 ," [q_bins]")
-
-def Find_Opt_Delay_A(shift_pm):
-    # Write_Dac1_Shift(6, 0, 0, 0, 0, shift_pm)
-    # Write_Dac1_Shift(2, 0, 0, 0, 0, shift_pm)
-    Write_Dac1_Shift(2, 0, 0, 0, 0, 0)
-    subprocess.run("cd /home/vq-user/Aurea_API/OEM_API_Linux/Examples/Python && python Aurea.py --mode continuous && python Aurea.py --dt 100 ", shell = True)
-    Time_Calib_Reg(1, 0, 0, 0, 0, 0, 0)
-
-    time.sleep(2)
-    Get_Stream(0x00000000+40,'/dev/xdma0_c2h_2','data/tdc/output_fd.bin',20000)
-    command ="test_tdc/tdc_bin2txt data/tdc/output_fd.bin data/tdc/histogram_fd.txt"
-    s = subprocess.check_call(command, shell = True)
-
-    #Process to get delay val
-    int_click_gated = np.loadtxt("data/tdc/histogram_fd.txt",usecols=(2,3,4),unpack=True, dtype=np.int64)
-    print("Get detection result")
-    # seq = dpram_max_addr*2  #[q_bins]
-    # times_ref_click0 = []
-    # times_ref_click1 = []
-    # for i in range(len(int_click_gated[1])):
-    #     if (int_click_gated[1][i] == 0):
-    #         if (int_click_gated[2][i] == 0):
-    #             gc_q = (int_click_gated[0][i]%(seq/2))*2
-    #         elif(int_click_gated[2][i] == 1):
-    #             gc_q = (int_click_gated[0][i]%(seq/2))*2 + 1
-    #         times_ref_click0.append(gc_q)
-    #     elif (int_click_gated[1][i] == 1):
-    #         if (int_click_gated[2][i] == 0):
-    #             gc_q = (int_click_gated[0][i]%(seq/2))*2
-    #         elif(int_click_gated[2][i] == 1):
-    #             gc_q = (int_click_gated[0][i]%(seq/2))*2 + 1
-    #         times_ref_click1.append(gc_q)
-
-    # n0, bins0 = np.histogram(times_ref_click0, int(dpram_max_addr/non_zero_addr))
-    # n1, bins1 = np.histogram(times_ref_click1, int(dpram_max_addr/non_zero_addr))
-    # index = np.argmax(np.abs(n1-n0))
-    # index_arr = np.abs(n1-n0)
-    # print("Fiber Delay Alice-Bob : ",index, "[index] = ",index*non_zero_addr*2 ," [q_bins]")
+#def Phase_Drift_Test():
+#    #dpram_rng_max_addr
+#    Base_Addr = 0x00030000
+#    Write(Base_Addr + 28, 0x4e20)
+#    #Write_Dac1_shift
+#    for j in range(33):
+#        Write_Dac1_Shift(2,-1+j*0.0625,-1+j*0.0625,0 ,0,0)
+#        Get_Stream(0x00000000+40,'/dev/xdma0_c2h_2','data/tdc/testphase_'+str(j+1)+'.bin',640) 
+#
+#    for i in range(33):
+#        command ="test_tdc/tdc_bin2txt data/tdc/testphase_"+str(i+1)+".bin data/tdc/testphase_"+str(i+1)+".txt"
+#        s = subprocess.check_call(command, shell = True)
 
 
-def Find_Opt_Delay_B(shift_pm):
-    #dpram_rng_max_addr
-    Base_Addr = 0x00030000
-    Base_seq0 = 0x00030000 + 0x2000  #Addr_axil_sequencer +   addr_dpram
-    dpram_max_addr = 32
-    Write(Base_Addr + 28, hex(dpram_max_addr))
-    #Write data to rng_dpram
-    list_rng = gen_seq.seq_rng_short(dpram_max_addr)
-    vals = []
-    for l in list_rng:
-        vals.append(int(l, 0))
-    fd = open("/dev/xdma0_user", 'r+b', buffering=0)
-    write_to_dev(fd, Base_seq0, 0, vals)
-    fd.close()
-    #Write amplitude
-    amp = np.array([0,0, 0.45, 0])
-    Write_Dac1_Shift(6, amp[0], amp[1], amp[2], amp[3], shift_pm)
-    #Reset jesd module
-    # WriteFPGA()
-    En_reset_jesd()
-    # Config_Fda()
-    # Config_Fda()
-    print("Apply phase in period of 32 gcs")
-    time.sleep(3)
-    #Get detection result
-    Get_Stream(0x00000000+40,'/dev/xdma0_c2h_2','data/tdc/output_gated.bin',150000)
-    command ="test_tdc/tdc_bin2txt data/tdc/output_gated.bin data/tdc/histogram_gated.txt"
-    s = subprocess.check_call(command, shell = True)
-    #Process to get delay val
-    int_click_gated = np.loadtxt("data/tdc/histogram_gated.txt",usecols=(2,3,4),unpack=True, dtype=np.int64)
-
-    seq = dpram_max_addr*2  #[q_bins]
-    times_ref_click0 = []
-    times_ref_click1 = []
-    for i in range(len(int_click_gated[1])):
-        if (int_click_gated[1][i] == 0):
-            if (int_click_gated[2][i] == 0):
-                gc_q = (int_click_gated[0][i]%(dpram_max_addr))*2
-            elif(int_click_gated[2][i] == 1):
-                gc_q = (int_click_gated[0][i]%(dpram_max_addr))*2 + 1
-            times_ref_click0.append(gc_q)
-        elif (int_click_gated[1][i] == 1):
-            if (int_click_gated[2][i] == 0):
-                gc_q = (int_click_gated[0][i]%(seq/2))*2
-            elif(int_click_gated[2][i] == 1):
-                gc_q = (int_click_gated[0][i]%(seq/2))*2 + 1
-            times_ref_click1.append(gc_q)
+#def Feedback_Phase():
+#    #dpram_rng_max_addr
+#    Base_Addr = 0x00030000
+#    Write(Base_Addr + 28, 0x0008)
+#    #Write data to rng_dpram
+#    Base_seq0 = 0x00030000 + 0x2000  #Addr_axil_sequencer +   addr_dpram
+#    rngseq = 0x1b1b1b1b
+#    Write(Base_seq0, rngseq)
+#    #Write amplitude
+#    #amp = np.array([-0.5,-0.2, 0.2, 0.5])
+#    amp = np.array([0.2, 0.2, 0.2, 0.2])
+#    Write_Dac1_Shift(14, amp[0], amp[1], amp[2], amp[3], 8)
 
 
-    n0, bins0 = np.histogram(times_ref_click0, seq)
-    n1, bins1 = np.histogram(times_ref_click1, seq)
-    # bin_center0 = (bins0[:-1] + bins0[1:])/2
-    # bin_center1 = (bins1[:-1] + bins1[1:])/2
-
-    index = np.argmax(np.abs(n1-n0))
-    print("Fiber delay of Bob: ",index, " [q_bins]")
-
-def Test_delay():
-    Base_Addr = 0x00030000
-    Write(Base_Addr + 28, 0x4e20) #for 0.5ms distance
-    Base_seq0 = 0x00030000 + 0x2000  #Addr_axil_sequencer +   addr_dpram
-    file0 = open('data/fda/seqrng_gen/SeqRng.txt','r') #Use this file for 0.5ms distance
-    counter = 0
-    for l in file0.readlines():
-        counter += 1
-        Base_seq = str(hex(int(Base_seq0) + (counter-1)*4))
-        Write(Base_seq, l)
-        #print(Base_seq)
-        #print(l)
-    print("Set rng sequence for DAC1 finished")
-    file0.close()
 
 
-#----------MONITORING REGISTERS-------------------
-#Read back monitoring signal
-def Count_Mon():
-    print("-----------DISPLAY NUMBER OF COUNTS--------------")
-    BaseAddr = 0x00000000
-    #Write(BaseAddr + 32, 0x4)
-    #for i in range (20):
-    while True:
-        total_count = Read(BaseAddr + 64)
-        hex_total_count = total_count.decode('utf-8').strip()
-        dec_total_count = int(hex_total_count, 16)
-        #print(f"Total count: {dec_total_count}",end ='\r', flush=True)
-        click0_count = Read(BaseAddr + 60)
-        hex_click0_count = click0_count.decode('utf-8').strip()
-        dec_click0_count = int(hex_click0_count, 16)
-        #print(f"Click0 count: {dec_click0_count}",end ='\r', flush=True)
-        click1_count = Read(BaseAddr + 56)
-        hex_click1_count = click1_count.decode('utf-8').strip()
-        dec_click1_count = int(hex_click1_count, 16)
-        time.sleep(0.1)
-        print(f"Total: {dec_total_count}, Click0: {dec_click0_count}, Click1: {dec_click1_count}               ",flush=True)
-
-def Read_Count():
-    BaseAddr = 0x00000000
-    total_count = Read(BaseAddr + 64)
-    hex_total_count = total_count.decode('utf-8').strip()
-    dec_total_count = int(hex_total_count, 16)
-    print("Total count: ", dec_total_count)
-    return dec_total_count
+##----------MONITORING REGISTERS-------------------
+##Read back monitoring signal
+#def Count_Mon():
+#    print("-----------DISPLAY NUMBER OF COUNTS--------------")
+#    BaseAddr = 0x00000000
+#    #Write(BaseAddr + 32, 0x4)
+#    #for i in range (20):
+#    while True:
+#        total_count = Read(BaseAddr + 64)
+#        hex_total_count = total_count.decode('utf-8').strip()
+#        dec_total_count = int(hex_total_count, 16)
+#        #print(f"Total count: {dec_total_count}",end ='\r', flush=True)
+#        click0_count = Read(BaseAddr + 60)
+#        hex_click0_count = click0_count.decode('utf-8').strip()
+#        dec_click0_count = int(hex_click0_count, 16)
+#        #print(f"Click0 count: {dec_click0_count}",end ='\r', flush=True)
+#        click1_count = Read(BaseAddr + 56)
+#        hex_click1_count = click1_count.decode('utf-8').strip()
+#        dec_click1_count = int(hex_click1_count, 16)
+#        time.sleep(0.1)
+#        print(f"Total: {dec_total_count}, Click0: {dec_click0_count}, Click1: {dec_click1_count}               ",flush=True)
+#
+#def Read_Count():
+#    BaseAddr = 0x00000000
+#    total_count = Read(BaseAddr + 64)
+#    hex_total_count = total_count.decode('utf-8').strip()
+#    dec_total_count = int(hex_total_count, 16)
+#    print("Total count: ", dec_total_count)
+#    return dec_total_count
 
 #------------------------------DDR4 TESTING-----------------------------------
 # Testing AXIS write and read DDR4 through AXI Virtual FIFO
@@ -480,7 +275,7 @@ def Get_Current_Gc():
 
     current_gc = np.int64(int(gc_msb.decode('utf-8').strip(),16) << 32 | int(gc_lsb.decode('utf-8').strip(),16))
     print(hex(current_gc))
-    print(current_gc)
+    print(current_gc/40e6, 's')
     return current_gc
 
 
@@ -616,6 +411,9 @@ def init_rst_tmp():
 
     save_tmp(t)
 
+def init_ddr():
+    Ddr_Data_Init()
+
 def init_all():
     init_ltc()
     init_sync()
@@ -634,6 +432,8 @@ def main():
             init_sync()
         elif args.sda:
             init_sda()
+        elif args.ddr:
+            init_ddr()
         elif args.all:
             init_all()
         elif args.rst_default:
@@ -670,6 +470,14 @@ def main():
             t['angle3'] = args.angles[3]
             save_tmp(t)
             Update_Angles()
+    def get(args):
+        if args.get_gc:
+            #Ddr_Data_Init()
+            Get_Current_Gc()
+        if args.ddr_status:
+            Ddr_Status()
+        if args.angles:
+            Angle()
 
 
 
@@ -682,8 +490,8 @@ def main():
 
     parser_init = subparsers.add_parser('init')
     parser_set = subparsers.add_parser('set')
+    parser_get = subparsers.add_parser('get')
 
-######### init ###########
     parser_init.add_argument("--all", action="store_true", 
                              help="init all devices and sync")
     parser_init.add_argument("--ltc", action="store_true", 
@@ -700,9 +508,10 @@ def main():
                              help="reset tmp file in config/default.txt")
     parser_init.add_argument("--apply_default", action="store_true", 
                              help="apply values from config/default.txt")
+    parser_init.add_argument("--ddr", action="store_true", 
+                             help="init ddr data")
 
 
-######### set ###########
     parser_set.add_argument("--vca", type=float, metavar=("voltage"), 
                             help="voltage controlled attenuator; float [0,5] V")
     parser_set.add_argument("--am_bias", type=float, metavar=("voltage"), 
@@ -720,6 +529,14 @@ def main():
     parser_set.add_argument("--angles", nargs=4, type=float,
                             help="float [-1,1]")
     
+
+    parser_get.add_argument("--get_gc", action="store_true",
+                            help="get current global counter")
+    parser_get.add_argument("--ddr_status", action="store_true",
+                            help="print ddr status")
+    parser_get.add_argument("--angles", action="store_true",
+                            help="download the postprocessed angles")
+    
     #parser_alice.add_argument("--init",action="store_true",help="initialize Alice")
 
 
@@ -728,6 +545,7 @@ def main():
 
     parser_init.set_defaults(func=init)
     parser_set.set_defaults(func=set)
+    parser_get.set_defaults(func=get)
 
     args = parser.parse_args()
     args.func(args)

@@ -7,7 +7,7 @@ import struct  # For packing data size
 import subprocess, sys, argparse
 import numpy as np
 from lib.Aurea import Aurea
-import gmain as main
+import main_Bob as main
 from lib.config_lib import get_tmp, save_tmp, update_tmp, Set_t0, update_default, get_default
 
 
@@ -140,37 +140,51 @@ try:
             conn.sendall(fiber_delay.to_bytes(4,byteorder='big'))
             response = 'Find delay bob done'
             
-        elif command == 'fd_ab_mod':
-            lines = np.loadtxt("data/var.txt",usecols=0)
-            shift_pm_b = int(lines[2])
-            ret_shift_am = int(lines[0])
-            # time.sleep(1)
-            # main.Find_Opt_Delay_AB_mod64('bob',shift_pm_b)
-            # main.Find_Opt_Delay_AB_mod64('bob',(ret_shift_am+4)%10)
+        elif command == 'ver_sync':
+            current_gc = main.Get_Current_Gc()
+            print('Bob current_gc: ',current_gc)
+            #send current gc to Alice
+            conn.sendall(current_gc.tobytes())
+            #receive sync result from Alice
             cmd = conn.recv(BUFFER_SIZE).decode().strip()
-            if cmd == 'fd_mod_done':
-                ret_delay_mod = main.Find_Opt_Delay_AB_mod32('bob',8)
-                #Send delay_mod to alice
-                conn.sendall(ret_delay_mod.to_bytes(4,byteorder='big'))
-                #Write ddelay_mod to var file
-                lines = np.loadtxt("data/var.txt",dtype=str,encoding='utf-8')
-                lines[3] = str(ret_delay_mod)
-                np.savetxt("data/var.txt",lines,fmt="%s",encoding='utf-8')
-            response = 'Find delay alice in modulo mode done'
+            if (cmd == 'sync'):
+                print('SYNC')
+            elif (cmd == 'no_sync'):
+                print('NOT SYNC')
+            response = 'Verify SYNC done'
 
-        elif command == 'fd_ab':
-            lines = np.loadtxt("data/var.txt",usecols=0)
-            delay_mod = int(lines[3])
-            shift_pm_b = int(lines[2])
-            ret_shift_am = int(lines[0])
-            # time.sleep(4)
-            # main.Find_Opt_Delay_AB('bob',shift_pm_b)
-            # main.Find_Opt_Delay_AB('bob',(ret_shift_am+4)%10)
-            cmd = conn.recv(BUFFER_SIZE).decode().strip()
-            if cmd == 'fd_ab_done':
-                time.sleep(2)
-                main.Find_Opt_Delay_AB('bob',8,delay_mod)
-            response = 'Find delay alice done'
+            
+        #elif command == 'fd_ab_mod':
+        #    lines = np.loadtxt("data/var.txt",usecols=0)
+        #    shift_pm_b = int(lines[2])
+        #    ret_shift_am = int(lines[0])
+        #    # time.sleep(1)
+        #    # main.Find_Opt_Delay_AB_mod64('bob',shift_pm_b)
+        #    # main.Find_Opt_Delay_AB_mod64('bob',(ret_shift_am+4)%10)
+        #    cmd = conn.recv(BUFFER_SIZE).decode().strip()
+        #    if cmd == 'fd_mod_done':
+        #        ret_delay_mod = main.Find_Opt_Delay_AB_mod32('bob',8)
+        #        #Send delay_mod to alice
+        #        conn.sendall(ret_delay_mod.to_bytes(4,byteorder='big'))
+        #        #Write ddelay_mod to var file
+        #        lines = np.loadtxt("data/var.txt",dtype=str,encoding='utf-8')
+        #        lines[3] = str(ret_delay_mod)
+        #        np.savetxt("data/var.txt",lines,fmt="%s",encoding='utf-8')
+        #    response = 'Find delay alice in modulo mode done'
+
+        #elif command == 'fd_ab':
+        #    lines = np.loadtxt("data/var.txt",usecols=0)
+        #    delay_mod = int(lines[3])
+        #    shift_pm_b = int(lines[2])
+        #    ret_shift_am = int(lines[0])
+        #    # time.sleep(4)
+        #    # main.Find_Opt_Delay_AB('bob',shift_pm_b)
+        #    # main.Find_Opt_Delay_AB('bob',(ret_shift_am+4)%10)
+        #    cmd = conn.recv(BUFFER_SIZE).decode().strip()
+        #    if cmd == 'fd_ab_done':
+        #        time.sleep(2)
+        #        main.Find_Opt_Delay_AB('bob',8,delay_mod)
+        #    response = 'Find delay alice done'
 
         elif command == 'shutdown':
             response = "Shutdown done"

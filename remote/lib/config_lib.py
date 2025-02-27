@@ -873,6 +873,31 @@ def Write_Soft_Gates(gate0, width0, gate1, width1):
     Write(BaseAddr + 36,0x2)# turn bit[1] to high to enable register setting
 
 #-------------------------GLOBAL COUNTER-------------------------------------------
+def wait_for_pps_ret():
+    # wait for pps return 
+    while True:
+        pps_ret = Read(0x00001000+48)
+        pps_ret_int = int(pps_ret.decode('utf-8').strip(),16)
+
+        #print(pps_ret_int)
+        if (pps_ret_int == 1):
+            break
+    return 0
+
+def sync():
+    #Start to write 
+    Write(0x00001000, 0x00) 
+    Write(0x00001000, 0x01) 
+
+    #Command_enable -> Reset the fifo_gc_out
+    Write(0x00001000+28,0x0)
+    Write(0x00001000+28,0x1)
+    
+    #Command enable to save alpha
+    Write(0x00001000+24,0x0)
+    Write(0x00001000+24,0x1)
+
+
 def Reset_gc():
     Write(0x00000008,0x00) #Start_gc = 0
     Write(0x00012008,0x01)

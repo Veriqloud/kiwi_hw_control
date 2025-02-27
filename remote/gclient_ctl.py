@@ -5,7 +5,7 @@ import time
 import struct  # For unpacking data size
 import subprocess, sys, argparse
 import numpy as np
-import gmain as main
+import main_Alice as main
 from lib.config_lib import get_tmp, save_tmp, update_tmp, update_default, get_default
 import lib.gen_seq as gen_seq
 
@@ -131,35 +131,53 @@ def client_start(commands_in):
                 fiber_delay = int.from_bytes(m, byteorder='big')
                 update_tmp('fiber_delay', fiber_delay)
             
-            elif command == 'fd_ab_mod':
-                lines = np.loadtxt("data/var.txt",usecols=0)
-                shift_pm_a = int(lines[2])
-                ret_shift_am = int(lines[1])
-                # main.Find_Opt_Delay_AB_mod64('alice',shift_pm_a)
-                # main.Find_Opt_Delay_AB_mod64('alice',(ret_shift_am+6)%10)
-                main.Find_Opt_Delay_AB_mod32('alice',0)
-                #tell bob setting phase on alice done
-                cmd = 'fd_mod_done'
-                client_socket.sendall(cmd.encode())
-                #Receive delay_mod from Bob
-                delay_mod_rcv = client_socket.recv(4)
-                int_delay_mod_rcv = int.from_bytes(delay_mod_rcv,byteorder='big')
-                print("Delay in modulo mod received from bob: ", int_delay_mod_rcv, "[q_bins]")
-                #Write to var file
-                lines = np.loadtxt("data/var.txt",dtype=str,encoding='utf-8')
-                lines[3] = str(int_delay_mod_rcv)
-                np.savetxt("data/var.txt",lines,fmt="%s",encoding='utf-8')
+            elif command == 'ver_sync':
+                current_gc = main.Get_Current_Gc()
+                print('Alice current_gc: ', current_gc)
+                #Receive Bob current gc
+                gc_rcv = client_socket.recv(8)
+                int_gc_rcv = np.frombuffer(gc_rcv,dtype=np.int64)[0]
+                gc_diff = np.abs(current_gc - int_gc_rcv)
+                time_diff = gc_diff/40000000
+                print('gc diff: ', gc_diff, 'time_diff', time_diff)
+                if (time_diff < 0.5):
+                    cmd = 'sync'
+                    client_socket.sendall(cmd.encode())
+                    print('SYNC')
+                else :
+                    cmd = 'no_sync'
+                    client_socket.sendall(cmd.encode())
+                    print('NOT SYNC')
 
-            elif command == 'fd_ab':
-                lines = np.loadtxt("data/var.txt",usecols=0)
-                delay_mod = int(lines[3])
-                shift_pm_a = int(lines[2])
-                ret_shift_am = int(lines[1])
-                # main.Find_Opt_Delay_AB('alice',shift_pm_a)
-                # main.Find_Opt_Delay_AB('alice',(ret_shift_am+6)%10)
-                main.Find_Opt_Delay_AB('alice',0,delay_mod)
-                cmd = 'fd_ab_done'
-                client_socket.sendall(cmd.encode())
+            #elif command == 'fd_ab_mod':
+            #    lines = np.loadtxt("data/var.txt",usecols=0)
+            #    shift_pm_a = int(lines[2])
+            #    ret_shift_am = int(lines[1])
+            #    # main.Find_Opt_Delay_AB_mod64('alice',shift_pm_a)
+            #    # main.Find_Opt_Delay_AB_mod64('alice',(ret_shift_am+6)%10)
+            #    main.Find_Opt_Delay_AB_mod32('alice',0)
+            #    #tell bob setting phase on alice done
+            #    cmd = 'fd_mod_done'
+            #    client_socket.sendall(cmd.encode())
+            #    #Receive delay_mod from Bob
+            #    delay_mod_rcv = client_socket.recv(4)
+            #    int_delay_mod_rcv = int.from_bytes(delay_mod_rcv,byteorder='big')
+            #    print("Delay in modulo mod received from bob: ", int_delay_mod_rcv, "[q_bins]")
+            #    #Write to var file
+            #    lines = np.loadtxt("data/var.txt",dtype=str,encoding='utf-8')
+            #    lines[3] = str(int_delay_mod_rcv)
+            #    np.savetxt("data/var.txt",lines,fmt="%s",encoding='utf-8')
+
+            #elif command == 'fd_ab':
+            #    lines = np.loadtxt("data/var.txt",usecols=0)
+            #    delay_mod = int(lines[3])
+            #    shift_pm_a = int(lines[2])
+            #    ret_shift_am = int(lines[1])
+            #    # main.Find_Opt_Delay_AB('alice',shift_pm_a)
+            #    # main.Find_Opt_Delay_AB('alice',(ret_shift_am+6)%10)
+            #    main.Find_Opt_Delay_AB('alice',0,delay_mod)
+            #    cmd = 'fd_ab_done'
+            #    client_socket.sendall(cmd.encode())
 
             response_rcv = client_socket.recv(1024)
             print("Response from server: ", response_rcv.decode(),"--------------------------------")

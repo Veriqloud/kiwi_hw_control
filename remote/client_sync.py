@@ -40,7 +40,7 @@ try:
         pps_ret = Read(0x00001000+48)
         pps_ret_int = np.int64(int(pps_ret.decode('utf-8').strip(),16))
 
-        print(pps_ret_int)
+        #print(pps_ret_int)
         if (pps_ret_int == 1):
             break
     time.sleep(0.02) #delay should be more than 10ms
@@ -52,7 +52,7 @@ try:
     Write(0x00001000, 0x01) 
     time.sleep(1)
     current_gc = main.Get_Current_Gc()
-    print('Alice current_gc: ', current_gc)
+    print('Alice current_gc: ', current_gc, '(', current_gc/80e6, 's )')
 
 
     #Command_enable -> Reset the fifo_gc_out
