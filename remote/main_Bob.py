@@ -852,7 +852,7 @@ def main():
             #Ddr_Data_Init()
             Get_Current_Gc()
         if args.angles:
-            Read_Angle()
+            Angle()
 
 
 

@@ -44,10 +44,11 @@ def process_data(data):
         ra.append(r)
     return gca, ra
 
-def gca_to_bytes(gca):
+def gca_to_bytes(gca, for_fpga=False):
     gcab = bytes()
+    size = 16 if for_fpga else 8
     for gc in gca:
-        gcab += gc.to_bytes(8, byteorder='big')
+        gcab += gc.to_bytes(size, byteorder='little')
     return gcab
 
 try:
@@ -65,40 +66,36 @@ try:
             sync()
 
         elif command == 'transfer_gc':
-            device_c2h = '/dev/xdma0_c2h_0'
-            device_h2c = '/dev/xdma0_h2c_0'
-            try:
-                with open(device_c2h, 'rb') as f:
-                    with open(device_h2c, 'wb') as fw:
-                        t0 = time.time()
-                        for i in range(10000):
-                            data = f.read(16*64)
-                            if not data:
-                                print("No available data on stream")
-                                break
-                            gca, ra = process_data(data)
-                            if (i%1000 == 0):
-                                print(gca[0], gca[0]/80e6)
-                                #time.sleep(0.1)
-                            conn.sendall(gca_to_bytes(gca))    
-                            ##Write back to h2c device of Bob
-                            #bytes_written = fw.write(data_gc)
-                            #fw.flush()
-                        print("total time", time.time() - t0)
+            all_gc = []
+            all_r = []
 
-        
-            except FileNotFoundError:
-                print(f"Device not found")    
-            except PermissionError:
-                print(f"Permission to file is denied")
-            except Exception as e:
-                print(f"Error occurres: {e}")
+            f_gc = open('/dev/xdma0_c2h_0', 'rb')
+            f_gcw = open('/dev/xdma0_h2c_0', 'wb')
+            #f_angle = open('/dev/xdma0_c2h_3', 'rb')
+            for i in range(10000):
+                data = f.read(16*64)
+                if not data:
+                    print("No available data on stream")
+                    break
+                gca, ra = process_data(data)
+                if (i%1000 == 0):
+                    print(gca[0], gca[0]/80e6)
+                    #time.sleep(0.1)
+                conn.sendall(gca_to_bytes(gca))    
+                ##Write back to h2c device of Bob
+                bytes_written = fw.write(gca_to_bytes(gca, for_fpga=True))
+                fw.flush()
+                all_gc.extend(gca)
+                all_r.extend(ra)
+            f_gc.close()
+            f_gcw.close()
+            #f_angle.close()
 
-
-
-
-
-
+            # save to file for testing
+            gcr = np.zeros((len(gca), 2), dtype=int)
+            gcr[:,0] = np.array(all_gc)
+            gcr[:,1] = np.array(all_r)
+            np.savetxt("gcr.txt", gcr)
 
 
         elif command == 'exit':

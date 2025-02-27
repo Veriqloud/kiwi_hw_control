@@ -32,11 +32,18 @@ def sendc(c):
 def gca_from_bytes(b):
     gca = []
     for i in range(8*64):
-        gca.append(int.from_bytes(b[i*8:(i+1)*8], byteorder='big'))
+        gca.append(int.from_bytes(b[i*8:(i+1)*8], byteorder='little'))
     return gca
 
+def gca_to_bytes(gca, for_fpga=False):
+    gcab = bytes()
+    size = 16 if for_fpga else 8
+    for gc in gca:
+        gcab += gc.to_bytes(size, byteorder='little')
+    return gcab
+
 def rcv_all(bufsize):
-    # make sure bufize bytes have been received
+    # make sure bufsize bytes have been received
     mr = client_socket.recv(bufsize)
     while (len(mr)<bufsize):
         mr += client_socket.recv(bufsize-len(mr))
@@ -54,14 +61,25 @@ try:
     sendc('transfer_gc')
     i = 0
     l = 0
-    while True:
+    all_gc = []
+    f_gcw = open('/dev/xdma0_h2c_0', 'wb')
+    while i<10000:
         mr = rcv_all(8*64)
         gca = gca_from_bytes(mr)
         l = l + len(gca)
         if (i%1000 == 0):
             print(l, gca[0], gca[0]/80e6)
+        bytes_written = f_gcw.write(gca_to_bytes(gca, for_fpga=True))
+        f_gcw.flush()
+        all_gc.extend(gca)
+        all_r.extend(ra)
         i += 1
-    print(i)
+    f_gcw.close()
+    
+    # save to file for testing
+    gcr = np.array(all_gc)
+    np.savetxt("gcr.txt", gcr)
+
     sendc('exit')
 
 
