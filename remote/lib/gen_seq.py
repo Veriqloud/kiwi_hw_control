@@ -202,6 +202,14 @@ def seq_rng_single(num_words):
     word0 = 1
     message = np.zeros(num_words, dtype=np.int32)
     message[0] = word0
+    print("fake rng_seq_single written")
+    return message
+
+def seq_rng_random(num_words):
+    # the first angle is nr 1, the rest is nr 0.
+    # a word is 32bit = 16 angles
+    message = np.random.randint(0, 1<<32, size=num_words, dtype='uint32')
+    print("fake rng_seq_random written")
     return message
 
 def seq_rng_block(num_words, num_nonzero_words):

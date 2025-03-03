@@ -8,7 +8,7 @@ import subprocess, sys, argparse
 import numpy as np
 from lib.Aurea import Aurea
 import main_Bob as main
-from lib.config_lib import get_tmp, save_tmp, update_tmp, Set_t0, update_default, get_default
+from lib.config_lib import get_tmp, save_tmp, update_tmp, Set_t0, update_default, get_default, Angle
 
 
 
@@ -32,7 +32,9 @@ try:
     while True:
         try:
             # Receive command from client
-            command = conn.recv(BUFFER_SIZE).decode().strip()
+            m = conn.recv(BUFFER_SIZE)
+            print(m)
+            command = m.decode().strip()
         except ConnectionResetError:
             print("Client connection was reset. Exiting loop.")
             break
@@ -42,7 +44,7 @@ try:
             main.init_all()
             response = "init done"
 
-        if command == 'find_am_bias':
+        elif command == 'find_am_bias':
             for i in range(21):
                 cmd = conn.recv(BUFFER_SIZE).decode().strip()
                 if cmd == 'sv_done':
@@ -139,6 +141,14 @@ try:
             fiber_delay = main.Find_Opt_Delay_A()
             conn.sendall(fiber_delay.to_bytes(4,byteorder='big'))
             response = 'Find delay bob done'
+            
+        elif command == 'ra':
+            print("received command ra")
+            m = conn.recv(4)
+            num = int.from_bytes(m, byteorder='big')
+            print(num)
+            Angle(num)
+            response = 'Angles download done'
             
         elif command == 'ver_sync':
             current_gc = main.Get_Current_Gc()

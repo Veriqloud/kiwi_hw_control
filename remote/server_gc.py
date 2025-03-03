@@ -3,13 +3,13 @@
 import socket, time, numpy as np
 import main_Bob as main
 from termcolor import colored
-from lib.config_lib import sync
+from lib.config_lib import sync, Ddr_Data_Init, Ddr_Data_Reg, get_tmp
 
 
 # Server configuration
 HOST = '192.168.1.77'  # Localhost
 #HOST = 'localhost'  # Localhost
-PORT = 9999  # Port to listen on
+PORT = 9998  # Port to listen on
 # BUFFER_SIZE = 65536  # Increased buffer size for sending data
 BUFFER_SIZE = 512  # Increased buffer size for sending data
 
@@ -35,14 +35,26 @@ def process_data(data):
     # in chunks of 64 gcs
     gca = []
     ra = []
+    data_filtered = bytes()
     for i in range(64):
-        data_cut = data[i*16:(i+1)*16]
+        data_cut = data[i*16:i*16 + 7]
         gc = int.from_bytes(data_cut[:6], 'little') # at 40MHz
-        gc = gc*2- (not (data_cut[6] & 1))  # odd/even bit
+        #gc = gc*2- (not (data_cut[6] & 1))  # odd/even bit
+        gc = gc*2+ (not (data_cut[6] & 1))  # odd/even bit
         r = int((data_cut[6]>>1) & 1)       # click result
+        data_filtered += data_cut[:6] + (data_cut[6] & 0b01).to_bytes(2, byteorder='little') # remove result bit and make it 8 bytes
         gca.append(gc) 
         ra.append(r)
-    return gca, ra
+    return data_filtered, gca, ra
+
+def pad(data_filtered):
+    # pad with zeros to get back to 16 bytes per gc
+    data_padded = bytes()
+    for i in range(64):
+        data_padded += data_filtered[i*8: (i+1)*8] + bytes(8)
+    return data_padded
+
+
 
 def gca_to_bytes(gca, for_fpga=False):
     gcab = bytes()
@@ -60,11 +72,14 @@ try:
             break
             
         if command == 'init_ddr':
-            main.init_ddr()
+            t = get_tmp()
+            Ddr_Data_Reg(4, 0, 2000, t['fiber_delay'])
+            Ddr_Data_Reg(3, 0, 2000, t['fiber_delay'])
+            Ddr_Data_Init()
         
         elif command == 'sync':
             sync()
-
+        
         elif command == 'transfer_gc':
             all_gc = []
             all_r = []
@@ -72,19 +87,17 @@ try:
             f_gc = open('/dev/xdma0_c2h_0', 'rb')
             f_gcw = open('/dev/xdma0_h2c_0', 'wb')
             #f_angle = open('/dev/xdma0_c2h_3', 'rb')
-            for i in range(10000):
-                data = f.read(16*64)
+            for i in range(1000):
+                data = f_gc.read(16*64)
                 if not data:
                     print("No available data on stream")
                     break
-                gca, ra = process_data(data)
-                if (i%1000 == 0):
+                data_filtered, gca, ra = process_data(data)
+                conn.sendall(data_filtered)    
+                if (i%100 == 0):
                     print(gca[0], gca[0]/80e6)
-                    #time.sleep(0.1)
-                conn.sendall(gca_to_bytes(gca))    
-                ##Write back to h2c device of Bob
-                bytes_written = fw.write(gca_to_bytes(gca, for_fpga=True))
-                fw.flush()
+                bytes_written = f_gcw.write(pad(data_filtered))
+                f_gcw.flush()
                 all_gc.extend(gca)
                 all_r.extend(ra)
             f_gc.close()
@@ -92,10 +105,10 @@ try:
             #f_angle.close()
 
             # save to file for testing
-            gcr = np.zeros((len(gca), 2), dtype=int)
-            gcr[:,0] = np.array(all_gc)
-            gcr[:,1] = np.array(all_r)
-            np.savetxt("gcr.txt", gcr)
+            gcr = np.zeros((len(all_gc), 2), dtype=int)
+            gcr[:,0] = np.array(all_gc, dtype=int)
+            gcr[:,1] = np.array(all_r, dtype=int)
+            np.savetxt("data/ddr4/gcr.txt", gcr, fmt="%d")
 
 
         elif command == 'exit':

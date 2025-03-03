@@ -56,7 +56,7 @@ try:
             Write(0x00001000, 0x01) 
             time.sleep(1)
             current_gc = main.Get_Current_Gc()
-            print('Bob current_gc: ',current_gc)
+            print('Bob current_gc: ',current_gc, '(', current_gc/80e6, 's )')
 
             #Command_enable -> Reset the fifo_gc_out
             Write(0x00001000+28,0x0)

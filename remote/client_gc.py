@@ -4,7 +4,7 @@ import socket, time, numpy as np
 import main_Alice as main
 from termcolor import colored
 
-from lib.config_lib import wait_for_pps_ret, sync
+from lib.config_lib import wait_for_pps_ret, sync, Ddr_Data_Init, Ddr_Data_Reg, get_tmp
 
 
 
@@ -12,7 +12,7 @@ from lib.config_lib import wait_for_pps_ret, sync
 # Client configuration
 SERVER_HOST = '192.168.1.77'  # Server's IP address
 #SERVER_HOST = 'localhost'  # Server's IP address
-SERVER_PORT = 9999  # Server's port
+SERVER_PORT = 9998  # Server's port
 # BUFFER_SIZE = 65536  # Increased buffer size for receiving data
 BUFFER_SIZE = 512  # Increased buffer size for receiving data
 #ROUNDS = 1  # Number of rounds to perform
@@ -29,18 +29,25 @@ def sendc(c):
     print(colored(c, 'cyan'))
     client_socket.sendall(c.encode())
 
-def gca_from_bytes(b):
-    gca = []
-    for i in range(8*64):
-        gca.append(int.from_bytes(b[i*8:(i+1)*8], byteorder='little'))
-    return gca
+#def gca_from_bytes(b):
+#    gca = []
+#    for i in range(8*64):
+#        gca.append(int.from_bytes(b[i*8:(i+1)*8], byteorder='little'))
+#    return gca
 
-def gca_to_bytes(gca, for_fpga=False):
-    gcab = bytes()
-    size = 16 if for_fpga else 8
-    for gc in gca:
-        gcab += gc.to_bytes(size, byteorder='little')
-    return gcab
+#def gca_to_bytes(gca, for_fpga=False):
+#    gcab = bytes()
+#    size = 16 if for_fpga else 8
+#    for gc in gca:
+#        gcab += gc.to_bytes(size, byteorder='little')
+#    return gcab
+
+def pad(data_filtered):
+    # pad with zeros to get back to 16 bytes per gc
+    data_padded = bytes()
+    for i in range(64):
+        data_padded += data_filtered[i*8: (i+1)*8] + bytes(8)
+    return data_padded
 
 def rcv_all(bufsize):
     # make sure bufsize bytes have been received
@@ -52,7 +59,10 @@ def rcv_all(bufsize):
 try:
 
     sendc('init_ddr')
-    main.init_ddr()
+    t = get_tmp()
+    Ddr_Data_Reg(4, 0, 2000, t['fiber_delay'])
+    Ddr_Data_Reg(3, 0, 2000, t['fiber_delay'])
+    Ddr_Data_Init()
 
     wait_for_pps_ret()
     sendc('sync')
@@ -61,25 +71,19 @@ try:
     sendc('transfer_gc')
     i = 0
     l = 0
-    all_gc = []
     f_gcw = open('/dev/xdma0_h2c_0', 'wb')
-    while i<10000:
-        mr = rcv_all(8*64)
-        gca = gca_from_bytes(mr)
-        l = l + len(gca)
-        if (i%1000 == 0):
-            print(l, gca[0], gca[0]/80e6)
-        bytes_written = f_gcw.write(gca_to_bytes(gca, for_fpga=True))
+    while i<1000:
+        data_filtered = rcv_all(8*64)
+        l = l + len(data_filtered)
+        if (i%100 == 0):
+            gc = int.from_bytes(data_filtered[:6], byteorder='little')
+            gc = gc*2 - (not data_filtered[6])
+            print(l, gc, gc/80e6)
+        bytes_written = f_gcw.write(pad(data_filtered))
         f_gcw.flush()
-        all_gc.extend(gca)
-        all_r.extend(ra)
         i += 1
     f_gcw.close()
     
-    # save to file for testing
-    gcr = np.array(all_gc)
-    np.savetxt("gcr.txt", gcr)
-
     sendc('exit')
 
 

@@ -52,17 +52,17 @@ def Update_Dac():
         Write_Pm_Mode('seq64', t['feedback'])
         dac1 = gen_seq.dac1_sample_tight(gen_seq.lin_seq_2(), t['pm_shift'])
     elif t['pm_mode'] == 'fake_rng':
-        Write_Pm_Mode('fake_rng', t['feedback'])
+        Write_Pm_Mode('fake_rng', t['feedback'], t['insert_zeros'])
         Write_Angles(t['angle0'], t['angle1'], t['angle2'], t['angle3'])
         dac1 = gen_seq.dac1_sample(np.zeros(64), 0)
     elif t['pm_mode'] == 'true_rng':
-        Write_Pm_Mode('true_rng', t['feedback'])
+        Write_Pm_Mode('true_rng', t['feedback'], t['insert_zeros'])
         Write_Angles(t['angle0'], t['angle1'], t['angle2'], t['angle3'])
         dac1 = gen_seq.dac1_sample(np.zeros(64), 0)
     
     Write_To_Dac(dac0, dac1)
     Write_Pm_Shift(t['pm_shift']%10)
-    print("Dac", t['pm_mode'], t['pm_shift'], t['feedback'])
+    print("Dac", t['pm_mode'], t['pm_shift'], t['feedback'], t['insert_zeros'])
 
 def Update_Angles():
     t = get_tmp()
@@ -295,34 +295,6 @@ def Phase_Shift_Calib():
             s = subprocess.check_call(command, shell = True)
 
 
-#def Phase_Drift_Test():
-#    #dpram_rng_max_addr
-#    Base_Addr = 0x00030000
-#    Write(Base_Addr + 28, 0x4e20)
-#    #Write_Dac1_shift
-#    for j in range(33):
-#        Write_Dac1_Shift(2,-1+j*0.0625,-1+j*0.0625,0 ,0,0)
-#        Get_Stream(0x00000000+40,'/dev/xdma0_c2h_2','data/tdc/testphase_'+str(j+1)+'.bin',640) 
-#
-#    for i in range(33):
-#        command ="test_tdc/tdc_bin2txt data/tdc/testphase_"+str(i+1)+".bin data/tdc/testphase_"+str(i+1)+".txt"
-#        s = subprocess.check_call(command, shell = True)
-
-
-#def Feedback_Phase():
-#    #dpram_rng_max_addr
-#    Base_Addr = 0x00030000
-#    Write(Base_Addr + 28, 0x0008)
-#    #Write data to rng_dpram
-#    Base_seq0 = 0x00030000 + 0x2000  #Addr_axil_sequencer +   addr_dpram
-#    rngseq = 0x1b1b1b1b
-#    Write(Base_seq0, rngseq)
-#    #Write amplitude
-#    #amp = np.array([-0.5,-0.2, 0.2, 0.5])
-#    amp = np.array([0.2, 0.2, 0.2, 0.2])
-#    Write_Dac1_Shift(14, amp[0], amp[1], amp[2], amp[3], 8)
-
-
 def Find_Opt_Delay_B():
     # generate a sequence of 64 angles where the first one stands out
     Write_To_Fake_Rng(gen_seq.seq_rng_single(4))
@@ -419,22 +391,13 @@ def Test_delay():
 def Count_Mon():
     print("-----------DISPLAY NUMBER OF COUNTS--------------")
     BaseAddr = 0x00000000
-    #Write(BaseAddr + 32, 0x4)
-    #for i in range (20):
     while True:
-        total_count = Read(BaseAddr + 64)
-        hex_total_count = total_count.decode('utf-8').strip()
-        dec_total_count = int(hex_total_count, 16)
-        #print(f"Total count: {dec_total_count}",end ='\r', flush=True)
-        click0_count = Read(BaseAddr + 60)
-        hex_click0_count = click0_count.decode('utf-8').strip()
-        dec_click0_count = int(hex_click0_count, 16)
-        #print(f"Click0 count: {dec_click0_count}",end ='\r', flush=True)
-        click1_count = Read(BaseAddr + 56)
-        hex_click1_count = click1_count.decode('utf-8').strip()
-        dec_click1_count = int(hex_click1_count, 16)
+        counts = open_read_close(BaseAddr, 56, 3)
+        click0 = counts[0]
+        click1 = counts[1]
+        total = counts[2]
+        print(f"Total: {total}, Click0: {click0}, Click1: {click1}              ",flush=True)
         time.sleep(0.1)
-        print(f"Total: {dec_total_count}, Click0: {dec_click0_count}, Click1: {dec_click1_count}               ",flush=True)
 
 def Read_Count():
     BaseAddr = 0x00000000
@@ -444,98 +407,7 @@ def Read_Count():
     print("Total count: ", dec_total_count)
     return dec_total_count
 
-#------------------------------DDR4 TESTING-----------------------------------
-# Testing AXIS write and read DDR4 through AXI Virtual FIFO
-# threshold define speed of reading gc_in_fifo
-# 199999 for 1kHz click rate
-def Ddr_Data_Reg(command,current_gc,read_speed, fiber_delay, pair_mode):
-    #set_command_gc, slv_reg2[3]=1
-    #Write(0x00001000+8,0x8)
-    #Set_command
-    Write(0x00001000+8,hex(int(command)))
-    #Write dq_gc_start
-    dq_gc_start = np.int64(current_gc) #+s
-    print(hex(dq_gc_start)) 
-    gc_lsb = dq_gc_start & 0xffffffff
-    #print(hex(gc_lsb))
-    gc_msb = (dq_gc_start & 0xffff00000000)>>32
-    #print(hex(gc_msb))
-    #Write dq_gc_start
-    threshold_full = 4000 #optinal for debug
-    Write(0x00001000+16,hex(gc_lsb))
-    Write(0x00001000+20,hex(gc_msb))
-    Write(0x00001000+32,hex(read_speed))
-    Write(0x00001000+36,hex(threshold_full))
-    Write(0x00001000+40,hex(fiber_delay))
-    Write(0x00001000+24,hex(pair_mode<<1))
-    #Enable register setting
-    Write(0x00001000+12,0x0)
-    Write(0x00001000+12,0x1)
 
-def Ddr_Data_Init():
-    #Reset module
-    Write(0x00001000, 0x00) #Start write ddr = 0
-    Write(0x00012000 + 16,0x00)
-    #time.sleep(0.1)
-    Write(0x00012000 + 16,0x01)
-    time.sleep(1)
-    print("Reset ddr data module")
-
-#Test Get_Gc() in python
-def Get_Gc():
-    #Start to write 
-    Write(0x00001000, 0x00) 
-    Write(0x00001000, 0x01) 
-    #Command_enable -> Reset the fifo_gc_out
-    Write(0x00001000+28,0x0)
-    Write(0x00001000+28,0x1)
-    #----------------------------------
-    #Command enable to save alpha
-    Write(0x00001000+24,0x0)
-    Write(0x00001000+24,0x1)
-
-    device_c2h = '/dev/xdma0_c2h_0'
-    count = 16
-    data = b'' #declare bytes object
-    
-    try:
-        with open(device_c2h, 'rb') as f:
-            while True:
-                data = f.read(count)
-                if not data:
-                    print("No available data on stream")
-                    break
-                print(f"Read {len(data)} bytes: {data.hex()}")
-    except FileNotFoundError:
-        print(f"Device not found")    
-    except PermissionError:
-        print(f"Permission to file is denied")
-    except Exception as e:
-        print(f"Error occurres: {e}")
-
-# def Get_Gc():
-#     device_c2h = '/dev/xdma0_c2h_0'
-#     fileout = 'data/ddr4/gc_out.bin'
-#     device_h2c = '/dev/xdma0_h2c_0'
-#     count = 64
-#     #Start to write 
-#     Write(0x00001000, 0x00) 
-#     Write(0x00001000, 0x01) 
-#     #Command_enable -> Reset the fifo_gc_out
-#     Write(0x00001000+28,0x0)
-#     Write(0x00001000+28,0x1)
-#     #----------------------------------
-#     #Command enable to save alpha
-#     Write(0x00001000+24,0x0)
-#     Write(0x00001000+24,0x1)
-#     #----------------------------------
-#     #Read from fifo_gc_out and push back to fifo_gc_in
-#     try:
-#         command ="test_tdc/dma_loop "+"-d "+ device_c2h +" -f "+ device_h2c+ " -c " + str(count) 
-#         s = subprocess.check_call(command, shell = True)
-#     except subprocess.CalledProcessError as e:
-#         print("Exit get_gc process")
-#         sys.exit(e.returncode)
 
 def Get_Current_Gc():
     #Command_enable
@@ -555,55 +427,20 @@ def Get_Current_Gc():
     return current_gc
 
 
-def Read_Angle():
-    current_gc = Get_Current_Gc()
-    Ddr_Data_Reg(3,current_gc + 40000000, 199999)
-    #Command enable
-    Write(0x00001000+24,0x0)
-    Write(0x00001000+24,0x1)
-    time.sleep(2)
-    device_c2h = '/dev/xdma0_c2h_3'
-    output_file = 'data/ddr4/alpha.bin'
-    size = 16
-    count = 16 #1s, the rate is 1k, 2bits in 1ms -> 128bits in 64ms 
-    for i in range(1):
-        command ="test_tdc/dma_from_device "+"-d "+ device_c2h +" -f "+ output_file+ " -c " + str(count) 
-        s = subprocess.check_call(command, shell = True)
-        time.sleep(1)
 
-def Angle():
-    #Readback 
-    device_c2h = '/dev/xdma0_c2h_3'
-    output_file = 'data/ddr4/alpha.bin'
-    size = 16
-    count = 32
-    for i in range(1):
-    #while True:
-    #    Read_stream(device_c2h,output_file,size,count)
-        command ="test_tdc/dma_from_device "+"-d "+ device_c2h +" -f "+ output_file+ " -c " + str(count) 
-        s = subprocess.check_call(command, shell = True)
-        time.sleep(1)
+#def Angle():
+#    #Readback 
+#    device_c2h = '/dev/xdma0_c2h_3'
+#    output_file = 'data/ddr4/alpha.bin'
+#    size = 16
+#    count = 32
+#    for i in range(1):
+#    #while True:
+#    #    Read_stream(device_c2h,output_file,size,count)
+#        command ="test_tdc/dma_from_device "+"-d "+ device_c2h +" -f "+ output_file+ " -c " + str(count) 
+#        s = subprocess.check_call(command, shell = True)
+#        time.sleep(1)
 
-def Ddr_Status():
-    while True:
-        ddr_fifos_status = Read(0x00001000 + 52)
-        fifos_status = Read(0x00001000 + 56)
-        hex_ddr_fifos_status = ddr_fifos_status.decode('utf-8').strip()
-        hex_fifos_status = fifos_status.decode('utf-8').strip()
-        vfifo_idle = (int(hex_ddr_fifos_status,16) & 0x180)>>7
-        vfifo_empty = (int(hex_ddr_fifos_status,16) & 0x60)>>5
-        vfifo_full = (int(hex_ddr_fifos_status,16) & 0x18)>>3
-        gc_out_full = (int(hex_ddr_fifos_status,16) & 0x4)>>2
-        gc_in_empty = (int(hex_ddr_fifos_status,16) & 0x2)>>1
-        alpha_out_full = int(hex_ddr_fifos_status,16) & 0x1
-
-        gc_out_empty = (int(hex_fifos_status,16) & 0x4)>>2
-        gc_in_full = (int(hex_fifos_status,16) & 0x2)>>1
-        alpha_out_empty = int(hex_fifos_status,16) & 0x1
-        current_time = datetime.datetime.now()
-        print(f"Time: {current_time} VF: {vfifo_full} VE: {vfifo_empty}, VI: {vfifo_idle} | gc_out_f,e: {gc_out_full},{gc_out_empty} | gc_in_f,e: {gc_in_full},{gc_in_empty} | alpha_out_f,e: {alpha_out_full},{alpha_out_empty}", flush=True)
-        #print("Time: {current_time}  VF: {vfifo_full}, VE: {vfifo_empty}, VI: {vfifo_idle} | gc_out_f,e: {gc_out_full}, {gc_out_empty} | gc_in_f,e: {gc_in_full}, {gc_in_empty} | alpha_out_f,e: {alpha_out_full}, {alpha_out_empty}                                                                      " ,end ='\r', flush=True)
-        time.sleep(0.1)
 
 
 def init_ltc():
@@ -678,6 +515,9 @@ def init_apply_default():
     t['soft_gate1'] = d['soft_gate1']
     t['soft_gatew'] = d['soft_gatew']
     t['t0'] = d['t0']
+    t['fiber_delay'] = d['fiber_delay']
+    t['fiber_delay_mod'] = d['fiber_delay']%32
+    t['zero_pos'] = d['zero_pos']
     save_tmp(t)
     Update_Dac()
     Update_Angles()
@@ -700,7 +540,9 @@ def init_rst_default():
     d['t0'] = 0
     d['deadtime_cont'] = 20
     d['deadtime_gated'] = 15
+    d['fiber_delay_mod'] = 0
     d['fiber_delay'] = 0
+    t['zero_pos'] = 0
     save_default(d)
 
 def init_rst_tmp():
@@ -708,6 +550,7 @@ def init_rst_tmp():
     t['pm_mode'] = 'seq64'
     t['pm_shift'] = 0
     t['feedback'] = 'off'
+    t['insert_zeros'] = 'off'
     t['angle0'] = 0
     t['angle1'] = 0
     t['angle2'] = 0
@@ -731,6 +574,7 @@ def init_rst_tmp():
     t['t0'] = 0
     t['fiber_delay_mod'] = 0
     t['fiber_delay'] = 0
+    t['zero_pos'] = 0
     save_tmp(t)
 
 def init_all():
@@ -786,12 +630,19 @@ def main():
                 Write_To_Fake_Rng(gen_seq.seq_rng_zeros())
                 Update_Dac()
                 En_reset_jesd()
+            elif args.fake_rng_seq == 'random':
+                Write_To_Fake_Rng(gen_seq.seq_rng_random(4))
+                Update_Dac()
+                En_reset_jesd()
 
         elif args.pm_shift is not None:
             update_tmp('pm_shift', args.pm_shift)
             Update_Dac()
         elif args.feedback:
             update_tmp('feedback', args.feedback)
+            Update_Dac()
+        elif args.insert_zeros:
+            update_tmp('insert_zeros', args.insert_zeros)
             Update_Dac()
         elif args.angles:
             t = get_tmp()
@@ -851,8 +702,8 @@ def main():
         elif args.get_gc:
             #Ddr_Data_Init()
             Get_Current_Gc()
-        if args.angles:
-            Angle()
+#        if args.angles:
+#            Angle()
 
 
 
@@ -908,12 +759,14 @@ def main():
 
 
 ######### set ###########
-    parser_set.add_argument("--rng_mode", choices=['seq', 'fake_rng', 'true_rng'],
-                            help="fixed periodic sequece, fake rng or real rng")
-    parser_set.add_argument("--fake_rng_seq", choices=['off', 'single'],
+#    parser_set.add_argument("--rng_mode", choices=['seq', 'fake_rng', 'true_rng'],
+#                            help="fixed periodic sequece, fake rng or real rng")
+    parser_set.add_argument("--fake_rng_seq", choices=['off', 'single', 'random'],
                             help="set fake rng sequence")
     parser_set.add_argument("--feedback", choices=['on', 'off'], 
                             help="balance interferometer")
+    parser_set.add_argument("--insert_zeros", choices=['on', 'off'], 
+                            help="insert zeros into rng sequence for feedback")
     parser_set.add_argument("--spd_mode", choices=['free', 'gated'], 
                             help="free running or gated")
     parser_set.add_argument("--spd_delay", type=int, metavar="time",  
@@ -941,8 +794,8 @@ def main():
                             help="download timestamps of spd clicks")
     parser_get.add_argument("--get_gc", action="store_true",
                             help="get current global counter")
-    parser_get.add_argument("--angles", action="store_true",
-                            help="download the postprocessed angles")
+#    parser_get.add_argument("--angles", action="store_true",
+#                            help="download the postprocessed angles")
 
     parser_set.add_argument("--angles", nargs=4, type=float, 
                             help="float [-1,1]")

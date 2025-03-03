@@ -6,7 +6,7 @@ import struct  # For unpacking data size
 import subprocess, sys, argparse
 import numpy as np
 import main_Alice as main
-from lib.config_lib import get_tmp, save_tmp, update_tmp, update_default, get_default
+from lib.config_lib import get_tmp, save_tmp, update_tmp, update_default, get_default, Angle
 import lib.gen_seq as gen_seq
 
 
@@ -148,6 +148,13 @@ def client_start(commands_in):
                     cmd = 'no_sync'
                     client_socket.sendall(cmd.encode())
                     print('NOT SYNC')
+
+            elif command == 'ra':
+                time.sleep(0.01)
+                print("reading angles")
+                num = 32000
+                client_socket.sendall(num.to_bytes(4, byteorder='big'))
+                Angle(num)
 
             #elif command == 'fd_ab_mod':
             #    lines = np.loadtxt("data/var.txt",usecols=0)

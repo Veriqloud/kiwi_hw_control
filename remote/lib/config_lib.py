@@ -1,4 +1,4 @@
-import subprocess, time, mmap
+import subprocess, time, mmap, numpy as np
 
 import lib.gen_seq as gen_seq
 
@@ -45,7 +45,7 @@ def get_tmp():
     t = {}
     floatlist = ['qdistance', 'pol0', 'pol1', 'pol2', 'pol3', 'vca', 'am_bias',
                  'angle0', 'angle1', 'angle2', 'angle3']
-    strlist = ['spd_mode', 'am_mode', 'pm_mode', 'feedback', 'soft_gate']
+    strlist = ['spd_mode', 'am_mode', 'pm_mode', 'feedback', 'soft_gate', 'insert_zeros']
     with open("config/tmp.txt") as f:
         lines = f.readlines()
         for l in lines:
@@ -104,16 +104,14 @@ def read_from_dev(fd, offset, addr, length):
 # for testing create dev_fake with 
 # dd if=/dev/urandom of=dev_fake bs=5MB count=1
 def open_write_close(offset, addr, array_of_u32):
-    dev_name = "dev_fake"
-    #dev_name = "/dev/xdma0_user"
-    fd = open(dev_name, 'r+b')
+    #dev_name = "dev_fake"
+    fd = open("/dev/xdma0_user", 'r+b', buffering=0)
     write_to_dev(fd, offset, addr, array_of_u32)
     fd.close()
 
 def open_read_close(offset, addr, length):
-    dev_name = "dev_fake"
-    #dev_name = "/dev/xdma0_user"
-    fd = open(dev_name, 'r+b')
+    #dev_name = "dev_fake"
+    fd = open("/dev/xdma0_user", 'r+b', buffering=0)
     r = read_from_dev(fd, offset, addr, length)
     fd.close()
     return r
@@ -270,6 +268,7 @@ def Get_reg(spi_bus,device,expect,*args):
         Write(Add_Write, byte)
 
     Write(Add_CS, DATA_CS_EN) # Select slave
+    #open_write_close(BaseAdd, SPISSR, [DATA_CS_EN]) # Select slave
     Write(Add_CR, 0x86 | spi_mode<<3) # Enable transfer
     Write(Add_CS, DATA_CS_DIS) #Reset chip select value
     Write(Add_CR, 0x186 | spi_mode<<3) #Disable transfer 
@@ -433,21 +432,6 @@ def Write_To_Dac(seqlist_dac0, seqlist_dac1):
 
 
 
-#def Seq_Dacs_Off():
-#    #Write dpram_max_addr port out 
-#    Base_Addr = 0x00030000
-#    Write(Base_Addr + 16, 0x0000a0a0) #sequence64
-#    #Write data to dpram_dac0 and dpram_dac1
-#    Base_seq0 = Base_Addr + 0x1000  #Addr_axi_sequencer + addr_dpram
-#    seq_list = gen_seq.seq_dacs_off() 
-#
-#    vals = []
-#    for ele in seq_list:
-#        vals.append(int(ele,0))
-#
-#    fd = open("/dev/xdma0_user", 'r+b', buffering=0)
-#    write_to_dev(fd, Base_seq0, 0, vals)
-#    fd.close()
 
 
 def Write_To_Fake_Rng(seqlist):
@@ -503,18 +487,22 @@ def Write_To_Fake_Rng(seqlist):
 #    Write(Base_Addr + 12,0x1)
 #    Write(Base_Addr + 12,0x0)
 
-def Write_Pm_Mode(mode='seq64', feedback='off'):
+def Write_Pm_Mode(mode='seq64', feedback='off', insert_zeros='off'):
     Base_Addr = 0x00030000
     if feedback=='off':
         fb = 0
     else:
         fb = 4
+    if insert_zeros=='off':
+        iz = 0
+    else:
+        iz = 8
     if mode=='seq64':
         Write(Base_Addr + 20, hex(0))
     elif mode=='fake_rng':
-        Write(Base_Addr + 20, hex(2+fb))
+        Write(Base_Addr + 20, hex(2+fb+iz))
     elif mode=='true_rng':
-        Write(Base_Addr + 20, hex(3+fb))
+        Write(Base_Addr + 20, hex(3+fb+iz))
     else:
         print("wrong sequence argument")
         exit()
@@ -928,3 +916,125 @@ def Time_Calib_Init():
 #    fd = open("/dev/xdma0_user", 'r+b', buffering=0)
 #    write_to_dev(fd, Base_seq0, 0, vals)
 #    fd.close()
+
+
+
+#----------------- DDR -----------------
+
+# Testing AXIS write and read DDR4 through AXI Virtual FIFO
+# threshold define speed of reading gc_in_fifo
+# 199999 for 1kHz click rate
+def Ddr_Data_Reg(command,current_gc,read_speed, gc_delay):
+    fiber_delay = (gc_delay+1)//2
+    pair_mode = (gc_delay+1)%2
+    #set_command_gc, slv_reg2[3]=1
+    #Write(0x00001000+8,0x8)
+    #Set_command
+    Write(0x00001000+8,hex(int(command)))
+    #Write dq_gc_start
+    dq_gc_start = np.int64(current_gc) #+s
+    print(hex(dq_gc_start)) 
+    gc_lsb = dq_gc_start & 0xffffffff
+    #print(hex(gc_lsb))
+    gc_msb = (dq_gc_start & 0xffff00000000)>>32
+    #print(hex(gc_msb))
+    #Write dq_gc_start
+    threshold_full = 4000 #optinal for debug
+    Write(0x00001000+16,hex(gc_lsb))
+    Write(0x00001000+20,hex(gc_msb))
+    Write(0x00001000+32,hex(read_speed))
+    Write(0x00001000+36,hex(threshold_full))
+    Write(0x00001000+40,hex(fiber_delay))
+    Write(0x00001000+24,hex(pair_mode<<1))
+    #Enable register setting
+    Write(0x00001000+12,0x0)
+    Write(0x00001000+12,0x1)
+
+def Ddr_Data_Init():
+    #Reset module
+    Write(0x00001000, 0x00) #Start write ddr = 0
+    Write(0x00012000 + 16,0x00)
+    #time.sleep(0.1)
+    Write(0x00012000 + 16,0x01)
+    time.sleep(1)
+    print("Reset ddr data module")
+
+
+def Ddr_Status():
+    while True:
+        ddr_fifos_status = Read(0x00001000 + 52)
+        fifos_status = Read(0x00001000 + 56)
+        hex_ddr_fifos_status = ddr_fifos_status.decode('utf-8').strip()
+        hex_fifos_status = fifos_status.decode('utf-8').strip()
+        vfifo_idle = (int(hex_ddr_fifos_status,16) & 0x180)>>7
+        vfifo_empty = (int(hex_ddr_fifos_status,16) & 0x60)>>5
+        vfifo_full = (int(hex_ddr_fifos_status,16) & 0x18)>>3
+        gc_out_full = (int(hex_ddr_fifos_status,16) & 0x4)>>2
+        gc_in_empty = (int(hex_ddr_fifos_status,16) & 0x2)>>1
+        alpha_out_full = int(hex_ddr_fifos_status,16) & 0x1
+
+        gc_out_empty = (int(hex_fifos_status,16) & 0x4)>>2
+        gc_in_full = (int(hex_fifos_status,16) & 0x2)>>1
+        alpha_out_empty = int(hex_fifos_status,16) & 0x1
+        current_time = datetime.datetime.now()
+        print(f"Time: {current_time} VF: {vfifo_full} VE: {vfifo_empty}, VI: {vfifo_idle} | gc_out_f,e: {gc_out_full},{gc_out_empty} | gc_in_f,e: {gc_in_full},{gc_in_empty} | alpha_out_f,e: {alpha_out_full},{alpha_out_empty}", flush=True)
+        #print("Time: {current_time}  VF: {vfifo_full}, VE: {vfifo_empty}, VI: {vfifo_idle} | gc_out_f,e: {gc_out_full}, {gc_out_empty} | gc_in_f,e: {gc_in_full}, {gc_in_empty} | alpha_out_f,e: {alpha_out_full}, {alpha_out_empty}                                                                      " ,end ='\r', flush=True)
+        time.sleep(0.1)
+
+
+
+
+def Angle(num):
+    fs = open('/dev/xdma0_c2h_3', 'rb')
+
+    angles = []
+    # stream word is 128bit==64angles
+    for i in range(num//64):
+        print(i)
+        data = fs.read(16)
+        if not data:
+            print("No available data on stream")
+            break
+        for b in data:
+            v = int(b)
+            angles.extend([
+                v&0b11, 
+                (v&0b1100)>>2, 
+                (v&0b110000)>>4, 
+                (v&0b11000000)>>6])
+            
+    fs.close()
+    np.savetxt('data/ddr4/alpha.txt', np.array(angles), fmt="%d")
+    print("angles saved in data/ddr4/alpha.txt")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
