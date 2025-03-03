@@ -265,23 +265,31 @@ def Get_reg(spi_bus,device,expect,*args):
 
     Init_spi(BaseAdd, OffsetAdd, spi_mode) #Init AXI Quad SPI
     for byte in args:
-        Write(Add_Write, byte)
+        #Write(Add_Write, byte)
+        open_write_close(BaseAdd, SPI_DTR, [int(byte,0)])
 
-    Write(Add_CS, DATA_CS_EN) # Select slave
-    #open_write_close(BaseAdd, SPISSR, [DATA_CS_EN]) # Select slave
-    Write(Add_CR, 0x86 | spi_mode<<3) # Enable transfer
-    Write(Add_CS, DATA_CS_DIS) #Reset chip select value
-    Write(Add_CR, 0x186 | spi_mode<<3) #Disable transfer 
+    #Write(Add_CS, DATA_CS_EN) # Select slave
+    open_write_close(BaseAdd, SPISSR, [DATA_CS_EN]) # Select slave
+    #Write(Add_CR, 0x86 | spi_mode<<3) # Enable transfer
+    open_write_close(BaseAdd, SPICR, [0x86 | spi_mode<<3]) # Enable transfer
+    time.sleep(0.01)
+    #Write(Add_CS, DATA_CS_DIS) #Reset chip select value
+    open_write_close(BaseAdd, SPISSR, [DATA_CS_DIS]) #Reset chip select value
+    #Write(Add_CR, 0x186 | spi_mode<<3) #Disable transfer 
+    open_write_close(BaseAdd, SPICR, [0x186 | spi_mode<<3]) #Disable transfer 
     str_base_drr = str(Add_DRR)
     str_base_sr = str(Add_SR)
     
-    y_num = 25
+    y_num = 37
     x_num = 0
     while (x_num != y_num):
-        out_drr = Read(str_base_drr)
-        out_sr = Read(str_base_sr)
-        x_num = int(out_sr)
-    readout_hex = format(int(out_drr.decode(),16),'#04x')
+        #out_drr = Read(str_base_drr)
+        out_drr = open_read_close(BaseAdd, SPI_DRR, 1)
+        #out_sr = Read(str_base_sr)
+        out_sr = open_read_close(BaseAdd, SPISR, 1)
+        x_num = out_sr[0]
+    #readout_hex = format(int(out_drr.decode(),16),'#04x')
+    readout_hex = format(out_drr[0],'#04x')
     if (readout_hex != expect):
         check = 'F'
     else:
