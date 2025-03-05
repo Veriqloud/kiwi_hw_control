@@ -117,4 +117,39 @@ sudo depmod
 sudo reboot
 ~~~~
 
+# RNG Service
+Create a system service to run RNG in the background
 
+~~~~.bash
+cd /etc/systemd/system
+sudo vi rng.service
+~~~~
+Add following content to rng.service
+
+```
+[Unit]                                                                                                           
+Description=SwiftRNG Service                                                                                     
+
+[Service]                                                                                                         
+ExecStart=/home/vq-user/qline/hw_control/rng_fpga/rng2file                                                        
+Restart=always                                                                                                    
+User=vq-user                                                                                                      
+WorkingDirectory=/home/vq-user/qline/hw_control                                                                  
+StandardOutput=journal                                                                                            
+StandardError=journal                                                                                             
+
+[Install]                                                                                                         
+WantedBy=multi-user.target  
+```
+Reload 
+
+~~~~.bash
+sudo systemctl daemon-reload
+~~~~
+
+You can start and stop rng.service manually when device need true RNG
+
+~~~~.bash
+sudo systemctl start rng.service
+sudo systemctl stop rng.service
+~~~~
