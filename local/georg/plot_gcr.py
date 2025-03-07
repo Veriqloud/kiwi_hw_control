@@ -2,7 +2,7 @@
 import numpy as np, matplotlib.pyplot as plt
 
 #names = ['gcr.txt', 'gcr2.txt', 'gcr2.txt']
-names = ['gcr.txt', 'gcr2.txt', 'gcr3.txt', 'gcr4.txt']
+names = ['gcr.txt']#, 'gcr2.txt', 'gcr3.txt', 'gcr4.txt']
 
 
 hist0 = []

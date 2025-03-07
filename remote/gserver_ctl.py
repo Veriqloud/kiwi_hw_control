@@ -87,6 +87,7 @@ try:
             conn.sendall("done".encode())
             main.Download_Time(10000, 'verify_gate_double')
             aurea.mode("continuous")
+            aurea.close()
             update_tmp('spd_mode', 'continuous')
             response = "Verify gates done"
 
@@ -133,16 +134,20 @@ try:
             response = 'Find shift alice done'
        
         elif command == 'fd_b':
+            main.Ensure_Spd_Mode('gated')
             fiber_delay = main.Find_Opt_Delay_B()
             response = 'Find delay bob done'
             update_tmp('fiber_delay_mod', fiber_delay)
+            update_tmp('fiber_delay', fiber_delay-1)
         
         elif command == 'fd_a':
+            main.Ensure_Spd_Mode('gated')
             fiber_delay = main.Find_Opt_Delay_A()
             conn.sendall(fiber_delay.to_bytes(4,byteorder='big'))
             response = 'Find delay bob done'
             
         elif command == 'ra':
+            main.Ensure_Spd_Mode('gated')
             print("received command ra")
             m = conn.recv(4)
             num = int.from_bytes(m, byteorder='big')

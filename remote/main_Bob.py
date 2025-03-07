@@ -487,6 +487,7 @@ def init_tdc():
     aurea = Aurea()
     aurea.deadtime(t['spd_deadtime'])
     aurea.mode("continuous")
+    aurea.close()
 
 def init_ttl():
     ttl_reset()
@@ -529,10 +530,10 @@ def init_apply_default():
 def init_rst_default():
     d = {}
     d['pm_shift'] = 320
-    d['angle0'] = 0
+    d['angle0'] = -0.3
     d['angle1'] = 0
-    d['angle2'] = 0
-    d['angle3'] = 0
+    d['angle2'] = 0.3
+    d['angle3'] = 0.6
     d['gate_delay'] = 6000
     d['soft_gate0'] = 20
     d['soft_gate1'] = 530
@@ -542,7 +543,7 @@ def init_rst_default():
     d['deadtime_gated'] = 15
     d['fiber_delay_mod'] = 0
     d['fiber_delay'] = 0
-    t['zero_pos'] = 0
+    d['zero_pos'] = 0
     save_default(d)
 
 def init_rst_tmp():
@@ -658,18 +659,22 @@ def main():
             if args.spd_mode=="free":
                 update_tmp('spd_mode', 'continuous')
                 aurea.mode("continuous")
+                aurea.close()
             elif args.spd_mode=="gated":
                 update_tmp('spd_mode', 'gated')
                 aurea.mode("gated")
+                aurea.close()
         elif not (args.spd_deadtime==None):
             print("opening SPD...")
             aurea = Aurea()
             aurea.deadtime(args.spd_deadtime)
+            aurea.close()
             update_tmp('spd_deadtime', args.spd_deadtime)
         elif not (args.spd_eff==None):
             print("opening SPD...")
             aurea = Aurea()
             aurea.effi(int(args.spd_eff))
+            aurea.close()
             update_tmp('spd_eff', args.spd_eff)
         elif not (args.spd_delay==None):
             delay = args.spd_delay    # translate to ps

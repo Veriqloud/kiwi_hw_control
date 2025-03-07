@@ -225,6 +225,66 @@ def Set_reg(spi_bus,device,*args):
     Write(Add_CR, 0x1C6 | spi_mode<<3) #Disable transfer and fifo reset
 
 
+def Get_reg_new(spi_bus,device,expect,*args):
+    if (spi_bus == 1):
+        BaseAdd = 0x00013000
+        OffsetAdd = 0x00000000
+        DATA_CS_DIS = 0x03
+        if (device == 'tdc'):
+            spi_mode = 0x02
+            DATA_CS_EN = 0x02
+        elif (device == 'jic'):
+            spi_mode = 0x03
+            DATA_CS_EN = 0x01
+        else :
+            exit("Wrong name of device on spi_bus1")
+    elif (spi_bus == 2):
+        BaseAdd = 0x00020000
+        OffsetAdd = 0x00000000
+        DATA_CS_DIS = 0x07
+        if (device == 'ltc'):
+            spi_mode = 0
+            DATA_CS_EN = 0x03
+        elif (device == 'fda'):
+            spi_mode = 3
+            DATA_CS_EN = 0x06
+        elif (device == 'sda'):
+            spi_mode = 1
+            DATA_CS_EN = 0x05
+        else:
+            exit ("Wrong name of device on spi_bus2")
+    else:
+        exit("Wrong spi_bus")
+
+    Init_spi(BaseAdd, OffsetAdd, spi_mode) #Init AXI Quad SPI
+    for arg in args:
+        if (type(arg)==str):
+            data = int(arg,0)
+        else:
+            data = arg
+        open_write_close(BaseAdd, SPI_DTR, [data])
+
+    open_write_close(BaseAdd, SPISSR, [DATA_CS_EN]) # Select slave
+    open_write_close(BaseAdd, SPICR, [0x86 | spi_mode<<3]) # Enable transfer
+    wait = True
+    while wait:
+        wait = open_read_close(BaseAdd, SPISR, 1)[0] & 4 == 0
+    open_write_close(BaseAdd, SPISSR, [DATA_CS_DIS]) #Reset chip select value
+    open_write_close(BaseAdd, SPICR, [0x186 | spi_mode<<3]) #Disable transfer 
+
+    wait = True
+    while wait:
+        wait = open_read_close(BaseAdd, SPISR, 1)[0] & 1 == 1
+    out_drr = open_read_close(BaseAdd, SPI_DRR, 1)
+
+    readout_hex = format(out_drr[0],'#04x')
+    if (readout_hex != expect):
+        check = 'F'
+    else:
+        check = 'T'
+    return (readout_hex, expect, check)
+
+
 def Get_reg(spi_bus,device,expect,*args):
     if (spi_bus == 1):
         BaseAdd = 0x00013000
@@ -265,39 +325,27 @@ def Get_reg(spi_bus,device,expect,*args):
 
     Init_spi(BaseAdd, OffsetAdd, spi_mode) #Init AXI Quad SPI
     for byte in args:
-        #Write(Add_Write, byte)
-        open_write_close(BaseAdd, SPI_DTR, [int(byte,0)])
+        Write(Add_Write, byte)
 
-    #Write(Add_CS, DATA_CS_EN) # Select slave
-    open_write_close(BaseAdd, SPISSR, [DATA_CS_EN]) # Select slave
-    #Write(Add_CR, 0x86 | spi_mode<<3) # Enable transfer
-    open_write_close(BaseAdd, SPICR, [0x86 | spi_mode<<3]) # Enable transfer
-    time.sleep(0.01)
-    #Write(Add_CS, DATA_CS_DIS) #Reset chip select value
-    open_write_close(BaseAdd, SPISSR, [DATA_CS_DIS]) #Reset chip select value
-    #Write(Add_CR, 0x186 | spi_mode<<3) #Disable transfer 
-    open_write_close(BaseAdd, SPICR, [0x186 | spi_mode<<3]) #Disable transfer 
+    Write(Add_CS, DATA_CS_EN) # Select slave
+    Write(Add_CR, 0x86 | spi_mode<<3) # Enable transfer
+    Write(Add_CS, DATA_CS_DIS) #Reset chip select value
+    Write(Add_CR, 0x186 | spi_mode<<3) #Disable transfer 
     str_base_drr = str(Add_DRR)
     str_base_sr = str(Add_SR)
     
-    y_num = 37
+    y_num = 25
     x_num = 0
     while (x_num != y_num):
-        #out_drr = Read(str_base_drr)
-        out_drr = open_read_close(BaseAdd, SPI_DRR, 1)
-        #out_sr = Read(str_base_sr)
-        out_sr = open_read_close(BaseAdd, SPISR, 1)
-        x_num = out_sr[0]
-    #readout_hex = format(int(out_drr.decode(),16),'#04x')
-    readout_hex = format(out_drr[0],'#04x')
+        out_drr = Read(str_base_drr)
+        out_sr = Read(str_base_sr)
+        x_num = int(out_sr)
+    readout_hex = format(int(out_drr.decode(),16),'#04x')
     if (readout_hex != expect):
         check = 'F'
     else:
         check = 'T'
     return (readout_hex, expect, check)
-
-
-
 
 #-------------CLOCK CHIP FUNCTIONS----------------------------------------------
 def Set_Ltc():
@@ -343,16 +391,28 @@ def Config_Ltc():
 
 ###-------------DAC81408 FUNCTIONS----------------------------------
 
-def Get_Sda_Id():
+def Get_Sda_Id_old():
     id_add = '0x01'
     add_shifted = str(hex(1<<7 | int(id_add, base=16))) 
-    #print(add_shifted)
     id_val_pre = Get_reg(2,'sda','0x60',add_shifted,'0','0')
     rev_val_pre= Get_reg(2,'sda','0x0a','0','0')
     id_val = Get_reg(2,'sda','0x60',add_shifted,'0','0')
     rev_val = Get_reg(2,'sda','0x0a','0','0')
-    print
     print("Id and revision of sda:","id_addr:",id_add,"sda_id:",id_val,"sda_rev:",rev_val)
+
+def Get_Sda_Id():
+    nop = Get_reg(2,'sda',0, 0, 0, 0)
+    nop = Get_reg(2,'sda',0, 0, 0, 0)
+    add = (1<<7) | 1
+    id_val_pre = Get_reg(2,'sda','0x60', add, 0, 0)
+    id_val_pre = Get_reg(2,'sda','0x60', add, 0, 0)
+    id_val = Get_reg(2,'sda','0x60', 0, 0, 0)
+
+    #id_val = Get_reg(2,'sda','0x60',id_add,'0','0')
+    #id_val = Get_reg(2,'sda','0x60',add_shifted,'0','0')
+    #rev_val_pre= Get_reg(2,'sda','0x0a','0','0')
+    #rev_val = Get_reg(2,'sda','0x0a','0','0')
+    #print("Id and revision of sda:","id_addr:",id_add,"sda_id:",id_val,"sda_rev:",rev_val)
 
 def Soft_Reset_Sda():
     trigger_reg_add = '0x0E'

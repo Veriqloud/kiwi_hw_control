@@ -174,12 +174,12 @@ def init_rst_default():
     d['am_bias'] = 0
     d['am_shift'] = 514
     d['pm_shift'] = 514
-    d['angle0'] = 0
+    d['angle0'] = -0.3
     d['angle1'] = 0
-    d['angle2'] = 0
-    d['angle3'] = 0
+    d['angle2'] = 0.3
+    d['angle3'] = 0.6
     d['fiber_delay'] = 0
-    t['zero_pos'] = 0
+    d['zero_pos'] = 0
     save_default(d)
 
 def init_rst_tmp():

@@ -130,6 +130,7 @@ def client_start(commands_in):
                 m = client_socket.recv(4)
                 fiber_delay = int.from_bytes(m, byteorder='big')
                 update_tmp('fiber_delay', fiber_delay)
+                update_tmp('fiber_delay', fiber_delay-1)
             
             elif command == 'ver_sync':
                 current_gc = main.Get_Current_Gc()
