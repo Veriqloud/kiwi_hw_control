@@ -145,6 +145,16 @@ try:
             fiber_delay = main.Find_Opt_Delay_A()
             conn.sendall(fiber_delay.to_bytes(4,byteorder='big'))
             response = 'Find delay bob done'
+        
+        elif command == 'fz_b':
+            main.Ensure_Spd_Mode('gated')
+            main.Find_Zero_Pos_B()
+            response = 'Find zero position bob done'
+        
+        elif command == 'czp':
+            main.Ensure_Spd_Mode('gated')
+            main.Check_Zeros_Pos()
+            response = 'Find zero position bob done'
             
         elif command == 'ra':
             main.Ensure_Spd_Mode('gated')

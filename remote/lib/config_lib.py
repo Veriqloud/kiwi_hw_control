@@ -579,10 +579,11 @@ def Write_Pm_Mode(mode='seq64', feedback='off', insert_zeros='off'):
     Write(Base_Addr + 12,0x0)
     #update_tmp('pm_mode', mode)
 
-def Write_Pm_Shift(shift):
+def Write_Pm_Shift(shift, zero_pos):
     Base_Addr = 0x00030000
-    up_offset = 0x4000
-    shift_hex_up_offset = (int(up_offset)<<16 | shift)
+    lim = 18000
+    up_offset = round(0.8*lim)
+    shift_hex_up_offset = (up_offset<<16 | zero_pos<<4 | shift)
     division_sp = hex(1000)
     Write(Base_Addr + 4, shift_hex_up_offset)
     Write(Base_Addr + 32, division_sp)
@@ -593,8 +594,10 @@ def Write_Pm_Shift(shift):
 
 
 def Write_Angles(a0, a1, a2, a3):
+    amp_max = 18000
+    f = 18000/32768
     Base_Addr = 0x00030000
-    amp_list = [a0,a1,a2,a3]
+    amp_list = [a0*f,a1*f,a2*f,a3*f]
     amp_out_list = []
     for amp in amp_list:
         if (amp >= 0):

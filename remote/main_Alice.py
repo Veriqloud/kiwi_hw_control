@@ -74,7 +74,7 @@ def Update_Dac():
         dac1 = gen_seq.dac1_sample(np.zeros(64), 0)
     
     Write_To_Dac(dac0, dac1)
-    Write_Pm_Shift(t['pm_shift']%10)
+    Write_Pm_Shift(t['pm_shift']%10, t['zero_pos'])
     print("Dac", t['am_mode'], t['pm_mode'], t['am_shift'], t['pm_shift'])
     
 
@@ -252,6 +252,9 @@ def main():
         elif args.am_mode:
             update_tmp('am_mode', args.am_mode)
             Update_Dac()
+        elif args.zero_pos:
+            update_tmp('zero_pos', args.zero_pos)
+            Update_Dac()
         elif args.angles:
             t = get_tmp()
             t['angle0'] = args.angles[0]
@@ -318,6 +321,8 @@ def main():
                             help="fixed periodic sequece, fake rng or real rng")
     parser_set.add_argument("--angles", nargs=4, type=float,
                             help="float [-1,1]")
+    parser_set.add_argument("--zero_pos", type=int, 
+                            help="insert zeros at this position for feedback")
     
 
     parser_get.add_argument("--get_gc", action="store_true",

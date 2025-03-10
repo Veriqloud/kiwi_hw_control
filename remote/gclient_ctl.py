@@ -132,6 +132,17 @@ def client_start(commands_in):
                 update_tmp('fiber_delay', fiber_delay)
                 update_tmp('fiber_delay', fiber_delay-1)
             
+            elif command == 'fz_b':
+                update_tmp('pm_mode', 'off')
+                update_tmp('am_mode', 'double')
+                main.Update_Dac()
+        
+            elif command == 'czp':
+                update_tmp('pm_mode', 'off')
+                update_tmp('am_mode', 'double')
+                main.Update_Dac()
+
+
             elif command == 'ver_sync':
                 current_gc = main.Get_Current_Gc()
                 print('Alice current_gc: ', current_gc)

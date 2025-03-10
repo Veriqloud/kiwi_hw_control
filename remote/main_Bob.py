@@ -61,7 +61,7 @@ def Update_Dac():
         dac1 = gen_seq.dac1_sample(np.zeros(64), 0)
     
     Write_To_Dac(dac0, dac1)
-    Write_Pm_Shift(t['pm_shift']%10)
+    Write_Pm_Shift(t['pm_shift']%10, t['zero_pos'])
     print("Dac", t['pm_mode'], t['pm_shift'], t['feedback'], t['insert_zeros'])
 
 def Update_Angles():
@@ -306,9 +306,9 @@ def Find_Opt_Delay_B():
     Update_Softgate()
     Update_Dac()
 
-    En_reset_jesd()
+    #En_reset_jesd()
 
-    time.sleep(3)
+    #time.sleep(3)
     #Get detection result
     Download_Time(50000, 'fd_b_single')
     #Process to get delay val
@@ -333,6 +333,40 @@ def Find_Opt_Delay_B():
     print("Fiber delay of Bob: ",index, " [q_bins]")
     return(int(index))
 
+def Find_Zero_Pos_B():
+    t = get_tmp()
+    t['pm_mode'] = 'fake_rng'
+    t['feedback'] = 'on'
+    t['soft_gate'] = 'on'
+    t['insert_zeros'] = 'off'
+    save_tmp(t)
+    Update_Softgate()
+    Update_Dac()
+    
+    for i in range(16):
+        Write_To_Fake_Rng(gen_seq.seq_rng_one_in_sixteen(i))
+        time.sleep(1)
+
+        Download_Time(50000, 'fz_b'+str(i))
+        data = np.loadtxt("data/tdc/fz_b"+str(i)+".txt",usecols=(2,3,4), dtype=np.int64)
+
+def Check_Zeros_Pos():
+    t = get_tmp()
+    t['pm_mode'] = 'fake_rng'
+    t['feedback'] = 'on'
+    t['soft_gate'] = 'on'
+    t['insert_zeros'] = 'on'
+    t['zero_pos'] = 8
+    time.sleep(1)
+    save_tmp(t)
+    Update_Softgate()
+    Update_Dac()
+    
+    Write_To_Fake_Rng(gen_seq.seq_rng_all_one())
+    Download_Time(50000, 'fz_b_check')
+    data = np.loadtxt("data/tdc/fz_b_check.txt",usecols=(2,3,4), dtype=np.int64)
+
+
 def Find_Opt_Delay_A():
     # generate a sequence of 64 angles where the first one stands out
     t = get_tmp()
@@ -343,9 +377,9 @@ def Find_Opt_Delay_A():
     Update_Softgate()
     Update_Dac()
 
-    En_reset_jesd()
+    #En_reset_jesd()
 
-    time.sleep(3)
+    #time.sleep(3)
     #Get detection result
     Download_Time(50000, 'fd_a_single')
     #Process to get delay val
@@ -645,6 +679,9 @@ def main():
         elif args.insert_zeros:
             update_tmp('insert_zeros', args.insert_zeros)
             Update_Dac()
+        elif args.zero_pos:
+            update_tmp('zero_pos', args.zero_pos)
+            Update_Dac()
         elif args.angles:
             t = get_tmp()
             t['angle0'] = args.angles[0]
@@ -772,6 +809,8 @@ def main():
                             help="balance interferometer")
     parser_set.add_argument("--insert_zeros", choices=['on', 'off'], 
                             help="insert zeros into rng sequence for feedback")
+    parser_set.add_argument("--zero_pos", type=int, 
+                            help="insert zeros at this position for feedback")
     parser_set.add_argument("--spd_mode", choices=['free', 'gated'], 
                             help="free running or gated")
     parser_set.add_argument("--spd_delay", type=int, metavar="time",  
