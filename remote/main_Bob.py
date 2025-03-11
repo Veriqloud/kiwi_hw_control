@@ -338,34 +338,83 @@ def Find_Zero_Pos_B():
     t['pm_mode'] = 'fake_rng'
     t['feedback'] = 'on'
     t['soft_gate'] = 'on'
-    t['insert_zeros'] = 'off'
+    t['insert_zeros'] = 'on'
+    t['zero_pos'] = 0
     save_tmp(t)
+    Write_To_Fake_Rng(gen_seq.seq_rng_all_one(4))
     Update_Softgate()
     Update_Dac()
+    time.sleep(0.5)
+    counts = get_counts()
+    if min(counts[1], counts[2])/counts[0] < 0.25:
+        print("zeros pos found:", 0) 
+        return 0
     
-    for i in range(16):
-        Write_To_Fake_Rng(gen_seq.seq_rng_one_in_sixteen(i))
-        time.sleep(1)
+    Download_Time(50000, 'fz_b')
+    data = np.loadtxt("data/tdc/fz_b.txt",usecols=(2,3,4), dtype=np.int64)
 
-        Download_Time(50000, 'fz_b'+str(i))
-        data = np.loadtxt("data/tdc/fz_b"+str(i)+".txt",usecols=(2,3,4), dtype=np.int64)
+    gc = data[:,0] 
+    r = data[:,1]
+    q_pos = data[:,2]
+    gc0 = (gc[r==0]%32)*2 + q_pos[r==0] 
+    gc1 = (gc[r==1]%32)*2 + q_pos[r==1] 
+    bins = np.arange(65)
+    h0, b = np.histogram(gc0, bins=bins)
+    h1, b = np.histogram(gc1, bins=bins)
+    h = abs(h0-h1)
+    peakpos = np.argmax(h) 
+    zeros_pos = (t['fiber_delay_mod'] -3 - peakpos) % 16
+    print("zeros pos found:", zeros_pos) 
+    return zeros_pos 
 
-def Check_Zeros_Pos():
+def Find_Zero_Pos_A(fiber_delay_mod):
     t = get_tmp()
-    t['pm_mode'] = 'fake_rng'
+    t['pm_mode'] = 'off'
     t['feedback'] = 'on'
     t['soft_gate'] = 'on'
     t['insert_zeros'] = 'on'
-    t['zero_pos'] = 8
-    time.sleep(1)
     save_tmp(t)
+    Write_To_Fake_Rng(gen_seq.seq_rng_all_one(4))
     Update_Softgate()
     Update_Dac()
+    time.sleep(0.5)
+    counts = get_counts()
+    if min(counts[1], counts[2])/counts[0] < 0.25:
+        print("zeros pos found:", 0) 
+        return 0
     
-    Write_To_Fake_Rng(gen_seq.seq_rng_all_one())
-    Download_Time(50000, 'fz_b_check')
-    data = np.loadtxt("data/tdc/fz_b_check.txt",usecols=(2,3,4), dtype=np.int64)
+    Download_Time(50000, 'fz_a')
+    data = np.loadtxt("data/tdc/fz_a.txt",usecols=(2,3,4), dtype=np.int64)
 
+    gc = data[:,0] 
+    r = data[:,1]
+    q_pos = data[:,2]
+    gc0 = (gc[r==0]%32)*2 + q_pos[r==0] 
+    gc1 = (gc[r==1]%32)*2 + q_pos[r==1] 
+    bins = np.arange(65)
+    h0, b = np.histogram(gc0, bins=bins)
+    h1, b = np.histogram(gc1, bins=bins)
+    h = abs(h0-h1)
+    peakpos = np.argmax(h) 
+    zeros_pos = (fiber_delay_mod -1 - peakpos) % 16
+    print("zeros pos found:", zeros_pos) 
+    return int(zeros_pos )
+
+#def Check_Zeros_Pos():
+#    t = get_tmp()
+#    t['pm_mode'] = 'fake_rng'
+#    t['feedback'] = 'on'
+#    t['soft_gate'] = 'on'
+#    t['insert_zeros'] = 'on'
+#    t['zero_pos'] = 8
+#    time.sleep(1)
+#    save_tmp(t)
+#    Update_Softgate()
+#    Update_Dac()
+#    
+#    Write_To_Fake_Rng(gen_seq.seq_rng_all_one())
+#    Download_Time(50000, 'fz_b_check')
+#    data = np.loadtxt("data/tdc/fz_b_check.txt",usecols=(2,3,4), dtype=np.int64)
 
 def Find_Opt_Delay_A():
     # generate a sequence of 64 angles where the first one stands out
@@ -404,6 +453,43 @@ def Find_Opt_Delay_A():
     print("Fiber delay of Alice: ",index, " [q_bins]")
     return(int(index))
 
+def Find_Opt_Delay_A_long(fiber_delay_mod):
+    # generate a sequence of 64 angles where the first one stands out
+    t = get_tmp()
+    t['pm_mode'] = 'off'
+    t['feedback'] = 'on'
+    t['soft_gate'] = 'on'
+    save_tmp(t)
+    Update_Softgate()
+    Update_Dac()
+
+    #En_reset_jesd()
+
+    #time.sleep(3)
+    #Get detection result
+    Download_Time(50000, 'fd_a_single_long')
+    #Process to get delay val
+
+    data = np.loadtxt("data/tdc/fd_a_single_long.txt",usecols=(2,3,4), dtype=np.int64)
+    gc = data[:,0] 
+    r = data[:,1]
+    q_pos = data[:,2]
+
+    gc0 = (gc[r==0]*2 + q_pos[r==0] - fiber_delay_mod) % (64*64)
+    gc1 = (gc[r==1]*2 + q_pos[r==1] - fiber_delay_mod) % (64*64)
+
+    bins = np.arange(0,64*65,64)
+    h0, b = np.histogram(gc0, bins=bins)
+    h1, b = np.histogram(gc1, bins=bins)
+
+    h = h0-h1
+    m = h.mean()
+    h = h-m
+
+    index = np.argmax(np.abs(h))
+    print("Fiber delay of Alice: ",index, " [q_bins]")
+    return(int(index*64))
+
 def Test_delay():
     Base_Addr = 0x00030000
     Write(Base_Addr + 28, 0x4e20) #for 0.5ms distance
@@ -432,6 +518,29 @@ def Count_Mon():
         total = counts[2]
         print(f"Total: {total}, Click0: {click0}, Click1: {click1}              ",flush=True)
         time.sleep(0.1)
+
+def Count_Mon2():
+    print("-----------DISPLAY NUMBER OF COUNTS--------------")
+    BaseAddr = 0x00000000
+    while True:
+        total = 0
+        click0 = 0
+        click1 = 0
+        for i in range(10):
+            counts = open_read_close(BaseAddr, 56, 3)
+            click0 += counts[0]
+            click1 += counts[1]
+            total += counts[2]
+            time.sleep(0.1)
+        print(f"Total: {total}, Click0: {click0}, Click1: {click1}              ",flush=True)
+
+def get_counts():
+    BaseAddr = 0x00000000
+    counts = open_read_close(BaseAddr, 56, 3)
+    click0 = counts[0]
+    click1 = counts[1]
+    total = counts[2]
+    return total, click0, click1
 
 def Read_Count():
     BaseAddr = 0x00000000
@@ -564,10 +673,10 @@ def init_apply_default():
 def init_rst_default():
     d = {}
     d['pm_shift'] = 320
-    d['angle0'] = -0.3
-    d['angle1'] = 0
-    d['angle2'] = 0.3
-    d['angle3'] = 0.6
+    d['angle0'] = 0
+    d['angle1'] = 0.18
+    d['angle2'] = -0.18
+    d['angle3'] = 0.36
     d['gate_delay'] = 6000
     d['soft_gate0'] = 20
     d['soft_gate1'] = 530
@@ -660,15 +769,15 @@ def main():
             if args.fake_rng_seq == 'single':
                 Write_To_Fake_Rng(gen_seq.seq_rng_single(4))
                 Update_Dac()
-                En_reset_jesd()
             elif args.fake_rng_seq == 'off':
                 Write_To_Fake_Rng(gen_seq.seq_rng_zeros())
                 Update_Dac()
-                En_reset_jesd()
             elif args.fake_rng_seq == 'random':
                 Write_To_Fake_Rng(gen_seq.seq_rng_random(4))
                 Update_Dac()
-                En_reset_jesd()
+            elif args.fake_rng_seq == 'all_one':
+                Write_To_Fake_Rng(gen_seq.seq_rng_all_one(4))
+                Update_Dac()
 
         elif args.pm_shift is not None:
             update_tmp('pm_shift', args.pm_shift)
@@ -676,10 +785,14 @@ def main():
         elif args.feedback:
             update_tmp('feedback', args.feedback)
             Update_Dac()
+            t = get_tmp()
+            if t['soft_gate'] == 'off':
+                print("WARNING: softgate filter is OFF. Feedback will not work")
+
         elif args.insert_zeros:
             update_tmp('insert_zeros', args.insert_zeros)
             Update_Dac()
-        elif args.zero_pos:
+        elif args.zero_pos is not None:
             update_tmp('zero_pos', args.zero_pos)
             Update_Dac()
         elif args.angles:
@@ -739,6 +852,8 @@ def main():
     def get(args):
         if args.counts:
             Count_Mon()
+        if args.counts2:
+            Count_Mon2()
         elif args.time:
             Download_Time(args.time)
         elif args.get_gc:
@@ -803,7 +918,7 @@ def main():
 ######### set ###########
 #    parser_set.add_argument("--rng_mode", choices=['seq', 'fake_rng', 'true_rng'],
 #                            help="fixed periodic sequece, fake rng or real rng")
-    parser_set.add_argument("--fake_rng_seq", choices=['off', 'single', 'random'],
+    parser_set.add_argument("--fake_rng_seq", choices=['off', 'single', 'random', 'all_one'],
                             help="set fake rng sequence")
     parser_set.add_argument("--feedback", choices=['on', 'off'], 
                             help="balance interferometer")
@@ -834,6 +949,8 @@ def main():
 ######### get  ###########
     parser_get.add_argument("--counts", action="store_true", 
                             help="get SPD counts")
+    parser_get.add_argument("--counts2", action="store_true", 
+                            help="get SPD counts averaged over 1s")
     parser_get.add_argument("--time", type=int, metavar="num_counts",
                             help="download timestamps of spd clicks")
     parser_get.add_argument("--get_gc", action="store_true",

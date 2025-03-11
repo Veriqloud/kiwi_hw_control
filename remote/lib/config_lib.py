@@ -85,6 +85,7 @@ def write_to_dev(fd, offset, addr, array_of_u32):
         mm[current_addr:current_addr+4] = value.to_bytes(4, 'little')
         current_addr += 4
     #mm.flush()
+    mm.close()
 
 def read_from_dev(fd, offset, addr, length):
     """ 
@@ -96,9 +97,12 @@ def read_from_dev(fd, offset, addr, length):
     if ((offset % 4096) != 0):
         exit("offset is not a multiple of pagesize")
     mm = mmap.mmap(fd.fileno(), length*4 + 4096, offset=offset)
+    #mm.flush()
     array_of_u32 = []
     for i in range(addr//4, length+addr//4):
         array_of_u32.append(int.from_bytes(mm[i*4: (i+1)*4], 'little')) 
+    #mm.flush()
+    mm.close()
     return array_of_u32
 
 # for testing create dev_fake with 
@@ -225,7 +229,7 @@ def Set_reg(spi_bus,device,*args):
     Write(Add_CR, 0x1C6 | spi_mode<<3) #Disable transfer and fifo reset
 
 
-def Get_reg_new(spi_bus,device,expect,*args):
+def Get_reg_new(spi_bus,device,*args):
     if (spi_bus == 1):
         BaseAdd = 0x00013000
         OffsetAdd = 0x00000000
@@ -275,14 +279,22 @@ def Get_reg_new(spi_bus,device,expect,*args):
     wait = True
     while wait:
         wait = open_read_close(BaseAdd, SPISR, 1)[0] & 1 == 1
-    out_drr = open_read_close(BaseAdd, SPI_DRR, 1)
+    wait = True
+    output = []
+    while wait:
+        out_drr = open_read_close(BaseAdd, SPI_DRR, 1)
+        wait = open_read_close(BaseAdd, SPISR, 1)[0] & 1 == 0
+        output.append(out_drr[0])
+    #print(output)
 
-    readout_hex = format(out_drr[0],'#04x')
-    if (readout_hex != expect):
-        check = 'F'
-    else:
-        check = 'T'
-    return (readout_hex, expect, check)
+    #readout_hex = format(out_drr[0],'#04x')
+    #if (readout_hex != expect):
+    #    check = 'F'
+    #else:
+    #    check = 'T'
+    return output
+    
+    #return (readout_hex, expect, check)
 
 
 def Get_reg(spi_bus,device,expect,*args):
@@ -368,20 +380,23 @@ def Sync_Ltc():
 def Get_Ltc_info():
     reg_file = open('registers/ltc/Ltc6951Expect.txt','r')
     array = []
-    print("Monitoring ltc registers:(add, (readback, expected, T/F))")
+    print("Monitoring ltc registers")
+    print("addr\texp\tret\tmatch")
     for l in reg_file.readlines():
         add, val = l.split(',')
-        add_shifted = str(hex(int(add, base=16)<<1 |1)) 
-        tup = Get_reg(2,'ltc',val.strip(),add_shifted,'0x00')
-        print(add,tup)
+        add = int(add, 16)
+        val = int(val, 16)
+        add_shifted = (add<<1) | 1
+        ret = Get_reg_new(2,'ltc',add_shifted,0)[0]
+        print(str(add)+"\t"+hex(val)+"\t"+hex(ret)+"\t"+str(val==ret))
     print("Monitoring ltc finished")
     reg_file.close()
 
 def Get_Id():
     data_cs_en = 0x03
-    id_add = '0x13'
-    add_shifted = str(hex(int(id_add, base=16)<<1 |1)) 
-    id_val = Get_reg(2,'ltc','0x11',add_shifted,'0x00')
+    id_add = 0x13
+    add_shifted = (id_add <<1) | 1 
+    id_val = Get_reg_new(2,'ltc',add_shifted,0)[0]
     print("Id_Addr",id_add,"Ltc_id:",id_val)
 
 def Config_Ltc():
@@ -413,6 +428,19 @@ def Get_Sda_Id():
     #rev_val_pre= Get_reg(2,'sda','0x0a','0','0')
     #rev_val = Get_reg(2,'sda','0x0a','0','0')
     #print("Id and revision of sda:","id_addr:",id_add,"sda_id:",id_val,"sda_rev:",rev_val)
+
+def Get_Sda_Id_new():
+    nop = Get_reg_new(2,'sda',0, 0, 0)
+    print(nop)
+    nop = Get_reg_new(2,'sda',0, 0, 0)
+    print(nop)
+    add = (1<<7) | 1
+    id_val_pre = Get_reg_new(2,'sda',add, 0, 0)
+    print(id_val_pre)
+    id_val = Get_reg_new(2,'sda',add, 0, 0)
+    print(id_val)
+    id_val = Get_reg_new(2,'sda',0, 0, 0)
+    print(id_val)
 
 def Soft_Reset_Sda():
     trigger_reg_add = '0x0E'
@@ -697,6 +725,17 @@ def Get_Id_Fda():
     id2 = Get_reg(2,'fda','0x91','0x80','0x05','0x00'   )
     revision = Get_reg(2,'fda','0x08','0x80','0x06','0x00')
     print("type: ",chip_type,"id: ", id1,id2,"revision: ", revision)
+
+#def Get_Id_Fda():
+#    chip_type = Get_reg_new(2,'fda',0x80,0x03,0x00)
+#    print(chip_type)
+#    id1 = Get_reg_new(2,'fda',0x80,0x04,0x00)
+#    print(id1)
+#    id2 = Get_reg_new(2,'fda',0x80,0x05,0x00)
+#    print(id2)
+#    revision = Get_reg_new(2,'fda',0x80,0x06,0x00)
+#    print(revision)
+#    print("type: ",chip_type,"id: ", id1,id2,"revision: ", revision)
 
 
 

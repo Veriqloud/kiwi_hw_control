@@ -129,18 +129,48 @@ def client_start(commands_in):
                 main.Update_Dac()
                 m = client_socket.recv(4)
                 fiber_delay = int.from_bytes(m, byteorder='big')
-                update_tmp('fiber_delay', fiber_delay)
+                update_tmp('fiber_delay_mod', fiber_delay)
                 update_tmp('fiber_delay', fiber_delay-1)
+            
+            elif command == 'fd_a_long':
+                t = get_tmp()
+                t['pm_mode'] = 'fake_rng'
+                t['am_mode'] = 'double'
+                save_tmp(t)
+                main.Write_To_Fake_Rng(gen_seq.seq_rng_block1())
+                main.Update_Dac()
+                client_socket.sendall(t['fiber_delay_mod'].to_bytes(4,byteorder='big'))
+                m = client_socket.recv(4)
+                fiber_delay_long = int.from_bytes(m, byteorder='big')
+                update_tmp('fiber_delay_long', fiber_delay_long)
+                fiber_delay = fiber_delay_long + t['fiber_delay_mod'] - 1
+                update_tmp('fiber_delay', fiber_delay)
+            
             
             elif command == 'fz_b':
                 update_tmp('pm_mode', 'off')
                 update_tmp('am_mode', 'double')
+                update_tmp('insert_zeros', 'off')
+                main.Update_Dac()
+            
+            elif command == 'fz_a':
+                t = get_tmp()
+                t['pm_mode'] = 'fake_rng'
+                t['insert_zeros'] = 'on'
+                t['zero_pos'] = 0
+                save_tmp(t)
+                main.Write_To_Fake_Rng(gen_seq.seq_rng_all_one(4))
+                main.Update_Dac()
+                client_socket.sendall(t['fiber_delay_mod'].to_bytes(4,byteorder='big'))
+                m = client_socket.recv(4)
+                zero_pos = int.from_bytes(m, byteorder='big')
+                update_tmp('zero_pos', zero_pos)
                 main.Update_Dac()
         
-            elif command == 'czp':
-                update_tmp('pm_mode', 'off')
-                update_tmp('am_mode', 'double')
-                main.Update_Dac()
+            #elif command == 'czp':
+            #    update_tmp('pm_mode', 'off')
+            #    update_tmp('am_mode', 'double')
+            #    main.Update_Dac()
 
 
             elif command == 'ver_sync':

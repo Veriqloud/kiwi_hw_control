@@ -146,15 +146,34 @@ try:
             conn.sendall(fiber_delay.to_bytes(4,byteorder='big'))
             response = 'Find delay bob done'
         
-        elif command == 'fz_b':
+        elif command == 'fd_a_long':
             main.Ensure_Spd_Mode('gated')
-            main.Find_Zero_Pos_B()
+            m = conn.recv(4)
+            fiber_delay_mod = int.from_bytes(m, byteorder='big')
+            fiber_delay = main.Find_Opt_Delay_A_long(fiber_delay_mod)
+            conn.sendall(fiber_delay.to_bytes(4,byteorder='big'))
+            response = 'Find delay bob done'
+        
+        elif command == 'fz_a':
+            main.Ensure_Spd_Mode('gated')
+            print("received command fz_a")
+            m = conn.recv(4)
+            fiber_delay_mod = int.from_bytes(m, byteorder='big')
+            zero_pos = main.Find_Zero_Pos_A(fiber_delay_mod)
+            conn.sendall(zero_pos.to_bytes(4,byteorder='big'))
             response = 'Find zero position bob done'
         
-        elif command == 'czp':
+        elif command == 'fz_b':
             main.Ensure_Spd_Mode('gated')
-            main.Check_Zeros_Pos()
+            zero_pos = main.Find_Zero_Pos_B()
+            update_tmp('zero_pos', zero_pos)
+            main.Update_Dac()
             response = 'Find zero position bob done'
+        
+        #elif command == 'czp':
+        #    main.Ensure_Spd_Mode('gated')
+        #    main.Check_Zeros_Pos()
+        #    response = 'Find zero position bob done'
             
         elif command == 'ra':
             main.Ensure_Spd_Mode('gated')

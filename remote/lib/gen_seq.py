@@ -209,11 +209,8 @@ def seq_rng_all_one(num_words=4):
     # the first angle is nr 1, the rest is nr 0.
     # a word is 32bit = 16 angles
     word0 = 0b01010101010101010101010101010101
-    message = np.zeros(num_words, dtype=np.int32)
-    message[0] = word0
-    message[1] = word0
-    message[2] = word0
-    message[3] = word0
+    message = np.zeros(num_words, dtype=np.uint32)
+    message[:] = word0
     print("fake rng_seq_single written")
     return message
 
@@ -234,15 +231,22 @@ def seq_rng_random(num_words=4):
     print("fake rng_seq_random written")
     return message
 
-def seq_rng_block(num_words, num_nonzero_words):
-    # a block of angles nr 1, rest is nr 0.
-    # a word is 32bit = 16 angles
-    word0 = 0
-    for i in range(16):
-        word0 = word0 + (1<<(i*2))
+#def seq_rng_random(num_words=4):
+#    # the first angle is nr 1, the rest is nr 0.
+#    # a word is 32bit = 16 angles
+#    word0 = 0b11100100111001001110010011100100
+#    message = np.zeros(num_words, dtype=np.uint32)
+#    message[:] = word0
+#    print("fake rng_seq_random2 written")
+#    return message
 
-    message = np.zeros(num_words, dtype=np.int32)
-    message[:num_nonzero_words] = word0
+def seq_rng_block1():
+    # a 64 angle long block of angles nr 1, rest nr 0. total length 64*64.
+    # a word is 32bit = 16 angles
+    num_words = 4*64
+    message = np.zeros(num_words, dtype=np.uint32)
+    word0 = 0b01010101010101010101010101010101
+    message[:4] = word0
     return message
 
     

@@ -67,15 +67,17 @@ def Update_Dac():
         Write_Pm_Mode('seq64')
         dac1 = gen_seq.dac1_sample_tight(gen_seq.lin_seq_2(), t['pm_shift'])
     elif t['pm_mode'] == 'fake_rng':
-        Write_Pm_Mode('fake_rng')
+        Write_Pm_Mode('fake_rng', insert_zeros=t['insert_zeros'])
+        Write_Angles(t['angle0'], t['angle1'], t['angle2'], t['angle3'])
         dac1 = gen_seq.dac1_sample(np.zeros(64), 0)
     elif t['pm_mode'] == 'true_rng':
-        Write_Pm_Mode('true_rng')
+        Write_Pm_Mode('fake_rng', insert_zeros=t['insert_zeros'])
+        Write_Angles(t['angle0'], t['angle1'], t['angle2'], t['angle3'])
         dac1 = gen_seq.dac1_sample(np.zeros(64), 0)
     
     Write_To_Dac(dac0, dac1)
     Write_Pm_Shift(t['pm_shift']%10, t['zero_pos'])
-    print("Dac", t['am_mode'], t['pm_mode'], t['am_shift'], t['pm_shift'])
+    print("Dac", t['am_mode'], t['pm_mode'], t['am_shift'], t['pm_shift'], t['insert_zeros'])
     
 
 def Update_Angles():
@@ -174,10 +176,10 @@ def init_rst_default():
     d['am_bias'] = 0
     d['am_shift'] = 514
     d['pm_shift'] = 514
-    d['angle0'] = -0.3
-    d['angle1'] = 0
-    d['angle2'] = 0.3
-    d['angle3'] = 0.6
+    d['angle0'] = 0
+    d['angle1'] = 0.18
+    d['angle2'] = -0.18
+    d['angle3'] = 0.36
     d['fiber_delay'] = 0
     d['zero_pos'] = 0
     save_default(d)
@@ -198,6 +200,7 @@ def init_rst_tmp():
     t['fiber_delay_mod'] = 0
     t['fiber_delay'] = 0
     t['zero_pos'] = 0
+    t['insert_zeros'] = 'off'
 
     save_tmp(t)
 
@@ -242,6 +245,22 @@ def main():
             Update_Dac()
         elif args.pm_mode:
             update_tmp('pm_mode', args.pm_mode)
+            Update_Dac()
+        elif args.fake_rng_seq:
+            if args.fake_rng_seq == 'single':
+                Write_To_Fake_Rng(gen_seq.seq_rng_single(4))
+                Update_Dac()
+            elif args.fake_rng_seq == 'off':
+                Write_To_Fake_Rng(gen_seq.seq_rng_zeros())
+                Update_Dac()
+            elif args.fake_rng_seq == 'random':
+                Write_To_Fake_Rng(gen_seq.seq_rng_random(4))
+                Update_Dac()
+            elif args.fake_rng_seq == 'all_one':
+                Write_To_Fake_Rng(gen_seq.seq_rng_all_one(4))
+                Update_Dac()
+        elif args.insert_zeros:
+            update_tmp('insert_zeros', args.insert_zeros)
             Update_Dac()
         elif args.pm_shift is not None:
             update_tmp('pm_shift', args.pm_shift)
@@ -323,6 +342,10 @@ def main():
                             help="float [-1,1]")
     parser_set.add_argument("--zero_pos", type=int, 
                             help="insert zeros at this position for feedback")
+    parser_set.add_argument("--fake_rng_seq", choices=['off', 'single', 'random', 'all_one'],
+                            help="set fake rng sequence")
+    parser_set.add_argument("--insert_zeros", choices=['on', 'off'], 
+                            help="insert zeros into rng sequence for feedback")
     
 
     parser_get.add_argument("--get_gc", action="store_true",
