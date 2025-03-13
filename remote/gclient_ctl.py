@@ -122,6 +122,11 @@ def client_start(commands_in):
                 update_tmp('am_mode', 'double')
                 main.Update_Dac()
             
+            elif command == 'fd_b_long':
+                update_tmp('pm_mode', 'off')
+                update_tmp('am_mode', 'double')
+                main.Update_Dac()
+            
             elif command == 'fd_a':
                 main.Write_To_Fake_Rng(gen_seq.seq_rng_single(4))
                 update_tmp('pm_mode', 'fake_rng')

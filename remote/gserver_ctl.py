@@ -140,6 +140,13 @@ try:
             update_tmp('fiber_delay_mod', fiber_delay)
             update_tmp('fiber_delay', fiber_delay-1)
         
+        elif command == 'fd_b_long':
+            main.Ensure_Spd_Mode('gated')
+            fiber_delay = main.Find_Opt_Delay_B_long()
+            response = 'Find delay bob done'
+            update_tmp('fiber_delay_long', fiber_delay)
+            update_tmp('fiber_delay', fiber_delay-1)
+        
         elif command == 'fd_a':
             main.Ensure_Spd_Mode('gated')
             fiber_delay = main.Find_Opt_Delay_A()

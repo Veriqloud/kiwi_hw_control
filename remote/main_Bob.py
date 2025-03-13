@@ -333,6 +333,69 @@ def Find_Opt_Delay_B():
     print("Fiber delay of Bob: ",index, " [q_bins]")
     return(int(index))
 
+def Find_Opt_Delay_B_long():
+    Write_To_Fake_Rng(gen_seq.seq_rng_block1())
+    t = get_tmp()
+    t['pm_mode'] = 'fake_rng'
+    t['feedback'] = 'on'
+    t['soft_gate'] = 'on'
+    save_tmp(t)
+    Update_Softgate()
+    Update_Dac()
+
+    Download_Time(50000, 'fd_b_single_long')
+    data = np.loadtxt("data/tdc/fd_b_single_long.txt",usecols=(2,3,4), dtype=np.int64)
+    gc = data[:,0] 
+    r = data[:,1]
+    q_pos = data[:,2]
+    
+    gc0 = (gc[r==0]*2 + q_pos[r==0] - t['fiber_delay_mod']) % (64*64)
+    gc1 = (gc[r==1]*2 + q_pos[r==1] - t['fiber_delay_mod']) % (64*64)
+
+    bins = np.arange(0,64*65,64)
+    h0, b = np.histogram(gc0, bins=bins)
+    h1, b = np.histogram(gc1, bins=bins)
+
+    h = h0-h1
+    m = h.mean()
+    h = h-m
+
+    index = np.argmax(np.abs(h))
+    print("Fiber delay of Bob: ",index, " [64 q_bins]")
+    return(int(index*64))
+
+def Find_Opt_Delay_B_ultralong():
+    Write_To_Fake_Rng(gen_seq.seq_rng_block2())
+    t = get_tmp()
+    t['pm_mode'] = 'fake_rng'
+    t['feedback'] = 'on'
+    t['soft_gate'] = 'on'
+    save_tmp(t)
+    Update_Softgate()
+    Update_Dac()
+
+    Download_Time(50000, 'fd_b_single_long')
+    data = np.loadtxt("data/tdc/fd_b_single_long.txt",usecols=(2,3,4), dtype=np.int64)
+    gc = data[:,0] 
+    r = data[:,1]
+    q_pos = data[:,2]
+    
+    gc0 = (gc[r==0]*2 + q_pos[r==0] - t['fiber_delay_mod']) % (64*64)
+    gc1 = (gc[r==1]*2 + q_pos[r==1] - t['fiber_delay_mod']) % (64*64)
+
+    bins = np.arange(0,64*65,64)
+    h0, b = np.histogram(gc0, bins=bins)
+    h1, b = np.histogram(gc1, bins=bins)
+
+    h = h0-h1
+    m = h.mean()
+    h = h-m
+
+    index = np.argmax(np.abs(h))
+    print("Fiber delay of Bob: ",index, " [64 q_bins]")
+    return(int(index*64))
+
+
 def Find_Zero_Pos_B():
     t = get_tmp()
     t['pm_mode'] = 'fake_rng'
@@ -487,7 +550,7 @@ def Find_Opt_Delay_A_long(fiber_delay_mod):
     h = h-m
 
     index = np.argmax(np.abs(h))
-    print("Fiber delay of Alice: ",index, " [q_bins]")
+    print("Fiber delay of Alice: ",index, " [64 q_bins]")
     return(int(index*64))
 
 def Test_delay():

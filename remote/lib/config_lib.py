@@ -105,20 +105,42 @@ def read_from_dev(fd, offset, addr, length):
     mm.close()
     return array_of_u32
 
-# for testing create dev_fake with 
-# dd if=/dev/urandom of=dev_fake bs=5MB count=1
-def open_write_close(offset, addr, array_of_u32):
-    #dev_name = "dev_fake"
-    fd = open("/dev/xdma0_user", 'r+b', buffering=0)
-    write_to_dev(fd, offset, addr, array_of_u32)
-    fd.close()
+## for testing create dev_fake with 
+## dd if=/dev/urandom of=dev_fake bs=5MB count=1
+#def open_write_close(offset, addr, array_of_u32):
+#    #dev_name = "dev_fake"
+#    fd = open("/dev/xdma0_user", 'r+b', buffering=0)
+#    write_to_dev(fd, offset, addr, array_of_u32)
+#    fd.close()
+#
+#def open_write_close2(offset, addr, value):
+#    with open("/dev/xdma0_user", 'r+b', buffering=0) as fd:
+#        mm = mmap.mmap(fd.fileno(), 4096, offset=offset)
+#        mm[addr:addr+4] = value.to_bytes(4, 'little')
+#        mm.close()
+#
+#def open_read_close(offset, addr, length):
+#    #dev_name = "dev_fake"
+#    fd = open("/dev/xdma0_user", 'r+b', buffering=0)
+#    r = read_from_dev(fd, offset, addr, length)
+#    fd.close()
+#    return r
 
-def open_read_close(offset, addr, length):
-    #dev_name = "dev_fake"
-    fd = open("/dev/xdma0_user", 'r+b', buffering=0)
-    r = read_from_dev(fd, offset, addr, length)
-    fd.close()
-    return r
+def read_fifo(offset, addr_data, addr_empty):
+    with open("/dev/xdma0_user", 'r+b', buffering=0) as fd:
+        with mmap.mmap(fd.fileno(), 4096, offset=offset)  as mm:
+            output = []
+            # read while not empty
+            while mm[addr_empty] & 1 == 0:
+                output.append(mm[addr_data])
+    return output
+
+def write_fifo(offset, addr, data):
+    with open("/dev/xdma0_user", 'r+b', buffering=0) as fd:
+        with mmap.mmap(fd.fileno(), 4096, offset=offset) as mm:
+            for value in data:
+                print(value)
+                mm[addr] = value
 
 
 def Write(base_add, value):
@@ -180,6 +202,7 @@ def Init_spi(base_add, offset, spi_mode):
     Write(Add_DGIER, 0x80000000)
     Add_IPIER = base_add + offset + IPIER # IP Interrupt Enable Register
     Write(Add_IPIER, 0x04)
+
 
 def Set_reg(spi_bus,device,*args):
     if (spi_bus == 1):
@@ -260,41 +283,40 @@ def Get_reg_new(spi_bus,device,*args):
     else:
         exit("Wrong spi_bus")
 
-    Init_spi(BaseAdd, OffsetAdd, spi_mode) #Init AXI Quad SPI
-    for arg in args:
-        if (type(arg)==str):
-            data = int(arg,0)
-        else:
-            data = arg
-        open_write_close(BaseAdd, SPI_DTR, [data])
+    #Init_spi(BaseAdd, OffsetAdd, spi_mode) #Init AXI Quad SPI
 
-    open_write_close(BaseAdd, SPISSR, [DATA_CS_EN]) # Select slave
-    open_write_close(BaseAdd, SPICR, [0x86 | spi_mode<<3]) # Enable transfer
-    wait = True
-    while wait:
-        wait = open_read_close(BaseAdd, SPISR, 1)[0] & 4 == 0
-    open_write_close(BaseAdd, SPISSR, [DATA_CS_DIS]) #Reset chip select value
-    open_write_close(BaseAdd, SPICR, [0x186 | spi_mode<<3]) #Disable transfer 
+    with open("/dev/xdma0_user", 'r+b', buffering=0) as fd:
+        with mmap.mmap(fd.fileno(), 4096, offset=BaseAdd) as mm:
 
-    wait = True
-    while wait:
-        wait = open_read_close(BaseAdd, SPISR, 1)[0] & 1 == 1
-    wait = True
-    output = []
-    while wait:
-        out_drr = open_read_close(BaseAdd, SPI_DRR, 1)
-        wait = open_read_close(BaseAdd, SPISR, 1)[0] & 1 == 0
-        output.append(out_drr[0])
-    #print(output)
+            # reset spi
+            mm[SRR] = 0x0A    #reset AXI QUAD SPI
+            time.sleep(0.002)
+            mm[SPICR:SPICR+4] = (0x186 | spi_mode<<3).to_bytes(4,'little')  #set AXI QUAD SPI Control register
+            mm[DGIER:DGIER+4] = (0x80000000).to_bytes(4,'little') #Device Global Interrupt Enable Register
+            mm[IPIER:IPIER+4] = (0x04).to_bytes(4,'little')    # IP Interrupt Enable Register
 
-    #readout_hex = format(out_drr[0],'#04x')
-    #if (readout_hex != expect):
-    #    check = 'F'
-    #else:
-    #    check = 'T'
+            mm[SPISSR] = DATA_CS_EN
+            mm[SPICR] = 0x86 | spi_mode<<3      # Enable transfer
+
+            # write bytes to fifo
+            for value in args:
+                mm[SPI_DTR] = value
+            
+            # wait for rx fifo to have data 
+            while mm[SPISR] & 1 == 1:
+                continue
+            
+            output = []
+            # read while not empty
+            while mm[SPISR] & 1 == 0:
+                output.append(mm[SPI_DRR])
+            
+            mm[SPISSR] = DATA_CS_DIS
+            mm[SPICR:SPICR+4] = (0x186 | spi_mode<<3).to_bytes(4,'little') # Disable transfer
+            #print([hex(i) for i in output])
+
     return output
     
-    #return (readout_hex, expect, check)
 
 
 def Get_reg(spi_bus,device,expect,*args):
@@ -387,17 +409,18 @@ def Get_Ltc_info():
         add = int(add, 16)
         val = int(val, 16)
         add_shifted = (add<<1) | 1
-        ret = Get_reg_new(2,'ltc',add_shifted,0)[0]
+        ret = Get_reg_new(2,'ltc',add_shifted,0)[1]
         print(str(add)+"\t"+hex(val)+"\t"+hex(ret)+"\t"+str(val==ret))
     print("Monitoring ltc finished")
     reg_file.close()
 
 def Get_Id():
-    data_cs_en = 0x03
     id_add = 0x13
     add_shifted = (id_add <<1) | 1 
-    id_val = Get_reg_new(2,'ltc',add_shifted,0)[0]
-    print("Id_Addr",id_add,"Ltc_id:",id_val)
+    id_val = Get_reg_new(2,'ltc',add_shifted,0)[1]
+    print("Id_Addr",hex(id_add),"Ltc_id:",hex(id_val))
+
+    
 
 def Config_Ltc():
     Set_Ltc()
