@@ -265,7 +265,7 @@ def Get_reg_new(spi_bus,device,*args):
 
             # reset spi
             mm[SRR] = 0x0A    #reset AXI QUAD SPI
-            time.sleep(0.002)
+            time.sleep(0.003)
             mm[SPICR:SPICR+4] = (0x186 | spi_mode<<3).to_bytes(4,'little')  #set AXI QUAD SPI Control register
             mm[DGIER:DGIER+4] = (0x80000000).to_bytes(4,'little') #Device Global Interrupt Enable Register
             mm[IPIER:IPIER+4] = (0x04).to_bytes(4,'little')    # IP Interrupt Enable Register
@@ -277,14 +277,15 @@ def Get_reg_new(spi_bus,device,*args):
             for value in args:
                 mm[SPI_DTR] = value
             
-            # wait for rx fifo to have data 
-            while mm[SPISR] & 1 == 1:
-                continue
-            
             output = []
-            # read while not empty
-            while mm[SPISR] & 1 == 0:
+            for i in range(len(args)):
+                # wait for rx fifo to have data 
+                while mm[SPISR] & 1 == 1:
+                    continue
                 output.append(mm[SPI_DRR])
+            
+            ## read while not empty
+            #while mm[SPISR] & 1 == 0:
             
             mm[SPISSR] = DATA_CS_DIS
             mm[SPICR:SPICR+4] = (0x186 | spi_mode<<3).to_bytes(4,'little') # Disable transfer
@@ -357,21 +358,21 @@ def Get_reg(spi_bus,device,expect,*args):
     return (readout_hex, expect, check)
 
 #-------------CLOCK CHIP FUNCTIONS----------------------------------------------
+#def Set_Ltc():
+#    reg_file = open('registers/ltc/Ltc6951Regs.txt','r')
+#    for l in reg_file.readlines():
+#        add, val = l.split(',')
+#        add_shifted = "0x{:02x}".format((int(add, base=16)<<1))
+#        Set_reg(2,'ltc', add_shifted, val)
+#    print("Set ltc configuration registers finished")
+#    reg_file.close()
+
 def Set_Ltc():
     reg_file = open('registers/ltc/Ltc6951Regs.txt','r')
     for l in reg_file.readlines():
         add, val = l.split(',')
-        add_shifted = "0x{:02x}".format((int(add, base=16)<<1))
-        Set_reg(2,'ltc', add_shifted, val)
-    print("Set ltc configuration registers finished")
-    reg_file.close()
-
-def Set_Ltc_new():
-    reg_file = open('registers/ltc/Ltc6951Regs.txt','r')
-    for l in reg_file.readlines():
-        add, val = l.split(',')
         add_shifted = int(add, base=16)<<1
-        ret = Get_reg_new(2,'ltc', add_shifted, val)
+        ret = Get_reg_new(2,'ltc', add_shifted, int(val, base=16))
     print("Set ltc configuration registers finished")
     reg_file.close()
 
@@ -379,7 +380,7 @@ def Sync_Ltc():
     Write(0x00012000, 0x0)
     Write(0x00012000, 0x1)
     #time.sleep(1)
-    time.sleep(2)
+    time.sleep(1.2)
     Write(0x00012000, 0x0)
     print("Output clocks are aligned")
 
@@ -407,7 +408,7 @@ def Get_Id():
     
 
 def Config_Ltc():
-    Set_Ltc_new()
+    Set_Ltc()
     Get_Id()
     Get_Ltc_info()
 
@@ -422,25 +423,28 @@ def Get_Sda_Id_old():
     rev_val = Get_reg(2,'sda','0x0a','0','0')
     print("Id and revision of sda:","id_addr:",id_add,"sda_id:",id_val,"sda_rev:",rev_val)
 
+#def Get_Sda_Id():
+#    nop = Get_reg(2,'sda',0, 0, 0, 0)
+#    nop = Get_reg(2,'sda',0, 0, 0, 0)
+#    add = (1<<7) | 1
+#    id_val_pre = Get_reg(2,'sda','0x60', add, 0, 0)
+#    id_val_pre = Get_reg(2,'sda','0x60', add, 0, 0)
+#    id_val = Get_reg(2,'sda','0x60', 0, 0, 0)
+#
+#    #id_val = Get_reg(2,'sda','0x60',id_add,'0','0')
+#    #id_val = Get_reg(2,'sda','0x60',add_shifted,'0','0')
+#    #rev_val_pre= Get_reg(2,'sda','0x0a','0','0')
+#    #rev_val = Get_reg(2,'sda','0x0a','0','0')
+#    #print("Id and revision of sda:","id_addr:",id_add,"sda_id:",id_val,"sda_rev:",rev_val)
+
 def Get_Sda_Id():
-    nop = Get_reg(2,'sda',0, 0, 0, 0)
-    nop = Get_reg(2,'sda',0, 0, 0, 0)
-    add = (1<<7) | 1
-    id_val_pre = Get_reg(2,'sda','0x60', add, 0, 0)
-    id_val_pre = Get_reg(2,'sda','0x60', add, 0, 0)
-    id_val = Get_reg(2,'sda','0x60', 0, 0, 0)
-
-    #id_val = Get_reg(2,'sda','0x60',id_add,'0','0')
-    #id_val = Get_reg(2,'sda','0x60',add_shifted,'0','0')
-    #rev_val_pre= Get_reg(2,'sda','0x0a','0','0')
-    #rev_val = Get_reg(2,'sda','0x0a','0','0')
-    #print("Id and revision of sda:","id_addr:",id_add,"sda_id:",id_val,"sda_rev:",rev_val)
-
-def Get_Sda_Id_new():
     add = (1<<7) | 1
     id_val_pre = Get_reg_new(2,'sda',add, 0, 0)
-    id_val = Get_reg_new(2,'sda',0 , 0, 0)
-    print("Sda Id: ", id_val)
+    ret = Get_reg_new(2,'sda',0 , 0, 0)
+    retadd = ret[0]
+    deviceid = (ret[1]<<8 | ret[2]) << 2
+    print("checking id of Sda: (expected value 0x298)")
+    print(hex(retadd), hex(deviceid))
 
 def Soft_Reset_Sda():
     trigger_reg_add = '0x0E'
@@ -456,34 +460,34 @@ def Set_Sda_Config():
     print("Set sda configuration registers finished")
     file.close()
 
+#def Get_Sda_Config():
+#    file = open('registers/sda/Dac81408_setting.txt','r')
+#    print("Monitoring sda readback configuration registers")
+#    for l in file.readlines():
+#        addb, val1, val2 = l.split(',')
+#        add_shifted = str(hex(1<<7 | int(addb, base=16))) #Start to readback value for monitoring
+#        val2_pre = Get_reg(2,'sda',val2,add_shifted,'0','0')
+#        val1_pre = Get_reg(2,'sda',val1,'0','0')
+#        val2 = Get_reg(2,'sda',val2.strip(),add_shifted,'0','0')
+#        val1 = Get_reg(2,'sda',val1,'0','0')
+#        print("reg_add",addb)
+#        print("reg_val2:",val2)
+#        print("reg_val1:",val1)
+#    print("Monitoring sda finished")
+#    file.close()
+
 def Get_Sda_Config():
     file = open('registers/sda/Dac81408_setting.txt','r')
     print("Monitoring sda readback configuration registers")
+    print("addr\texp\tret\tmatch")
     for l in file.readlines():
         addb, val1, val2 = l.split(',')
-        add_shifted = str(hex(1<<7 | int(addb, base=16))) #Start to readback value for monitoring
-        val2_pre = Get_reg(2,'sda',val2,add_shifted,'0','0')
-        val1_pre = Get_reg(2,'sda',val1,'0','0')
-        val2 = Get_reg(2,'sda',val2.strip(),add_shifted,'0','0')
-        val1 = Get_reg(2,'sda',val1,'0','0')
-        print("reg_add",addb)
-        print("reg_val2:",val2)
-        print("reg_val1:",val1)
-    print("Monitoring sda finished")
-    file.close()
-
-def Get_Sda_Config_new():
-    file = open('registers/sda/Dac81408_setting.txt','r')
-    print("Monitoring sda readback configuration registers")
-    for l in file.readlines():
-        addb, val1, val2 = l.split(',')
+        val = int(val1,16)<<8 | int(val2,16)
         add_shifted = 1<<7 | int(addb, base=16) #Start to readback value for monitoring
-        val2_pre = Get_reg_new(2,'sda',add_shifted,'0','0')
-        val2 = Get_reg_new(2,'sda',add_shifted,'0','0')
-        #val1_pre = Get_reg_new(2,'sda',val1,'0','0')
-        #val1 = Get_reg_new(2,'sda',val1,'0','0')
-        #print("reg_add",addb)
-        print("reg_val2:",val2)
+        val2_pre = Get_reg_new(2,'sda',add_shifted,0,0)
+        ret = Get_reg_new(2,'sda',0,0,0)
+        ret = ret[1]<<8 | ret[2]
+        print(addb+"\t"+hex(val)+"\t"+hex(ret)+"\t"+str(val==ret))
         #print("reg_val1:",val1)
     print("Monitoring sda finished")
     file.close()
@@ -517,16 +521,28 @@ def Set_vol(channel, voltage):
     print("Channel",channel,"is set to", round(voltage,2), "V")
 
 ###-------------AD9152 FUNCTIONS -------------------------------------
-## This function, write config for JESD to the FPGA registers
+### This function, write config for JESD to the FPGA registers
+#def WriteFPGA():
+#    #file = open("registers/fda/FastdacFPGA.txt","r")
+#    file = open("registers/fda/FastdacFPGA_204b.txt","r")
+#    for l in file.readlines():
+#        addr, val = l.split(',')
+#        ad_fpga_addr = str(hex((int(addr,base=16) + 0x10000)))
+#        Write(ad_fpga_addr, val)
+#        #print(ad_fpga_addr)
+#    print("Set JESD configuration for FPGA finished")
+#    file.close()
+
 def WriteFPGA():
     #file = open("registers/fda/FastdacFPGA.txt","r")
     file = open("registers/fda/FastdacFPGA_204b.txt","r")
-    for l in file.readlines():
-        addr, val = l.split(',')
-        ad_fpga_addr = str(hex((int(addr,base=16) + 0x10000)))
-        Write(ad_fpga_addr, val)
-        #print(ad_fpga_addr)
-        #print(val)
+    with open("/dev/xdma0_user", 'r+b', buffering=0) as fd:
+        with mmap.mmap(fd.fileno(), 4096, offset=0x10000) as mm:
+            for l in file.readlines():
+                addr, val = l.split(',')
+                addr = int(addr,16)
+                val = int(val,16)
+                mm[addr:addr+4] = val.to_bytes(4,'little')
     print("Set JESD configuration for FPGA finished")
     file.close()
 
@@ -665,14 +681,16 @@ def ReadFPGA():
         addr, val = l.split(',')
         ad_fpga_addr = str(hex((int(addr,base=16) + 0x10000)))
         readout = Read(ad_fpga_addr)
-        #print(readout)
+        print(readout)
     file.close()
 
 #reset jesd module
 def En_reset_jesd():
-    Write(0x00012000, 0x2)
-    Write(0x00012000, 0x0)
-    time.sleep(2)
+    with open("/dev/xdma0_user", 'r+b', buffering=0) as fd:
+        with mmap.mmap(fd.fileno(), 4096, offset=0x12000) as mm:
+            mm[0] = 0x2
+            mm[0] = 0x0
+    time.sleep(1.2)
     print("Reset FPGA JESD module")
 
 # From Set_reg_powerup to Set_reg_seq2: Set all registers for AD9152 
@@ -680,10 +698,11 @@ def Set_reg_powerup():
     file = open('registers/fda/hop_regs/reg_powerup.txt','r')
     for l in file.readlines():
         addb1, addb2, val = l.split(',')
-        Set_reg(2,'fda', addb1, addb2, val)
-        #print(addb1)
-        #print(addb2)
-        #print(val)
+        addr1 = int(addb1,16)
+        addr2 = int(addb2,16)
+        val = int(val,16)
+        Get_reg_new(2,'fda', addr1, addr2, val)
+    time.sleep(0.1)
     print("Set fda power registers finished")
     file.close()
 
@@ -691,7 +710,10 @@ def Set_reg_plls():
     file = open('registers/fda/hop_regs/reg_plls.txt','r')
     for l in file.readlines():
         addb1, addb2, val = l.split(',')
-        Set_reg(2,'fda', addb1, addb2, val)
+        addr1 = int(addb1,16)
+        addr2 = int(addb2,16)
+        val = int(val,16)
+        Get_reg_new(2,'fda', addr1, addr2, val)
     print("Set fda serdes_pll registers finished")
     file.close()
 
@@ -699,7 +721,10 @@ def Set_reg_seq1():
     file = open('registers/fda/hop_regs/reg_seq1.txt','r')
     for l in file.readlines():
         addb1, addb2, val = l.split(',')
-        Set_reg(2,'fda', addb1, addb2, val)
+        addr1 = int(addb1,16)
+        addr2 = int(addb2,16)
+        val = int(val,16)
+        Get_reg_new(2,'fda', addr1, addr2, val)
     print("Set fda dac_pll, transport and physical1 registers finished")
     file.close()
     
@@ -707,7 +732,10 @@ def Set_reg_seq2():
     file = open('registers/fda/hop_regs/reg_seq2.txt','r')
     for l in file.readlines():
         addb1, addb2, val = l.split(',')
-        Set_reg(2,'fda', addb1, addb2, val)
+        addr1 = int(addb1,16)
+        addr2 = int(addb2,16)
+        val = int(val,16)
+        Get_reg_new(2,'fda', addr1, addr2, val)
     print("Set fda physical2 and data_link registers finished")
     file.close()
 
@@ -719,39 +747,59 @@ def Relink_Fda():
     file.close()
 
 # Read back some registers of AD9152 to monitoring jesd status and latency
+#def Get_reg_monitor():
+#    array = []
+#    file = open('registers/fda/hop_regs/reg_monitor.txt','r')
+#    print("Monitoring pll locked, dyn_link_latency, and jesd link ")
+#    ret_arr = []
+#    for l in file.readlines():
+#        addb1, addb2, val = l.split(',')
+#        instr = str(hex(int(addb1, base=16)|0x80))     
+#        tup = Get_reg(2,'fda', val.strip(), instr, addb2, '0x00')
+#        ret_arr.append(tup)
+#        print(addb1,addb2,tup)
+#    print("Monitoring finished. If dyn_link_latency != 0x00 then run sda_init again")
+#    file.close()
+#    return ret_arr
+
 def Get_reg_monitor():
     array = []
     file = open('registers/fda/hop_regs/reg_monitor.txt','r')
     print("Monitoring pll locked, dyn_link_latency, and jesd link ")
-    ret_arr = []
+    check = []
+    print("addb1\taddb2\texp\tret\tcomp")
     for l in file.readlines():
         addb1, addb2, val = l.split(',')
-        instr = str(hex(int(addb1, base=16)|0x80))     
-        tup = Get_reg(2,'fda', val.strip(), instr, addb2, '0x00')
-        ret_arr.append(tup)
-        print(addb1,addb2,tup)
+        instr = int(addb1, base=16)|0x80
+        addb2 = int(addb2, 16)
+        val = int(val, 16)
+        ret = Get_reg_new(2,'fda', instr, addb2, 0)[-1]
+        check.append(val==ret)
+        print(addb1+"\t"+hex(addb2)+"\t"+hex(val)+"\t"+hex(ret)+"\t"+str(check[-1]))
     print("Monitoring finished. If dyn_link_latency != 0x00 then run sda_init again")
     file.close()
-    return ret_arr
+    return check
 
-#Readback ID of AD9152 for debug
-def Get_Id_Fda():
-    chip_type = Get_reg(2,'fda','0x04','0x80','0x03','0x00')
-    id1 = Get_reg(2,'fda','0x52','0x80','0x04','0x00')
-    id2 = Get_reg(2,'fda','0x91','0x80','0x05','0x00'   )
-    revision = Get_reg(2,'fda','0x08','0x80','0x06','0x00')
-    print("type: ",chip_type,"id: ", id1,id2,"revision: ", revision)
-
+##Readback ID of AD9152 for debug
 #def Get_Id_Fda():
-#    chip_type = Get_reg_new(2,'fda',0x80,0x03,0x00)
-#    print(chip_type)
-#    id1 = Get_reg_new(2,'fda',0x80,0x04,0x00)
-#    print(id1)
-#    id2 = Get_reg_new(2,'fda',0x80,0x05,0x00)
-#    print(id2)
-#    revision = Get_reg_new(2,'fda',0x80,0x06,0x00)
-#    print(revision)
+#    chip_type = Get_reg(2,'fda','0x04','0x80','0x03','0x00')
+#    id1 = Get_reg(2,'fda','0x52','0x80','0x04','0x00')
+#    id2 = Get_reg(2,'fda','0x91','0x80','0x05','0x00'   )
+#    revision = Get_reg(2,'fda','0x08','0x80','0x06','0x00')
 #    print("type: ",chip_type,"id: ", id1,id2,"revision: ", revision)
+
+def Get_Id_Fda():
+    val_name = ['chip', 'id1', 'id2', 'rev']
+    addr1 = [0x80, 0x80, 0x80, 0x80]
+    addr2 = [0x03, 0x04, 0x05, 0x06]
+    val_exp = [0x04, 0x52, 0x91, 0x08]
+    print("meaning\texp\tret\tcomp")
+    for i in range(len(val_name)):
+        val_ret = Get_reg_new(2,'fda',addr1[i],addr2[i],0)[-1]
+        print(val_name[i]+"\t"+hex(val_exp[i])+"\t"+hex(val_ret)+"\t"+str(val_exp[i]==val_ret))
+
+
+
 
 
 
@@ -762,7 +810,7 @@ def Get_Id_Fda():
 def ttl_reset():
     Write(0x0001200c,0x01)
     Write(0x0001200c,0x00)
-    time.sleep(2)
+    time.sleep(1.2)
     #print("Reset TTL gate module")
 #Generate the pulse for APD gate
 #Input parameter: duty cycle, tune delay, fine delay, increase/decrease fine delay step
@@ -830,8 +878,10 @@ def Set_Si5319():
     ins_write = 0x40
     for l in reg_file.readlines():
         add, val = l.split(',')
-        Set_reg(1,'jic', ins_set_addr,add)
-        Set_reg(1,'jic', ins_write,val)
+        add = int(add, 16)
+        val = int(val, 16)
+        Get_reg_new(1,'jic', ins_set_addr,add)
+        Get_reg_new(1,'jic', ins_write,val)
     print("Set jic configuration registers finished")
     reg_file.close()
 
@@ -840,33 +890,23 @@ def Get_Si5319():
     ins_set_addr = 0x00
     ins_read = 0x80
     print("Monitoring jic registers")
+    print("addr\texp\tret\tmatch")
     for l in reg_file.readlines():
         add, val = l.split(',')
-        Set_reg(1,'jic', ins_set_addr,add)
-        ret_val = Get_reg(1,'jic',val.strip(), ins_read,'0')
-        print(add,ret_val)
-    print("Monitoring finished. It's normal the last reg is F")
-    reg_file.close()
-
-def Get_Si5319_new():
-    reg_file = open('registers/jit_cleaner/Si5319_regs.txt','r')
-    ins_set_addr = 0x00
-    ins_read = 0x80
-    print("Monitoring jic registers")
-    for l in reg_file.readlines():
-        add, val = l.split(',')
-        Set_reg(1,'jic', ins_set_addr,add)
-        ret_val = Get_reg_new(1,'jic', ins_read,'0')
-        print(add,ret_val)
+        add = int(add, 16)
+        val = int(val, 16)
+        Get_reg_new(1,'jic', ins_set_addr,add)
+        ret = Get_reg_new(1,'jic', ins_read,0)[-1]
+        print(hex(add)+"\t"+hex(val)+"\t"+hex(ret)+"\t"+str(val==ret))
     print("Monitoring finished. It's normal the last reg is F")
     reg_file.close()
 
 def Get_Id_Si5319():
     ins_set_addr = 0x00
     ins_read = 0x80
-    Set_reg(1,'jic', ins_set_addr,'0x87')
-    ret_val = Get_reg(1,'jic','0x32',ins_read,'0x00')
-    print("Jitter cleaner Id:",ret_val)
+    Get_reg_new(1,'jic', ins_set_addr,0x87)
+    ret_val = Get_reg_new(1,'jic',ins_read,0)[-1]
+    print("Jitter cleaner Id:",hex(ret_val), "(expected 0x32)")
     
 def Config_Jic():
     Set_Si5319()
@@ -878,7 +918,9 @@ def Set_AS6501():
     #opc_write_config = 0x80
     for l in reg_file.readlines():
         add, val = l.split(',')
-        Set_reg(1,'tdc', add, val ) 
+        add = int(add, 16)
+        val = int(val, 16)
+        Get_reg_new(1,'tdc', add, val ) 
     print("Set tdc configuration registers finished")
     reg_file.close()
 
@@ -886,11 +928,14 @@ def Get_AS6501():
     reg_file = open('registers/tdc/AS6501_regs.txt','r')
     opc_read_config = 0x40
     print("Montoring tdc registers")
+    print("addr\texp\tret\tmatch")
     for l in reg_file.readlines():
         add, val = l.split(',')
-        add_str = str(hex(int(add, base=16) & 0x1f | int(0x40)))
-        ret_val = Get_reg(1,'tdc',val.strip(),add_str,'0x00' )
-        print(add,ret_val)
+        add = int(add, 16)
+        val = int(val, 16)
+        addmod = add & 0x1f | 0x40
+        ret = Get_reg_new(1, 'tdc', addmod, 0)[-1]
+        print(hex(add)+"\t"+hex(val)+"\t"+hex(ret)+"\t"+str(val==ret))
     print("Monitoring finished")
     reg_file.close()
 
@@ -898,10 +943,9 @@ def Get_Id_AS6501():
     #opc_power = 0x30
     #opc_read_results = 0x60 #reg 8..31 results and status
     #opc_read_config = 0x40 # reg 0..17 configuration register
-    ret_val_1 = Get_reg(1,'tdc','0x41','0x41','0x00')
-    ret_val_2 = Get_reg(1,'tdc','0x41','0x43','0x00')
-    print(ret_val_1)
-    print(ret_val_2)
+    ret1 = Get_reg_new(1,'tdc',0x41,0)[-1]
+    ret2 = Get_reg_new(1,'tdc',0x43,0)[-1]
+    print("id: ", hex(ret1), "(exp 0x41)", hex(ret2), "(exp 0x10)")
     
 def Reg_Mngt_Tdc():
     #lrst active high, reset module process tdc frame and sdi
@@ -941,7 +985,7 @@ def Get_Stream(base_addr,device_c2h,output_file,count):
 def Reset_Tdc():
     Write(0x00012004,0x01)
     Write(0x00012004,0x00)
-    time.sleep(2)
+    time.sleep(1.2)
     print("Reset TDC clock")
 
 def Config_Tdc():
@@ -1029,14 +1073,14 @@ def Reset_gc():
     Write(0x00000008,0x00) #Start_gc = 0
     Write(0x00012008,0x01)
     Write(0x00012008,0x00)
-    time.sleep(2)
+    time.sleep(1.2)
     print("Reset global counter......")
 
 def Start_gc():
     BaseAddr = 0x00000000
     Write(BaseAddr + 8, 0x00000000)
     Write(BaseAddr + 8, 0x00000001)
-    time.sleep(1)
+    time.sleep(1.2)
     print("Global counter starts counting up from some pps")
 
 def Time_Calib_Init():

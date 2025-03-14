@@ -95,14 +95,14 @@ def Config_Fda():
     Set_reg_seq1() #seq1 include power, serdespll, dacpll
     Set_reg_seq2()
     Get_Id_Fda()
-    ret_regs = Get_reg_monitor()
-    while (ret_regs[2][2] == 'F'):
+    check = Get_reg_monitor()
+    while not check[2]:
         En_reset_jesd()
         Set_reg_powerup()
         Set_reg_plls()
         Set_reg_seq1() #seq1 include power, serdespll, dacpll
         Set_reg_seq2()
-        ret_regs = Get_reg_monitor()
+        check = Get_reg_monitor()
 
 #-------------------------PULSE GATE APD-------------------------------
 
