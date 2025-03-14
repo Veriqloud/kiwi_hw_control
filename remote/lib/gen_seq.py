@@ -241,12 +241,13 @@ def seq_rng_random(num_words=4):
 #    return message
 
 def seq_rng_block1():
-    # a 64 angle long block of angles nr 1, rest nr 0. total length 64*64.
+    # an 80 angle long block of angles nr 1, rest nr 0. total length 625*80.
     # a word is 32bit = 16 angles
-    num_words = 4*64
+    #num_words = 625*80//16
+    num_words = 400*80//16
     message = np.zeros(num_words, dtype=np.uint32)
     word0 = 0b01010101010101010101010101010101
-    message[:4] = word0
+    message[:5] = word0
     return message
 
     

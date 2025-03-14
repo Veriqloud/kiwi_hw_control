@@ -8,7 +8,8 @@ import subprocess, sys, argparse
 import numpy as np
 from lib.Aurea import Aurea
 import main_Bob as main
-from lib.config_lib import get_tmp, save_tmp, update_tmp, Set_t0, update_default, get_default, Angle
+from lib.config_lib import get_tmp, save_tmp, update_tmp, Set_t0, update_default, get_default, Angle, Sync_Gc, wait_for_pps_ret
+from termcolor import colored
 
 
 
@@ -18,23 +19,38 @@ PORT = 9999  # Port to listen on
 # BUFFER_SIZE = 65536  # Increased buffer size for sending data
 BUFFER_SIZE = 64  # Increased buffer size for sending data
 
+
 # Create TCP socket
 server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, BUFFER_SIZE)
 server_socket.bind((HOST, PORT))
 server_socket.listen(1)
 
+
 print(f"Server listening on {HOST}:{PORT}")
 conn, addr = server_socket.accept()  # Accept incoming connection
 print(f"Connected by {addr}")
+
+def sendc(c):
+    print(colored(c, 'cyan'))
+    b = c.encode()
+    m = len(c).to_bytes(1, 'little')+b
+    conn.sendall(m)
+
+def rcvc():
+    l = int.from_bytes(conn.recv(1), 'little')
+    mr = conn.recv(l)
+    while len(mr)<l:
+        mr += conn.recv(l-len(mr))
+    command = mr.decode().strip()
+    print(colored(command, 'cyan'))
+    return command
 
 try:
     while True:
         try:
             # Receive command from client
-            m = conn.recv(BUFFER_SIZE)
-            print(m)
-            command = m.decode().strip()
+            command = rcvc()
         except ConnectionResetError:
             print("Client connection was reset. Exiting loop.")
             break
@@ -42,7 +58,19 @@ try:
         response = ''
         if command == 'init':
             main.init_all()
+
+            command = rcvc()
+            sendc('ready')    
+            command = rcvc()
+            Sync_Gc()
+
             response = "init done"
+            
+        elif command == 'sync_gc':
+            command = rcvc()
+            Sync_Gc()
+            
+            response = "sync done"
 
         elif command == 'find_am_bias':
             for i in range(21):

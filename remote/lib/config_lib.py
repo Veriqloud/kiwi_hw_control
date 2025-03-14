@@ -1083,6 +1083,14 @@ def Start_gc():
     time.sleep(1.2)
     print("Global counter starts counting up from some pps")
 
+def Sync_Gc():
+    Write(0x00000008,0x00) #Start_gc = 0
+    Write(0x00012008,0x01)
+    Write(0x00012008,0x00)
+    
+    Write(8, 0x00000000)
+    Write(8, 0x00000001)
+
 def Time_Calib_Init():
     Config_Tdc() #Get digital data from TDC chip
     Reset_gc() #Reset global counter

@@ -259,6 +259,9 @@ def main():
             elif args.fake_rng_seq == 'all_one':
                 Write_To_Fake_Rng(gen_seq.seq_rng_all_one(4))
                 Update_Dac()
+            elif args.fake_rng_seq == 'block1':
+                Write_To_Fake_Rng(gen_seq.seq_rng_block1())
+                Update_Dac()
         elif args.insert_zeros:
             update_tmp('insert_zeros', args.insert_zeros)
             Update_Dac()
@@ -342,7 +345,7 @@ def main():
                             help="float [-1,1]")
     parser_set.add_argument("--zero_pos", type=int, 
                             help="insert zeros at this position for feedback")
-    parser_set.add_argument("--fake_rng_seq", choices=['off', 'single', 'random', 'all_one'],
+    parser_set.add_argument("--fake_rng_seq", choices=['off', 'single', 'random', 'all_one', 'block1'],
                             help="set fake rng sequence")
     parser_set.add_argument("--insert_zeros", choices=['on', 'off'], 
                             help="insert zeros into rng sequence for feedback")

@@ -297,7 +297,7 @@ def Phase_Shift_Calib():
 
 def Find_Opt_Delay_B():
     # generate a sequence of 64 angles where the first one stands out
-    Write_To_Fake_Rng(gen_seq.seq_rng_single(4))
+    Write_To_Fake_Rng(gen_seq.seq_rng_single(5))
     t = get_tmp()
     t['pm_mode'] = 'fake_rng'
     t['feedback'] = 'on'
@@ -318,10 +318,10 @@ def Find_Opt_Delay_B():
     r = data[:,1]
     q_pos = data[:,2]
 
-    gc0 = (gc[r==0]%32)*2 + q_pos[r==0] 
-    gc1 = (gc[r==1]%32)*2 + q_pos[r==1] 
+    gc0 = (gc[r==0]%40)*2 + q_pos[r==0] 
+    gc1 = (gc[r==1]%40)*2 + q_pos[r==1] 
 
-    bins = np.arange(65)
+    bins = np.arange(81)
     h0, b = np.histogram(gc0, bins=bins)
     h1, b = np.histogram(gc1, bins=bins)
 
@@ -343,16 +343,16 @@ def Find_Opt_Delay_B_long():
     Update_Softgate()
     Update_Dac()
 
-    Download_Time(50000, 'fd_b_single_long')
+    Download_Time(100000, 'fd_b_single_long')
     data = np.loadtxt("data/tdc/fd_b_single_long.txt",usecols=(2,3,4), dtype=np.int64)
     gc = data[:,0] 
     r = data[:,1]
     q_pos = data[:,2]
     
-    gc0 = (gc[r==0]*2 + q_pos[r==0] - t['fiber_delay_mod']) % (64*64)
-    gc1 = (gc[r==1]*2 + q_pos[r==1] - t['fiber_delay_mod']) % (64*64)
+    gc0 = (gc[r==0]*2 + q_pos[r==0] - t['fiber_delay_mod']) % (80*400)
+    gc1 = (gc[r==1]*2 + q_pos[r==1] - t['fiber_delay_mod']) % (80*400)
 
-    bins = np.arange(0,64*65,64)
+    bins = np.arange(0,80*401,80)
     h0, b = np.histogram(gc0, bins=bins)
     h1, b = np.histogram(gc1, bins=bins)
 
@@ -363,38 +363,6 @@ def Find_Opt_Delay_B_long():
     index = np.argmax(np.abs(h))
     print("Fiber delay of Bob: ",index, " [64 q_bins]")
     return(int(index*64))
-
-def Find_Opt_Delay_B_ultralong():
-    Write_To_Fake_Rng(gen_seq.seq_rng_block2())
-    t = get_tmp()
-    t['pm_mode'] = 'fake_rng'
-    t['feedback'] = 'on'
-    t['soft_gate'] = 'on'
-    save_tmp(t)
-    Update_Softgate()
-    Update_Dac()
-
-    Download_Time(50000, 'fd_b_single_long')
-    data = np.loadtxt("data/tdc/fd_b_single_long.txt",usecols=(2,3,4), dtype=np.int64)
-    gc = data[:,0] 
-    r = data[:,1]
-    q_pos = data[:,2]
-    
-    gc0 = (gc[r==0]*2 + q_pos[r==0] - t['fiber_delay_mod']) % (64*64)
-    gc1 = (gc[r==1]*2 + q_pos[r==1] - t['fiber_delay_mod']) % (64*64)
-
-    bins = np.arange(0,64*65,64)
-    h0, b = np.histogram(gc0, bins=bins)
-    h1, b = np.histogram(gc1, bins=bins)
-
-    h = h0-h1
-    m = h.mean()
-    h = h-m
-
-    index = np.argmax(np.abs(h))
-    print("Fiber delay of Bob: ",index, " [64 q_bins]")
-    return(int(index*64))
-
 
 def Find_Zero_Pos_B():
     t = get_tmp()
@@ -501,10 +469,10 @@ def Find_Opt_Delay_A():
     r = data[:,1]
     q_pos = data[:,2]
 
-    gc0 = (gc[r==0]%32)*2 + q_pos[r==0] 
-    gc1 = (gc[r==1]%32)*2 + q_pos[r==1] 
+    gc0 = (gc[r==0]%40)*2 + q_pos[r==0] 
+    gc1 = (gc[r==1]%40)*2 + q_pos[r==1] 
 
-    bins = np.arange(65)
+    bins = np.arange(81)
     h0, b = np.histogram(gc0, bins=bins)
     h1, b = np.histogram(gc1, bins=bins)
 
@@ -538,10 +506,10 @@ def Find_Opt_Delay_A_long(fiber_delay_mod):
     r = data[:,1]
     q_pos = data[:,2]
 
-    gc0 = (gc[r==0]*2 + q_pos[r==0] - fiber_delay_mod) % (64*64)
-    gc1 = (gc[r==1]*2 + q_pos[r==1] - fiber_delay_mod) % (64*64)
+    gc0 = (gc[r==0]*2 + q_pos[r==0] - fiber_delay_mod) % (80*400)
+    gc1 = (gc[r==1]*2 + q_pos[r==1] - fiber_delay_mod) % (80*400)
 
-    bins = np.arange(0,64*65,64)
+    bins = np.arange(0,80*401,80)
     h0, b = np.histogram(gc0, bins=bins)
     h1, b = np.histogram(gc1, bins=bins)
 
@@ -841,6 +809,9 @@ def main():
             elif args.fake_rng_seq == 'all_one':
                 Write_To_Fake_Rng(gen_seq.seq_rng_all_one(4))
                 Update_Dac()
+            elif args.fake_rng_seq == 'block1':
+                Write_To_Fake_Rng(gen_seq.seq_rng_block1())
+                Update_Dac()
 
         elif args.pm_shift is not None:
             update_tmp('pm_shift', args.pm_shift)
@@ -981,7 +952,7 @@ def main():
 ######### set ###########
 #    parser_set.add_argument("--rng_mode", choices=['seq', 'fake_rng', 'true_rng'],
 #                            help="fixed periodic sequece, fake rng or real rng")
-    parser_set.add_argument("--fake_rng_seq", choices=['off', 'single', 'random', 'all_one'],
+    parser_set.add_argument("--fake_rng_seq", choices=['off', 'single', 'random', 'all_one', 'block1'],
                             help="set fake rng sequence")
     parser_set.add_argument("--feedback", choices=['on', 'off'], 
                             help="balance interferometer")

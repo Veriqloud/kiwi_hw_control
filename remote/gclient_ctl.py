@@ -6,8 +6,9 @@ import struct  # For unpacking data size
 import subprocess, sys, argparse
 import numpy as np
 import main_Alice as main
-from lib.config_lib import get_tmp, save_tmp, update_tmp, update_default, get_default, Angle
+from lib.config_lib import get_tmp, save_tmp, update_tmp, update_default, get_default, Angle, Sync_Gc, wait_for_pps_ret
 import lib.gen_seq as gen_seq
+from termcolor import colored
 
 
 # Client configuration
@@ -20,20 +21,55 @@ BUFFER_SIZE = 64  # Increased buffer size for receiving data
 
 
 
+#def rcv_all(bufsize):
+#    # make sure bufsize bytes have been received
+#    mr = client_socket.recv(bufsize)
+#    while (len(mr)<bufsize):
+#        mr += client_socket.recv(bufsize-len(mr))
+#    return mr
+
 
 def client_start(commands_in):
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     client_socket.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, BUFFER_SIZE)
     client_socket.connect((SERVER_HOST, SERVER_PORT))
 
+    # send command
+    def sendc(c):
+        print(colored(c, 'cyan'))
+        b = c.encode()
+        m = len(c).to_bytes(1, 'little')+b
+        client_socket.sendall(m)
+
+    def rcvc():
+        l = int.from_bytes(client_socket.recv(1), 'little')
+        mr = client_socket.recv(l)
+        while len(mr)<l:
+            mr += client_socket.recv(l-len(mr))
+        command = mr.decode().strip()
+        print(colored(command, 'cyan'))
+        return command
+
     try:
         for command in commands_in:
             # command = 'init'
-            print(f"Sending command '{command}' to server...")
-            client_socket.sendall(command.encode())
+            sendc(command)
 
             if command == 'init':
                 main.init_all()
+
+                sendc('ready')
+                rcvc()
+
+                wait_for_pps_ret()
+                sendc('sync_gc_go')
+
+                Sync_Gc()
+
+            if command == 'sync_gc':
+                wait_for_pps_ret()
+                sendc('go')
+                Sync_Gc()
 
             if command == 'find_am_bias':
                 t = get_tmp()
@@ -128,7 +164,7 @@ def client_start(commands_in):
                 main.Update_Dac()
             
             elif command == 'fd_a':
-                main.Write_To_Fake_Rng(gen_seq.seq_rng_single(4))
+                main.Write_To_Fake_Rng(gen_seq.seq_rng_single(5))
                 update_tmp('pm_mode', 'fake_rng')
                 update_tmp('am_mode', 'double')
                 main.Update_Dac()
