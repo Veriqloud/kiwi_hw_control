@@ -105,42 +105,22 @@ def read_from_dev(fd, offset, addr, length):
     mm.close()
     return array_of_u32
 
-## for testing create dev_fake with 
-## dd if=/dev/urandom of=dev_fake bs=5MB count=1
-#def open_write_close(offset, addr, array_of_u32):
-#    #dev_name = "dev_fake"
-#    fd = open("/dev/xdma0_user", 'r+b', buffering=0)
-#    write_to_dev(fd, offset, addr, array_of_u32)
-#    fd.close()
-#
-#def open_write_close2(offset, addr, value):
+
+#def read_fifo(offset, addr_data, addr_empty):
 #    with open("/dev/xdma0_user", 'r+b', buffering=0) as fd:
-#        mm = mmap.mmap(fd.fileno(), 4096, offset=offset)
-#        mm[addr:addr+4] = value.to_bytes(4, 'little')
-#        mm.close()
+#        with mmap.mmap(fd.fileno(), 4096, offset=offset)  as mm:
+#            output = []
+#            # read while not empty
+#            while mm[addr_empty] & 1 == 0:
+#                output.append(mm[addr_data])
+#    return output
 #
-#def open_read_close(offset, addr, length):
-#    #dev_name = "dev_fake"
-#    fd = open("/dev/xdma0_user", 'r+b', buffering=0)
-#    r = read_from_dev(fd, offset, addr, length)
-#    fd.close()
-#    return r
-
-def read_fifo(offset, addr_data, addr_empty):
-    with open("/dev/xdma0_user", 'r+b', buffering=0) as fd:
-        with mmap.mmap(fd.fileno(), 4096, offset=offset)  as mm:
-            output = []
-            # read while not empty
-            while mm[addr_empty] & 1 == 0:
-                output.append(mm[addr_data])
-    return output
-
-def write_fifo(offset, addr, data):
-    with open("/dev/xdma0_user", 'r+b', buffering=0) as fd:
-        with mmap.mmap(fd.fileno(), 4096, offset=offset) as mm:
-            for value in data:
-                print(value)
-                mm[addr] = value
+#def write_fifo(offset, addr, data):
+#    with open("/dev/xdma0_user", 'r+b', buffering=0) as fd:
+#        with mmap.mmap(fd.fileno(), 4096, offset=offset) as mm:
+#            for value in data:
+#                print(value)
+#                mm[addr] = value
 
 
 def Write(base_add, value):
@@ -251,11 +231,9 @@ def Set_reg(spi_bus,device,*args):
     Write(Add_CS, DATA_CS_DIS) #Reset chip select value
     Write(Add_CR, 0x1C6 | spi_mode<<3) #Disable transfer and fifo reset
 
-
 def Get_reg_new(spi_bus,device,*args):
     if (spi_bus == 1):
         BaseAdd = 0x00013000
-        OffsetAdd = 0x00000000
         DATA_CS_DIS = 0x03
         if (device == 'tdc'):
             spi_mode = 0x02
@@ -267,7 +245,6 @@ def Get_reg_new(spi_bus,device,*args):
             exit("Wrong name of device on spi_bus1")
     elif (spi_bus == 2):
         BaseAdd = 0x00020000
-        OffsetAdd = 0x00000000
         DATA_CS_DIS = 0x07
         if (device == 'ltc'):
             spi_mode = 0
@@ -282,8 +259,6 @@ def Get_reg_new(spi_bus,device,*args):
             exit ("Wrong name of device on spi_bus2")
     else:
         exit("Wrong spi_bus")
-
-    #Init_spi(BaseAdd, OffsetAdd, spi_mode) #Init AXI Quad SPI
 
     with open("/dev/xdma0_user", 'r+b', buffering=0) as fd:
         with mmap.mmap(fd.fileno(), 4096, offset=BaseAdd) as mm:
@@ -391,6 +366,15 @@ def Set_Ltc():
     print("Set ltc configuration registers finished")
     reg_file.close()
 
+def Set_Ltc_new():
+    reg_file = open('registers/ltc/Ltc6951Regs.txt','r')
+    for l in reg_file.readlines():
+        add, val = l.split(',')
+        add_shifted = int(add, base=16)<<1
+        ret = Get_reg_new(2,'ltc', add_shifted, val)
+    print("Set ltc configuration registers finished")
+    reg_file.close()
+
 def Sync_Ltc():
     Write(0x00012000, 0x0)
     Write(0x00012000, 0x1)
@@ -423,7 +407,7 @@ def Get_Id():
     
 
 def Config_Ltc():
-    Set_Ltc()
+    Set_Ltc_new()
     Get_Id()
     Get_Ltc_info()
 
@@ -453,17 +437,10 @@ def Get_Sda_Id():
     #print("Id and revision of sda:","id_addr:",id_add,"sda_id:",id_val,"sda_rev:",rev_val)
 
 def Get_Sda_Id_new():
-    nop = Get_reg_new(2,'sda',0, 0, 0)
-    print(nop)
-    nop = Get_reg_new(2,'sda',0, 0, 0)
-    print(nop)
     add = (1<<7) | 1
     id_val_pre = Get_reg_new(2,'sda',add, 0, 0)
-    print(id_val_pre)
-    id_val = Get_reg_new(2,'sda',add, 0, 0)
-    print(id_val)
-    id_val = Get_reg_new(2,'sda',0, 0, 0)
-    print(id_val)
+    id_val = Get_reg_new(2,'sda',0 , 0, 0)
+    print("Sda Id: ", id_val)
 
 def Soft_Reset_Sda():
     trigger_reg_add = '0x0E'
@@ -492,6 +469,22 @@ def Get_Sda_Config():
         print("reg_add",addb)
         print("reg_val2:",val2)
         print("reg_val1:",val1)
+    print("Monitoring sda finished")
+    file.close()
+
+def Get_Sda_Config_new():
+    file = open('registers/sda/Dac81408_setting.txt','r')
+    print("Monitoring sda readback configuration registers")
+    for l in file.readlines():
+        addb, val1, val2 = l.split(',')
+        add_shifted = 1<<7 | int(addb, base=16) #Start to readback value for monitoring
+        val2_pre = Get_reg_new(2,'sda',add_shifted,'0','0')
+        val2 = Get_reg_new(2,'sda',add_shifted,'0','0')
+        #val1_pre = Get_reg_new(2,'sda',val1,'0','0')
+        #val1 = Get_reg_new(2,'sda',val1,'0','0')
+        #print("reg_add",addb)
+        print("reg_val2:",val2)
+        #print("reg_val1:",val1)
     print("Monitoring sda finished")
     file.close()
 
@@ -851,6 +844,19 @@ def Get_Si5319():
         add, val = l.split(',')
         Set_reg(1,'jic', ins_set_addr,add)
         ret_val = Get_reg(1,'jic',val.strip(), ins_read,'0')
+        print(add,ret_val)
+    print("Monitoring finished. It's normal the last reg is F")
+    reg_file.close()
+
+def Get_Si5319_new():
+    reg_file = open('registers/jit_cleaner/Si5319_regs.txt','r')
+    ins_set_addr = 0x00
+    ins_read = 0x80
+    print("Monitoring jic registers")
+    for l in reg_file.readlines():
+        add, val = l.split(',')
+        Set_reg(1,'jic', ins_set_addr,add)
+        ret_val = Get_reg_new(1,'jic', ins_read,'0')
         print(add,ret_val)
     print("Monitoring finished. It's normal the last reg is F")
     reg_file.close()
