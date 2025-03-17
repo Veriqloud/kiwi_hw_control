@@ -154,24 +154,26 @@ def client_start(commands_in):
 
 
             elif command == 'fd_b':
-                update_tmp('pm_mode', 'off')
                 update_tmp('am_mode', 'double')
+                main.Write_To_Fake_Rng(gen_seq.seq_rng_zeros())
                 main.Update_Dac()
             
             elif command == 'fd_b_long':
-                update_tmp('pm_mode', 'off')
                 update_tmp('am_mode', 'double')
+                main.Write_To_Fake_Rng(gen_seq.seq_rng_zeros())
                 main.Update_Dac()
             
             elif command == 'fd_a':
-                main.Write_To_Fake_Rng(gen_seq.seq_rng_single(5))
+                main.Write_To_Fake_Rng(gen_seq.seq_rng_single())
                 update_tmp('pm_mode', 'fake_rng')
                 update_tmp('am_mode', 'double')
                 main.Update_Dac()
                 m = client_socket.recv(4)
                 fiber_delay = int.from_bytes(m, byteorder='big')
-                update_tmp('fiber_delay_mod', fiber_delay)
-                update_tmp('fiber_delay', fiber_delay-1)
+                t = get_tmp()
+                t['fiber_delay_mod'] = fiber_delay
+                t['fiber_delay'] = (fiber_delay-1)%80 + t['fiber_delay_long']
+                save_tmp(t)
             
             elif command == 'fd_a_long':
                 t = get_tmp()
@@ -183,15 +185,16 @@ def client_start(commands_in):
                 client_socket.sendall(t['fiber_delay_mod'].to_bytes(4,byteorder='big'))
                 m = client_socket.recv(4)
                 fiber_delay_long = int.from_bytes(m, byteorder='big')
-                update_tmp('fiber_delay_long', fiber_delay_long)
-                fiber_delay = fiber_delay_long + t['fiber_delay_mod'] - 1
-                update_tmp('fiber_delay', fiber_delay)
+                t = get_tmp()
+                t['fiber_delay_long'] = fiber_delay_long
+                t['fiber_delay'] = (t['fiber_delay_mod']-1)%80 + fiber_delay_long*80
+                save_tmp(t)
             
             
             elif command == 'fz_b':
-                update_tmp('pm_mode', 'off')
                 update_tmp('am_mode', 'double')
                 update_tmp('insert_zeros', 'off')
+                main.Write_To_Fake_Rng(gen_seq.seq_rng_zeros())
                 main.Update_Dac()
             
             elif command == 'fz_a':
@@ -200,7 +203,7 @@ def client_start(commands_in):
                 t['insert_zeros'] = 'on'
                 t['zero_pos'] = 0
                 save_tmp(t)
-                main.Write_To_Fake_Rng(gen_seq.seq_rng_all_one(4))
+                main.Write_To_Fake_Rng(gen_seq.seq_rng_all_one())
                 main.Update_Dac()
                 client_socket.sendall(t['fiber_delay_mod'].to_bytes(4,byteorder='big'))
                 m = client_socket.recv(4)

@@ -200,7 +200,8 @@ def Measure_Sp64(num_clicks=20000):
     Ensure_Spd_Mode('gated')
     Download_Time(num_clicks, fileprefix='single64')
     data = np.loadtxt('data/tdc/single64.txt', usecols=(2,4))
-    gc = (data[:,0]%32)*2 + data[:,1]
+    #gc = (data[:,0]%32)*2 + data[:,1]
+    gc = (data[:,0]*2 + data[:,1]) % 64
     h, b = np.histogram(gc, bins=np.arange(65))
     print(h.argmax())
     coarse_shift = (1 - h.argmax()) % 64
@@ -297,7 +298,7 @@ def Phase_Shift_Calib():
 
 def Find_Opt_Delay_B():
     # generate a sequence of 64 angles where the first one stands out
-    Write_To_Fake_Rng(gen_seq.seq_rng_single(5))
+    Write_To_Fake_Rng(gen_seq.seq_rng_single())
     t = get_tmp()
     t['pm_mode'] = 'fake_rng'
     t['feedback'] = 'on'
@@ -312,8 +313,10 @@ def Find_Opt_Delay_B():
     r = data[:,1]
     q_pos = data[:,2]
 
-    gc0 = (gc[r==0]%40)*2 + q_pos[r==0] 
-    gc1 = (gc[r==1]%40)*2 + q_pos[r==1] 
+    #gc0 = (gc[r==0]%40)*2 + q_pos[r==0] 
+    #gc1 = (gc[r==1]%40)*2 + q_pos[r==1] 
+    gc0 = (gc[r==0]*2 + q_pos[r==0])%80
+    gc1 = (gc[r==1]*2 + q_pos[r==1])%80 
 
     bins = np.arange(81)
     h0, b = np.histogram(gc0, bins=bins)
@@ -337,12 +340,14 @@ def Find_Opt_Delay_B_long():
     Update_Softgate()
     Update_Dac()
 
-    Download_Time(100000, 'fd_b_single_long')
+    Download_Time(200000, 'fd_b_single_long')
     data = np.loadtxt("data/tdc/fd_b_single_long.txt",usecols=(2,3,4), dtype=np.int64)
     gc = data[:,0] 
     r = data[:,1]
     q_pos = data[:,2]
     
+    #gc0 = (gc[r==0]*2 + q_pos[r==0] - t['fiber_delay_mod']) % (80*400)
+    #gc1 = (gc[r==1]*2 + q_pos[r==1] - t['fiber_delay_mod']) % (80*400)
     gc0 = (gc[r==0]*2 + q_pos[r==0] - t['fiber_delay_mod']) % (80*400)
     gc1 = (gc[r==1]*2 + q_pos[r==1] - t['fiber_delay_mod']) % (80*400)
 
@@ -366,7 +371,7 @@ def Find_Zero_Pos_B():
     t['insert_zeros'] = 'on'
     t['zero_pos'] = 0
     save_tmp(t)
-    Write_To_Fake_Rng(gen_seq.seq_rng_all_one(4))
+    Write_To_Fake_Rng(gen_seq.seq_rng_all_one())
     Update_Softgate()
     Update_Dac()
     time.sleep(0.5)
@@ -381,25 +386,26 @@ def Find_Zero_Pos_B():
     gc = data[:,0] 
     r = data[:,1]
     q_pos = data[:,2]
-    gc0 = (gc[r==0]%32)*2 + q_pos[r==0] 
-    gc1 = (gc[r==1]%32)*2 + q_pos[r==1] 
+    #gc0 = (gc[r==0]%32)*2 + q_pos[r==0] 
+    #gc1 = (gc[r==1]%32)*2 + q_pos[r==1] 
+    gc0 = (gc[r==0]*2 + q_pos[r==0])%64 
+    gc1 = (gc[r==1]*2 + q_pos[r==1])%64 
     bins = np.arange(65)
     h0, b = np.histogram(gc0, bins=bins)
     h1, b = np.histogram(gc1, bins=bins)
     h = abs(h0-h1)
     peakpos = np.argmax(h) 
-    zeros_pos = (t['fiber_delay_mod'] -3 - peakpos) % 16
+    zeros_pos = (t['fiber_delay_mod'] -2 - peakpos) % 16
     print("zeros pos found:", zeros_pos) 
     return zeros_pos 
 
 def Find_Zero_Pos_A(fiber_delay_mod):
     t = get_tmp()
-    t['pm_mode'] = 'off'
     t['feedback'] = 'on'
     t['soft_gate'] = 'on'
-    t['insert_zeros'] = 'on'
+    t['insert_zeros'] = 'off'
     save_tmp(t)
-    Write_To_Fake_Rng(gen_seq.seq_rng_all_one(4))
+    Write_To_Fake_Rng(gen_seq.seq_rng_zeros())
     Update_Softgate()
     Update_Dac()
     time.sleep(0.5)
@@ -414,14 +420,16 @@ def Find_Zero_Pos_A(fiber_delay_mod):
     gc = data[:,0] 
     r = data[:,1]
     q_pos = data[:,2]
-    gc0 = (gc[r==0]%32)*2 + q_pos[r==0] 
-    gc1 = (gc[r==1]%32)*2 + q_pos[r==1] 
+    #gc0 = (gc[r==0]%32)*2 + q_pos[r==0] 
+    #gc1 = (gc[r==1]%32)*2 + q_pos[r==1] 
+    gc0 = (gc[r==0]*2 + q_pos[r==0])%64 
+    gc1 = (gc[r==1]*2 + q_pos[r==1])%64 
     bins = np.arange(65)
     h0, b = np.histogram(gc0, bins=bins)
     h1, b = np.histogram(gc1, bins=bins)
     h = abs(h0-h1)
     peakpos = np.argmax(h) 
-    zeros_pos = (fiber_delay_mod -1 - peakpos) % 16
+    zeros_pos = (fiber_delay_mod - 0 - peakpos) % 16
     print("zeros pos found:", zeros_pos) 
     return int(zeros_pos )
 
@@ -444,12 +452,12 @@ def Find_Zero_Pos_A(fiber_delay_mod):
 def Find_Opt_Delay_A():
     # generate a sequence of 64 angles where the first one stands out
     t = get_tmp()
-    t['pm_mode'] = 'off'
     t['feedback'] = 'on'
     t['soft_gate'] = 'on'
     save_tmp(t)
     Update_Softgate()
     Update_Dac()
+    Write_To_Fake_Rng(gen_seq.seq_rng_zeros())
 
     #Get detection result
     Download_Time(50000, 'fd_a_single')
@@ -460,8 +468,10 @@ def Find_Opt_Delay_A():
     r = data[:,1]
     q_pos = data[:,2]
 
-    gc0 = (gc[r==0]%40)*2 + q_pos[r==0] 
-    gc1 = (gc[r==1]%40)*2 + q_pos[r==1] 
+    #gc0 = (gc[r==0]%40)*2 + q_pos[r==0] 
+    #gc1 = (gc[r==1]%40)*2 + q_pos[r==1] 
+    gc0 = (gc[r==0]*2 + q_pos[r==0])%80 
+    gc1 = (gc[r==1]*2 + q_pos[r==1])%80 
 
     bins = np.arange(81)
     h0, b = np.histogram(gc0, bins=bins)
@@ -478,19 +488,21 @@ def Find_Opt_Delay_A():
 def Find_Opt_Delay_A_long(fiber_delay_mod):
     # generate a sequence of 64 angles where the first one stands out
     t = get_tmp()
-    t['pm_mode'] = 'off'
     t['feedback'] = 'on'
     t['soft_gate'] = 'on'
     save_tmp(t)
     Update_Softgate()
     Update_Dac()
+    Write_To_Fake_Rng(gen_seq.seq_rng_zeros())
 
-    Download_Time(50000, 'fd_a_single_long')
+    Download_Time(200000, 'fd_a_single_long')
     data = np.loadtxt("data/tdc/fd_a_single_long.txt",usecols=(2,3,4), dtype=np.int64)
     gc = data[:,0] 
     r = data[:,1]
     q_pos = data[:,2]
 
+    #gc0 = (gc[r==0]*2 + q_pos[r==0] - fiber_delay_mod) % (80*400)
+    #gc1 = (gc[r==1]*2 + q_pos[r==1] - fiber_delay_mod) % (80*400)
     gc0 = (gc[r==0]*2 + q_pos[r==0] - fiber_delay_mod) % (80*400)
     gc1 = (gc[r==1]*2 + q_pos[r==1] - fiber_delay_mod) % (80*400)
 
@@ -504,7 +516,7 @@ def Find_Opt_Delay_A_long(fiber_delay_mod):
 
     index = np.argmax(np.abs(h))
     print("Fiber delay of Alice: ",index, " [64 q_bins]")
-    return(int(index*64))
+    return(int(index))
 
 def Test_delay():
     Base_Addr = 0x00030000
@@ -772,7 +784,7 @@ def main():
             Update_Dac()
         elif args.fake_rng_seq:
             if args.fake_rng_seq == 'single':
-                Write_To_Fake_Rng(gen_seq.seq_rng_single())
+                Write_To_Fake_Rng(gen_seq.seq_rng_single(args.pos))
                 Update_Dac()
             elif args.fake_rng_seq == 'off':
                 Write_To_Fake_Rng(gen_seq.seq_rng_zeros())
@@ -951,6 +963,8 @@ def main():
                             help="fixed periodic sequece, fake rng or real rng")
     
     parser_set.add_argument("--pol_bias",nargs=4, type=float, metavar="V",  help="float [0,5] V")
+    
+    parser_set.add_argument("--pos",type=int, help="peak position for single")
     
 
 

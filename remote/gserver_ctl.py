@@ -94,6 +94,9 @@ try:
             shift_am, t0  = main.Measure_Sp(20000)
             Set_t0(10+t0)
             update_tmp('t0', 10+t0)
+            d = get_default()
+            update_tmp('gate_delay', (d['gate_delay']-t0*20) % 12500)
+            main.Gen_Gate()
             
             # send back shift_am value to alice
             conn.sendall(shift_am.to_bytes(4,byteorder='big'))
@@ -165,15 +168,19 @@ try:
             main.Ensure_Spd_Mode('gated')
             fiber_delay = main.Find_Opt_Delay_B()
             response = 'Find delay bob done'
-            update_tmp('fiber_delay_mod', fiber_delay)
-            update_tmp('fiber_delay', fiber_delay-1)
+            t = get_tmp()
+            t['fiber_delay_mod'] = fiber_delay
+            t['fiber_delay'] = (fiber_delay-1)%80 + t['fiber_delay_long']
+            save_tmp(t)
         
         elif command == 'fd_b_long':
             main.Ensure_Spd_Mode('gated')
             fiber_delay = main.Find_Opt_Delay_B_long()
             response = 'Find delay bob done'
-            update_tmp('fiber_delay_long', fiber_delay)
-            update_tmp('fiber_delay', fiber_delay-1)
+            t = get_tmp()
+            t['fiber_delay_long'] = fiber_delay
+            t['fiber_delay'] = (t['fiber_delay_mod']-1)%80 + fiber_delay*80
+            save_tmp(t)
         
         elif command == 'fd_a':
             main.Ensure_Spd_Mode('gated')

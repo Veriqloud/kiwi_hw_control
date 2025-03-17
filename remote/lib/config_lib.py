@@ -1084,6 +1084,7 @@ def Sync_Gc():
     
     Write(8, 0x00000000)
     Write(8, 0x00000001)
+    time.sleep(1.2)
 
 def Time_Calib_Init():
     Config_Tdc() #Get digital data from TDC chip

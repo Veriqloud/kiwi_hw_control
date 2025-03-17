@@ -3,10 +3,12 @@ import numpy as np, matplotlib.pyplot as plt
 
 names = []
 
-for i in range(16):
-    names.append('fz_b'+str(i)+'.txt')
+#for i in range(16):
+#    names.append('fz_b'+str(i)+'.txt')
 
-names.append('time.txt')
+names.append('fz_b.txt')
+
+#names.append('time.txt')
 hist0 = []
 hist1 = []
 hist = []
