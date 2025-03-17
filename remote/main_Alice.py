@@ -248,16 +248,16 @@ def main():
             Update_Dac()
         elif args.fake_rng_seq:
             if args.fake_rng_seq == 'single':
-                Write_To_Fake_Rng(gen_seq.seq_rng_single(4))
+                Write_To_Fake_Rng(gen_seq.seq_rng_single())
                 Update_Dac()
             elif args.fake_rng_seq == 'off':
                 Write_To_Fake_Rng(gen_seq.seq_rng_zeros())
                 Update_Dac()
             elif args.fake_rng_seq == 'random':
-                Write_To_Fake_Rng(gen_seq.seq_rng_random(4))
+                Write_To_Fake_Rng(gen_seq.seq_rng_random())
                 Update_Dac()
             elif args.fake_rng_seq == 'all_one':
-                Write_To_Fake_Rng(gen_seq.seq_rng_all_one(4))
+                Write_To_Fake_Rng(gen_seq.seq_rng_all_one())
                 Update_Dac()
             elif args.fake_rng_seq == 'block1':
                 Write_To_Fake_Rng(gen_seq.seq_rng_block1())

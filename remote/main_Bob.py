@@ -306,13 +306,7 @@ def Find_Opt_Delay_B():
     Update_Softgate()
     Update_Dac()
 
-    #En_reset_jesd()
-
-    #time.sleep(3)
-    #Get detection result
     Download_Time(50000, 'fd_b_single')
-    #Process to get delay val
-
     data = np.loadtxt("data/tdc/fd_b_single.txt",usecols=(2,3,4), dtype=np.int64)
     gc = data[:,0] 
     r = data[:,1]
@@ -457,9 +451,6 @@ def Find_Opt_Delay_A():
     Update_Softgate()
     Update_Dac()
 
-    #En_reset_jesd()
-
-    #time.sleep(3)
     #Get detection result
     Download_Time(50000, 'fd_a_single')
     #Process to get delay val
@@ -494,13 +485,7 @@ def Find_Opt_Delay_A_long(fiber_delay_mod):
     Update_Softgate()
     Update_Dac()
 
-    #En_reset_jesd()
-
-    #time.sleep(3)
-    #Get detection result
     Download_Time(50000, 'fd_a_single_long')
-    #Process to get delay val
-
     data = np.loadtxt("data/tdc/fd_a_single_long.txt",usecols=(2,3,4), dtype=np.int64)
     gc = data[:,0] 
     r = data[:,1]
@@ -543,35 +528,24 @@ def Count_Mon():
     print("-----------DISPLAY NUMBER OF COUNTS--------------")
     BaseAddr = 0x00000000
     while True:
-        counts = open_read_close(BaseAddr, 56, 3)
-        click0 = counts[0]
-        click1 = counts[1]
-        total = counts[2]
+        total, click0, click1 = get_counts()
         print(f"Total: {total}, Click0: {click0}, Click1: {click1}              ",flush=True)
         time.sleep(0.1)
 
 def Count_Mon2():
     print("-----------DISPLAY NUMBER OF COUNTS--------------")
-    BaseAddr = 0x00000000
     while True:
         total = 0
         click0 = 0
         click1 = 0
         for i in range(10):
-            counts = open_read_close(BaseAddr, 56, 3)
-            click0 += counts[0]
-            click1 += counts[1]
-            total += counts[2]
+            ret = get_counts()
+            click0 += ret[0]
+            click1 += ret[1]
+            total += ret[2]
             time.sleep(0.1)
         print(f"Total: {total}, Click0: {click0}, Click1: {click1}              ",flush=True)
 
-def get_counts():
-    BaseAddr = 0x00000000
-    counts = open_read_close(BaseAddr, 56, 3)
-    click0 = counts[0]
-    click1 = counts[1]
-    total = counts[2]
-    return total, click0, click1
 
 def Read_Count():
     BaseAddr = 0x00000000
@@ -798,16 +772,16 @@ def main():
             Update_Dac()
         elif args.fake_rng_seq:
             if args.fake_rng_seq == 'single':
-                Write_To_Fake_Rng(gen_seq.seq_rng_single(4))
+                Write_To_Fake_Rng(gen_seq.seq_rng_single())
                 Update_Dac()
             elif args.fake_rng_seq == 'off':
                 Write_To_Fake_Rng(gen_seq.seq_rng_zeros())
                 Update_Dac()
             elif args.fake_rng_seq == 'random':
-                Write_To_Fake_Rng(gen_seq.seq_rng_random(4))
+                Write_To_Fake_Rng(gen_seq.seq_rng_random())
                 Update_Dac()
             elif args.fake_rng_seq == 'all_one':
-                Write_To_Fake_Rng(gen_seq.seq_rng_all_one(4))
+                Write_To_Fake_Rng(gen_seq.seq_rng_all_one())
                 Update_Dac()
             elif args.fake_rng_seq == 'block1':
                 Write_To_Fake_Rng(gen_seq.seq_rng_block1())

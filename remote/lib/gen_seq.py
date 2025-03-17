@@ -193,57 +193,55 @@ def dac1_sample(seq, shift):
 #    return list_rng_short_return
 
 def seq_rng_zeros():
-    message = np.zeros(1, dtype=np.int32)
-    return message
-
-def seq_rng_single(num_words=4):
-    # the first angle is nr 1, the rest is nr 0.
     # a word is 32bit = 16 angles
-    word0 = 1
+    # angles are little endian but pairwise inversed: ...CDAB
+    num_words = 400*80//16
     message = np.zeros(num_words, dtype=np.int32)
-    message[0] = word0
-    print("fake rng_seq_single written")
     return message
 
-def seq_rng_all_one(num_words=4):
-    # the first angle is nr 1, the rest is nr 0.
+def seq_rng_all_one():
     # a word is 32bit = 16 angles
+    num_words = 400*80//16
     word0 = 0b01010101010101010101010101010101
     message = np.zeros(num_words, dtype=np.uint32)
     message[:] = word0
     print("fake rng_seq_single written")
     return message
 
-def seq_rng_one_in_sixteen(shift=0):
-    # the first angle is nr 1, the rest is nr 0.
-    # a word is 32bit = 16 angles
-    word = 1<<(shift*2)
-    message = np.zeros(4, dtype=np.int32)
-    for i in range(4):
-        message[i] = word
-    print("fake rng_seq_single written")
-    return message
-
-def seq_rng_random(num_words=4):
-    # the first angle is nr 1, the rest is nr 0.
-    # a word is 32bit = 16 angles
-    message = np.random.randint(0, 1<<32, size=num_words, dtype='uint32')
-    print("fake rng_seq_random written")
-    return message
-
-#def seq_rng_random(num_words=4):
-#    # the first angle is nr 1, the rest is nr 0.
+#def seq_rng_one_in_sixteen(shift=0):
 #    # a word is 32bit = 16 angles
-#    word0 = 0b11100100111001001110010011100100
-#    message = np.zeros(num_words, dtype=np.uint32)
-#    message[:] = word0
-#    print("fake rng_seq_random2 written")
+#    word = 1<<(shift*2)
+#    message = np.zeros(4, dtype=np.int32)
+#    for i in range(4):
+#        message[i] = word
 #    return message
 
-def seq_rng_block1():
-    # an 80 angle long block of angles nr 1, rest nr 0. total length 625*80.
+def seq_rng_single():
+    # pseudo random requence of length 80 angles
     # a word is 32bit = 16 angles
-    #num_words = 625*80//16
+    # angles are little endian but pairwise inversed: ...CDAB
+    num_words_total = 400*80//16
+    num_words = 5
+    word0 = 1<<2
+    message = np.zeros(num_words_total, dtype=np.uint32)
+    for i in range(num_words_total//num_words):
+        message[i*num_words] = word0
+    return message
+
+def seq_rng_random():
+    # pseudo random requence of length 80 angles
+    # a word is 32bit = 16 angles
+    num_words_total = 400*80//16
+    num_words = 5
+    message0 = np.random.randint(0, 1<<32, size=num_words, dtype='uint32')
+    message = np.zeros(num_words, dtype=np.uint32)
+    for i in range(num_words_total//num_words):
+        message[i*5:(i+1)*5] = message0
+    return message
+
+def seq_rng_block1():
+    # an 80 angle long block of angles nr 1, rest nr 0. Total length 400*80 qubits.
+    # a word is 32bit = 16 angles
     num_words = 400*80//16
     message = np.zeros(num_words, dtype=np.uint32)
     word0 = 0b01010101010101010101010101010101

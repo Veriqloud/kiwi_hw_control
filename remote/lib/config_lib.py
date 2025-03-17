@@ -105,22 +105,15 @@ def read_from_dev(fd, offset, addr, length):
     mm.close()
     return array_of_u32
 
+def get_counts():
+    addr = 56
+    with open("/dev/xdma0_user", 'r+b', buffering=0) as fd:
+        with mmap.mmap(fd.fileno(), 0x1000, offset=0) as mm:
+            click0 = int.from_bytes(mm[addr:addr+4], 'little')
+            click1 = int.from_bytes(mm[addr+4:addr+8], 'little')
+            total = int.from_bytes(mm[addr+8:addr+12], 'little')
+    return total, click0, click1
 
-#def read_fifo(offset, addr_data, addr_empty):
-#    with open("/dev/xdma0_user", 'r+b', buffering=0) as fd:
-#        with mmap.mmap(fd.fileno(), 4096, offset=offset)  as mm:
-#            output = []
-#            # read while not empty
-#            while mm[addr_empty] & 1 == 0:
-#                output.append(mm[addr_data])
-#    return output
-#
-#def write_fifo(offset, addr, data):
-#    with open("/dev/xdma0_user", 'r+b', buffering=0) as fd:
-#        with mmap.mmap(fd.fileno(), 4096, offset=offset) as mm:
-#            for value in data:
-#                print(value)
-#                mm[addr] = value
 
 
 def Write(base_add, value):
@@ -714,6 +707,7 @@ def Set_reg_plls():
         addr2 = int(addb2,16)
         val = int(val,16)
         Get_reg_new(2,'fda', addr1, addr2, val)
+    time.sleep(0.01)
     print("Set fda serdes_pll registers finished")
     file.close()
 
