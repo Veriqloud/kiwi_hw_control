@@ -303,6 +303,7 @@ def Find_Opt_Delay_B():
     t['pm_mode'] = 'fake_rng'
     t['feedback'] = 'on'
     t['soft_gate'] = 'on'
+    t['insert_zeros'] = 'off'
     save_tmp(t)
     Update_Softgate()
     Update_Dac()
@@ -336,6 +337,7 @@ def Find_Opt_Delay_B_long():
     t['pm_mode'] = 'fake_rng'
     t['feedback'] = 'on'
     t['soft_gate'] = 'on'
+    t['insert_zeros'] = 'off'
     save_tmp(t)
     Update_Softgate()
     Update_Dac()
@@ -454,6 +456,7 @@ def Find_Opt_Delay_A():
     t = get_tmp()
     t['feedback'] = 'on'
     t['soft_gate'] = 'on'
+    t['insert_zeros'] = 'off'
     save_tmp(t)
     Update_Softgate()
     Update_Dac()
@@ -490,6 +493,7 @@ def Find_Opt_Delay_A_long(fiber_delay_mod):
     t = get_tmp()
     t['feedback'] = 'on'
     t['soft_gate'] = 'on'
+    t['insert_zeros'] = 'off'
     save_tmp(t)
     Update_Softgate()
     Update_Dac()
@@ -964,7 +968,7 @@ def main():
     
     parser_set.add_argument("--pol_bias",nargs=4, type=float, metavar="V",  help="float [0,5] V")
     
-    parser_set.add_argument("--pos",type=int, help="peak position for single")
+    parser_set.add_argument("--pos",type=int, default=0, help="peak position for single")
     
 
 

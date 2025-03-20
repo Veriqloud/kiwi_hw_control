@@ -170,7 +170,7 @@ try:
             response = 'Find delay bob done'
             t = get_tmp()
             t['fiber_delay_mod'] = fiber_delay
-            t['fiber_delay'] = (fiber_delay-1)%80 + t['fiber_delay_long']
+            t['fiber_delay'] = fiber_delay % 80 + t['fiber_delay_long']
             save_tmp(t)
         
         elif command == 'fd_b_long':
@@ -179,7 +179,7 @@ try:
             response = 'Find delay bob done'
             t = get_tmp()
             t['fiber_delay_long'] = fiber_delay
-            t['fiber_delay'] = (t['fiber_delay_mod']-1)%80 + fiber_delay*80
+            t['fiber_delay'] = t['fiber_delay_mod']%80 + fiber_delay*80
             save_tmp(t)
         
         elif command == 'fd_a':

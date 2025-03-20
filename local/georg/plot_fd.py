@@ -1,7 +1,7 @@
 #!/bin/python
 import numpy as np, matplotlib.pyplot as plt
 
-names = ['fd_a_single.txt','fd_b_single.txt','time1.txt', 'time2.txt', 'time3.txt']
+names = ['fd_a_single.txt','fd_b_single.txt']
 #names = ['time.txt', 'time2.txt', 'time3.txt', 'time4.txt','time5.txt', 'time6.txt', 'time7.txt', 'time8.txt', 'time9.txt']
 #names = ['time.txt','time2.txt']
 
@@ -17,8 +17,8 @@ for name in names:
     q_pos = data[:,2]
     #gc0 = (gc[r==0]%40)*2 + q_pos[r==0] 
     #gc1 = (gc[r==1]%40)*2 + q_pos[r==1] 
-    gc0 = (gc[r==0]*2 - q_pos[r==0]) % 80
-    gc1 = (gc[r==1]*2 - q_pos[r==1]) % 80
+    gc0 = (gc[r==0]*2 + q_pos[r==0]) % 80
+    gc1 = (gc[r==1]*2 + q_pos[r==1]) % 80
     h0, b = np.histogram(gc0, bins=bins)
     h1, b = np.histogram(gc1, bins=bins)
     

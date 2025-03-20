@@ -40,7 +40,7 @@ def process_data(data):
         data_cut = data[i*16:i*16 + 7]
         gc = int.from_bytes(data_cut[:6], 'little') # at 40MHz
         #gc = gc*2- (not (data_cut[6] & 1))  # odd/even bit
-        gc = gc*2+ (not (data_cut[6] & 1))  # odd/even bit
+        gc = gc*2 + (data_cut[6] & 1)  # odd/even bit
         r = int((data_cut[6]>>1) & 1)       # click result
         data_filtered += data_cut[:6] + (data_cut[6] & 0b01).to_bytes(2, byteorder='little') # remove result bit and make it 8 bytes
         gca.append(gc) 
@@ -73,8 +73,8 @@ try:
             
         if command == 'init_ddr':
             t = get_tmp()
-            Ddr_Data_Reg(4, 0, 2000, t['fiber_delay'])
-            Ddr_Data_Reg(3, 0, 2000, t['fiber_delay'])
+            Ddr_Data_Reg(4, 0, 2000, t['fiber_delay'], delay_ab=5000)
+            Ddr_Data_Reg(3, 0, 2000, t['fiber_delay'], delay_ab=5000)
             Ddr_Data_Init()
         
         elif command == 'sync':

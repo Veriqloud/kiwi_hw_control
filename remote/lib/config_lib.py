@@ -1110,7 +1110,7 @@ def Time_Calib_Init():
 # Testing AXIS write and read DDR4 through AXI Virtual FIFO
 # threshold define speed of reading gc_in_fifo
 # 199999 for 1kHz click rate
-def Ddr_Data_Reg(command,current_gc,read_speed, gc_delay):
+def Ddr_Data_Reg(command,current_gc,read_speed, gc_delay, delay_ab = 0):
     fiber_delay = (gc_delay+1)//2
     pair_mode = (gc_delay+1)%2
     #set_command_gc, slv_reg2[3]=1
@@ -1131,6 +1131,7 @@ def Ddr_Data_Reg(command,current_gc,read_speed, gc_delay):
     Write(0x00001000+32,hex(read_speed))
     Write(0x00001000+36,hex(threshold_full))
     Write(0x00001000+40,hex(fiber_delay))
+    Write(0x00001000+44,hex(delay_ab))
     Write(0x00001000+24,hex(pair_mode<<1))
     #Enable register setting
     Write(0x00001000+12,0x0)

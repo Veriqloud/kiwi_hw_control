@@ -155,11 +155,15 @@ def client_start(commands_in):
 
             elif command == 'fd_b':
                 update_tmp('am_mode', 'double')
+                update_tmp('pm_mode', 'fake_rng')
+                update_tmp('insert_zeros', 'off')
                 main.Write_To_Fake_Rng(gen_seq.seq_rng_zeros())
                 main.Update_Dac()
             
             elif command == 'fd_b_long':
                 update_tmp('am_mode', 'double')
+                update_tmp('pm_mode', 'fake_rng')
+                update_tmp('insert_zeros', 'off')
                 main.Write_To_Fake_Rng(gen_seq.seq_rng_zeros())
                 main.Update_Dac()
             
@@ -167,6 +171,7 @@ def client_start(commands_in):
                 main.Write_To_Fake_Rng(gen_seq.seq_rng_single())
                 update_tmp('pm_mode', 'fake_rng')
                 update_tmp('am_mode', 'double')
+                update_tmp('insert_zeros', 'off')
                 main.Update_Dac()
                 m = client_socket.recv(4)
                 fiber_delay = int.from_bytes(m, byteorder='big')
@@ -179,6 +184,7 @@ def client_start(commands_in):
                 t = get_tmp()
                 t['pm_mode'] = 'fake_rng'
                 t['am_mode'] = 'double'
+                t['insert_zeros'] = 'off'
                 save_tmp(t)
                 main.Write_To_Fake_Rng(gen_seq.seq_rng_block1())
                 main.Update_Dac()
@@ -193,6 +199,7 @@ def client_start(commands_in):
             
             elif command == 'fz_b':
                 update_tmp('am_mode', 'double')
+                update_tmp('pm_mode', 'fake_rng')
                 update_tmp('insert_zeros', 'off')
                 main.Write_To_Fake_Rng(gen_seq.seq_rng_zeros())
                 main.Update_Dac()

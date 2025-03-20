@@ -60,8 +60,8 @@ try:
 
     sendc('init_ddr')
     t = get_tmp()
-    Ddr_Data_Reg(4, 0, 2000, t['fiber_delay'])
-    Ddr_Data_Reg(3, 0, 2000, t['fiber_delay'])
+    Ddr_Data_Reg(4, 100000, 2000, t['fiber_delay'])
+    Ddr_Data_Reg(3, 100000, 2000, t['fiber_delay'])
     Ddr_Data_Init()
 
     wait_for_pps_ret()
@@ -77,7 +77,7 @@ try:
         l = l + len(data_filtered)
         if (i%100 == 0):
             gc = int.from_bytes(data_filtered[:6], byteorder='little')
-            gc = gc*2 - (not data_filtered[6])
+            gc = gc*2 + data_filtered[6]
             print(l, gc, gc/80e6)
         bytes_written = f_gcw.write(pad(data_filtered))
         f_gcw.flush()
