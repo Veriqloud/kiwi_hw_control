@@ -1171,7 +1171,7 @@ def Ddr_Status():
 
 
 
-def Angle(num):
+def Angle(num, save=False):
     fs = open('/dev/xdma0_c2h_3', 'rb')
 
     angles = []
@@ -1191,8 +1191,11 @@ def Angle(num):
                 (v&0b11000000)>>6])
             
     fs.close()
-    np.savetxt('data/ddr4/alpha.txt', np.array(angles), fmt="%d")
-    print("angles saved in data/ddr4/alpha.txt")
+    if save:
+        np.savetxt('data/ddr4/alpha.txt', np.array(angles), fmt="%d")
+        print("angles saved in data/ddr4/alpha.txt")
+
+    return np.array(angles)
 
 
 

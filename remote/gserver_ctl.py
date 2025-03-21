@@ -9,6 +9,7 @@ import numpy as np
 from lib.Aurea import Aurea
 import main_Bob as main
 from lib.config_lib import get_tmp, save_tmp, update_tmp, Set_t0, update_default, get_default, Angle, Sync_Gc, wait_for_pps_ret
+import lib.gen_seq as gen_seq
 from termcolor import colored
 
 
@@ -223,7 +224,22 @@ try:
             m = conn.recv(4)
             num = int.from_bytes(m, byteorder='big')
             print(num)
-            Angle(num)
+            angles = Angle(num, save=True)
+            response = 'Angles download done'
+        
+        elif command == 'qber_a':
+            main.Write_To_Fake_Rng(gen_seq.seq_rng_zeros())
+            main.Ensure_Spd_Mode('gated')
+            print("received command ra")
+            m = conn.recv(4)
+            num = int.from_bytes(m, byteorder='big')
+            print(num)
+            fr = open("result", "rb")
+            while True:
+                angles = Angle(num)
+                rb = fr.read(num)
+                conn.sendall(rb)
+
             response = 'Angles download done'
             
         elif command == 'ver_sync':

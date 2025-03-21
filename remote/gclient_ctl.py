@@ -28,6 +28,12 @@ BUFFER_SIZE = 64  # Increased buffer size for receiving data
 #        mr += client_socket.recv(bufsize-len(mr))
 #    return mr
 
+def rcv_all(socket, num):
+    # make sure bufsize bytes have been received
+    mr = socket.recv(num)
+    while (len(mr)<num):
+        mr += socket.recv(num-len(mr))
+    return mr
 
 def client_start(commands_in):
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -193,7 +199,7 @@ def client_start(commands_in):
                 fiber_delay_long = int.from_bytes(m, byteorder='big')
                 t = get_tmp()
                 t['fiber_delay_long'] = fiber_delay_long
-                t['fiber_delay'] = (t['fiber_delay_mod']-1)%80 + fiber_delay_long*80
+                t['fiber_delay'] = t['fiber_delay_mod'] + fiber_delay_long*80 
                 save_tmp(t)
             
             
@@ -247,38 +253,33 @@ def client_start(commands_in):
                 print("reading angles")
                 num = 32000
                 client_socket.sendall(num.to_bytes(4, byteorder='big'))
-                Angle(num)
+                angles = Angle(num, save=True)
+            
+            elif command == 'qber_a':
+                main.Write_To_Fake_Rng(gen_seq.seq_rng_random())
+                time.sleep(0.01)
+                print("reading angles")
+                num = 32000
+                client_socket.sendall(num.to_bytes(4, byteorder='big'))
+                while True:
+                    angles = Angle(num)
+                    rb = rcv_all(client_socket, num)
+                    r = np.frombuffer(rb, dtype=np.uint8)
+                    r0 = [
+                            r[angles==0]==0, 
+                            r[angles==1]==0, 
+                            r[angles==2]==0, 
+                            r[angles==3]==0]
+                    r1 = [
+                            r[angles==0]==1, 
+                            r[angles==1]==1, 
+                            r[angles==2]==1, 
+                            r[angles==3]==1]
+                    qber = r0/r1
+                    print(qber)
 
-            #elif command == 'fd_ab_mod':
-            #    lines = np.loadtxt("data/var.txt",usecols=0)
-            #    shift_pm_a = int(lines[2])
-            #    ret_shift_am = int(lines[1])
-            #    # main.Find_Opt_Delay_AB_mod64('alice',shift_pm_a)
-            #    # main.Find_Opt_Delay_AB_mod64('alice',(ret_shift_am+6)%10)
-            #    main.Find_Opt_Delay_AB_mod32('alice',0)
-            #    #tell bob setting phase on alice done
-            #    cmd = 'fd_mod_done'
-            #    client_socket.sendall(cmd.encode())
-            #    #Receive delay_mod from Bob
-            #    delay_mod_rcv = client_socket.recv(4)
-            #    int_delay_mod_rcv = int.from_bytes(delay_mod_rcv,byteorder='big')
-            #    print("Delay in modulo mod received from bob: ", int_delay_mod_rcv, "[q_bins]")
-            #    #Write to var file
-            #    lines = np.loadtxt("data/var.txt",dtype=str,encoding='utf-8')
-            #    lines[3] = str(int_delay_mod_rcv)
-            #    np.savetxt("data/var.txt",lines,fmt="%s",encoding='utf-8')
-
-            #elif command == 'fd_ab':
-            #    lines = np.loadtxt("data/var.txt",usecols=0)
-            #    delay_mod = int(lines[3])
-            #    shift_pm_a = int(lines[2])
-            #    ret_shift_am = int(lines[1])
-            #    # main.Find_Opt_Delay_AB('alice',shift_pm_a)
-            #    # main.Find_Opt_Delay_AB('alice',(ret_shift_am+6)%10)
-            #    main.Find_Opt_Delay_AB('alice',0,delay_mod)
-            #    cmd = 'fd_ab_done'
-            #    client_socket.sendall(cmd.encode())
-
+            
+            
             response_rcv = client_socket.recv(1024)
             print("Response from server: ", response_rcv.decode(),"--------------------------------")
 
