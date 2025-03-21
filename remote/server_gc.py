@@ -25,6 +25,8 @@ conn, addr = server_socket.accept()  # Accept incoming connection
 print(f"Connected by {addr}")
 
 
+BATCHSIZE = 16
+
 # receive command
 def rcvc():
     command = conn.recv(BUFFER_SIZE).decode().strip()
@@ -32,11 +34,11 @@ def rcvc():
     return command
 
 def process_data(data):
-    # in chunks of 64 gcs
+    # in chunks of BATCHSIZE gcs
     gca = []
     ra = []
     data_filtered = bytes()
-    for i in range(64):
+    for i in range(BATCHSIZE):
         data_cut = data[i*16:i*16 + 7]
         gc = int.from_bytes(data_cut[:6], 'little') # at 40MHz
         #gc = gc*2- (not (data_cut[6] & 1))  # odd/even bit
@@ -50,7 +52,7 @@ def process_data(data):
 def pad(data_filtered):
     # pad with zeros to get back to 16 bytes per gc
     data_padded = bytes()
-    for i in range(64):
+    for i in range(BATCHSIZE):
         data_padded += data_filtered[i*8: (i+1)*8] + bytes(8)
     return data_padded
 
@@ -73,8 +75,8 @@ try:
             
         if command == 'init_ddr':
             t = get_tmp()
-            Ddr_Data_Reg(4, 0, 2000, t['fiber_delay'], delay_ab=5000)
-            Ddr_Data_Reg(3, 0, 2000, t['fiber_delay'], delay_ab=5000)
+            Ddr_Data_Reg(4, 0, 2000, t['fiber_delay']+128, delay_ab=5000)
+            Ddr_Data_Reg(3, 0, 2000, t['fiber_delay']+128, delay_ab=5000)
             Ddr_Data_Init()
         
         elif command == 'sync':
@@ -87,8 +89,8 @@ try:
             f_gc = open('/dev/xdma0_c2h_0', 'rb')
             f_gcw = open('/dev/xdma0_h2c_0', 'wb')
             #f_angle = open('/dev/xdma0_c2h_3', 'rb')
-            for i in range(1000):
-                data = f_gc.read(16*64)
+            for i in range(64000//BATCHSIZE):
+                data = f_gc.read(16 * BATCHSIZE)
                 if not data:
                     print("No available data on stream")
                     break

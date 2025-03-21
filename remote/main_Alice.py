@@ -248,7 +248,7 @@ def main():
             Update_Dac()
         elif args.fake_rng_seq:
             if args.fake_rng_seq == 'single':
-                Write_To_Fake_Rng(gen_seq.seq_rng_single())
+                Write_To_Fake_Rng(gen_seq.seq_rng_single(args.pos))
                 Update_Dac()
             elif args.fake_rng_seq == 'off':
                 Write_To_Fake_Rng(gen_seq.seq_rng_zeros())
@@ -349,7 +349,7 @@ def main():
                             help="set fake rng sequence")
     parser_set.add_argument("--insert_zeros", choices=['on', 'off'], 
                             help="insert zeros into rng sequence for feedback")
-    
+    parser_set.add_argument("--pos",type=int, default=0, help="peak position for single")
 
     parser_get.add_argument("--get_gc", action="store_true",
                             help="get current global counter")

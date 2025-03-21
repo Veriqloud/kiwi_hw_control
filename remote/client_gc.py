@@ -23,6 +23,7 @@ client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 client_socket.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, BUFFER_SIZE)
 client_socket.connect((SERVER_HOST, SERVER_PORT))
 
+BATCHSIZE = 16
 
 # send command
 def sendc(c):
@@ -31,7 +32,7 @@ def sendc(c):
 
 #def gca_from_bytes(b):
 #    gca = []
-#    for i in range(8*64):
+#    for i in range(8*BATHSIZE):
 #        gca.append(int.from_bytes(b[i*8:(i+1)*8], byteorder='little'))
 #    return gca
 
@@ -45,7 +46,7 @@ def sendc(c):
 def pad(data_filtered):
     # pad with zeros to get back to 16 bytes per gc
     data_padded = bytes()
-    for i in range(64):
+    for i in range(BATCHSIZE):
         data_padded += data_filtered[i*8: (i+1)*8] + bytes(8)
     return data_padded
 
@@ -60,8 +61,8 @@ try:
 
     sendc('init_ddr')
     t = get_tmp()
-    Ddr_Data_Reg(4, 100000, 2000, t['fiber_delay'])
-    Ddr_Data_Reg(3, 100000, 2000, t['fiber_delay'])
+    Ddr_Data_Reg(4, 0, 2000, t['fiber_delay']+128, delay_ab=5000)
+    Ddr_Data_Reg(3, 0, 2000, t['fiber_delay']+128, delay_ab=5000)
     Ddr_Data_Init()
 
     wait_for_pps_ret()
@@ -72,12 +73,12 @@ try:
     i = 0
     l = 0
     f_gcw = open('/dev/xdma0_h2c_0', 'wb')
-    while i<1000:
-        data_filtered = rcv_all(8*64)
+    while i<64000//BATCHSIZE:
+        data_filtered = rcv_all(8*BATCHSIZE)
         l = l + len(data_filtered)
         if (i%100 == 0):
             gc = int.from_bytes(data_filtered[:6], byteorder='little')
-            gc = gc*2 + data_filtered[6]
+            gc = gc*2 + (data_filtered[6]&1)
             print(l, gc, gc/80e6)
         bytes_written = f_gcw.write(pad(data_filtered))
         f_gcw.flush()
