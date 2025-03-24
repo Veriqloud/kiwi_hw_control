@@ -2,18 +2,34 @@ use std::net::TcpStream;
 use serde::{Serialize, Deserialize};
 use std::io::prelude::*;
 use std::io;
+use clap::ValueEnum;
 //use std::fs::File;
 //use itertools::izip;
 //use std::io::prelude::*;
 
 
 // Messages from node to gc_client
-#[derive(Debug)]
+#[derive(Debug, Clone, ValueEnum)]
 pub enum ControlMessage{
-    Start,
-    Stop,
-    Acknnowledged
+    Start = 1,
+    Stop = 2,
+    Done = 3
 }
+
+impl From<u8> for ControlMessage{
+    fn from(value: u8) -> Self {
+        const START: u8 = ControlMessage::Start as u8;
+        const STOP: u8 = ControlMessage::Stop as u8;
+        const DONE: u8 = ControlMessage::Done as u8;
+        match value {
+            START => ControlMessage::Start,
+            STOP => ControlMessage::Stop,
+            DONE => ControlMessage::Done,
+            _ => panic!("Byte cannot be converted to ControlMessage")
+        }
+    }
+}
+
 
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -22,6 +38,7 @@ pub enum MessageHeader{
     SyncAtPps,
     TranferGc,
     Done,
+    Stop,
     Error,
     Exit
 }
@@ -54,6 +71,7 @@ pub fn rcv(stream: &mut TcpStream) -> io::Result<Message> {
 }
 
 
+
 //pub fn read_angles(fifo: &mut File, chunks_to_read: usize) -> io::Result<Vec<u32>>{
 //    let mut buf = [0;16];
 //    let capacity = chunks_to_read*4;
@@ -79,7 +97,7 @@ mod tests {
     use rand::prelude::*;
 
     #[test]
-    fn qber() {
+    fn plen() {
         let qber = 0.05;
         assert!(qber == 0.05);
     }
