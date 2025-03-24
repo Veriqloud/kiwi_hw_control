@@ -10,65 +10,113 @@ use clap::ValueEnum;
 
 // Messages from node to gc_client
 #[derive(Debug, Clone, ValueEnum)]
-pub enum ControlMessage{
+pub enum Request{
     Start = 1,
     Stop = 2,
-    Done = 3
+    Status = 3
 }
 
-impl From<u8> for ControlMessage{
+#[derive(Debug)]
+pub enum Response{
+    Done = 1,
+    Idle = 2,
+    Running = 3
+}
+
+impl From<u8> for Request{
     fn from(value: u8) -> Self {
-        const START: u8 = ControlMessage::Start as u8;
-        const STOP: u8 = ControlMessage::Stop as u8;
-        const DONE: u8 = ControlMessage::Done as u8;
+        const START: u8 = Request::Start as u8;
+        const STOP: u8 = Request::Stop as u8;
+        const Status: u8 = Request::Status as u8;
         match value {
-            START => ControlMessage::Start,
-            STOP => ControlMessage::Stop,
-            DONE => ControlMessage::Done,
-            _ => panic!("Byte cannot be converted to ControlMessage")
+            START => Request::Start,
+            STOP => Request::Stop,
+            STATUS => Request::Status,
+            _ => panic!("Byte cannot be converted to Request")
+        }
+    }
+}
+
+impl From<u8> for Response{
+    fn from(value: u8) -> Self {
+        const DONE: u8 = Response::Done as u8;
+        const IDLE: u8 = Response::Idle as u8;
+        const RUNNING: u8 = Response::Running as u8;
+        match value {
+            DONE => Response::Done,
+            IDLE => Response::Idle,
+            RUNNING => Response::Running,
+            _ => panic!("Byte cannot be converted to Response")
         }
     }
 }
 
 
-
-#[derive(Serialize, Deserialize, Debug)]
-pub enum MessageHeader{
-    InitDdr,
-    SyncAtPps,
-    TranferGc,
-    Done,
-    Stop,
-    Error,
-    Exit
+#[derive(Debug)]
+pub enum HwControl{
+    InitDdr = 1,
+    SyncAtPps = 2,
 }
 
-// Messages between gc_client and gc_server
-#[derive(Serialize, Deserialize, Debug)]
-pub struct Message{
-    pub header: MessageHeader,
-    pub body: Vec<u64>
-}
-
-impl Message {
-    pub fn snd(&self, stream: &mut TcpStream){
-        let encode: Vec<u8> = bincode::serialize(&self).unwrap();
-        let l = (encode.len() as u32).to_le_bytes();
-        stream.write_all(&l).expect("could not write length into stream");
-        stream.write_all(&encode).expect("could not write message into stream");
+impl From<u8> for HwControl{
+    fn from(value: u8) -> Self {
+        const INITDDR: u8 = Response::InitDdr as u8;
+        const SYNCATPPS: u8 = Response::SyncAtPps as u8;
+        match value {
+            INITDDR => Response::InitDdr,
+            SYNCATPPS => Response::SyncAtPps,
+            _ => panic!("Byte cannot be converted to Response")
+        }
     }
 }
 
-pub fn rcv(stream: &mut TcpStream) -> io::Result<Message> {
-    let mut buf = [0u8; 4];
-    stream.read_exact(&mut buf)?;
-    let l = u32::from_le_bytes(buf);
-    let mut buf = vec![0;l as usize];
-    stream.read_exact(&mut buf).expect("could not read stream for message");
-    let message : Message = bincode::deserialize(&buf)
-        .expect("could not deserialize message");
-    return Ok(message);
+impl Write<&TcpStream> for HwControl{
+    fn write(Self, &mut stream: TcpStream) -> Result<()> {
+        let buf = Self as u8;
+        stream.write()
+        Ok()
+    }
 }
+
+
+
+//#[derive(Serialize, Deserialize, Debug)]
+//pub enum MessageHeader{
+//    InitDdr,
+//    SyncAtPps,
+//    TranferGc,
+//    Done,
+//    Stop,
+//    Error,
+//    Exit
+//}
+//
+//// Messages between gc_client and gc_server
+//#[derive(Serialize, Deserialize, Debug)]
+//pub struct Message{
+//    pub header: MessageHeader,
+//    pub body: Vec<u64>
+//}
+//
+//impl Message {
+//    pub fn snd(&self, stream: &mut TcpStream){
+//        let encode: Vec<u8> = bincode::serialize(&self).unwrap();
+//        let l = (encode.len() as u32).to_le_bytes();
+//        stream.write_all(&l).expect("could not write length into stream");
+//        stream.write_all(&encode).expect("could not write message into stream");
+//    }
+//}
+//
+//pub fn rcv(stream: &mut TcpStream) -> io::Result<Message> {
+//    let mut buf = [0u8; 4];
+//    stream.read_exact(&mut buf)?;
+//    let l = u32::from_le_bytes(buf);
+//    let mut buf = vec![0;l as usize];
+//    stream.read_exact(&mut buf).expect("could not read stream for message");
+//    let message : Message = bincode::deserialize(&buf)
+//        .expect("could not deserialize message");
+//    return Ok(message);
+//}
 
 
 
