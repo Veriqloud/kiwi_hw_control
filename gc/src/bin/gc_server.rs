@@ -1,48 +1,31 @@
 use std::net::{TcpListener, TcpStream};
 //use std::fs::File;
 //use std::io::prelude::*;
-use gc::{Message, MessageHeader, rcv};
+use gc::comm::{HwControl, Comm};
+use gc::hw::{init_ddr, sync_at_pps};
 //use std::{thread, time};
 
 
-fn handle_connection(stream: &mut TcpStream) -> bool{
-    match rcv(stream) {
-        Ok(message) => {
-            match message.header{
-                //MessageHeader::Start => {
-                //    let chunks_to_read = message.body[0] as usize;
 
-                //    let angles = read_angles(fifo_a, chunks_to_read)
-                //        .expect("could not read angles from fifo_a");
-                //    let results = read_angles(fifo_r, chunks_to_read)
-                //        .expect("could not read angles from fifo_r");
-                //    
-                //    let mr = Message{
-                //        header: MessageHeader::Angles,
-                //        body: angles
-                //    };
-                //    mr.snd(stream);
+fn send_gc(){
+}
 
-                //    let mr = Message{
-                //        header: MessageHeader::Results,
-                //        body: results
-                //    };
-                //    mr.snd(stream);
-                //    return true;
-                //},
-                MessageHeader::InitDdr => {
-                    println!("InitDdr");
-                    return false;
+
+fn handle_connection(stream: &mut TcpStream) -> std::io::Result<()>{
+    loop {
+        match stream.recv::<HwControl>() {
+            Ok(message) => {
+                println!("message: {:?}", message);
+                match message{
+                    HwControl::InitDdr => {init_ddr()?;}
+                    HwControl::SyncAtPps => {sync_at_pps();}
+                    HwControl::SendGc => {send_gc()}
                 }
-            _ => {
-                println!("unknow request");
-                return false;
-            },
             }
-        }
-        Err(_err) => {
-            println!("no message received");
-            return false;
+            Err(err) => {
+                println!("no message received");
+                return Err(err)
+            }
         }
     }
 }
@@ -57,10 +40,7 @@ fn main() -> std::io::Result<()> {
     for stream in listener.incoming(){
         match stream {
             Ok(mut stream) => {
-                let mut run = true;
-                while run {
-                    run = handle_connection(&mut stream);
-                }
+                handle_connection(&mut stream)?;
             }
             Err(err) => {
                 println!("Error: {}", err);

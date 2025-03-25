@@ -1,5 +1,5 @@
 use clap::{Parser};
-use gc::ControlMessage;
+use gc::comm::{Request, Comm};
 use std::os::unix::net::UnixStream;
 use std::io::prelude::*;
 
@@ -10,7 +10,7 @@ use std::io::prelude::*;
 struct Cli {
     /// message to send
     #[arg(value_enum, short, long)]
-    message: ControlMessage,
+    message: Request,
 }
 
 
@@ -21,9 +21,10 @@ fn main() -> std::io::Result<()> {
     let mut stream = UnixStream::connect("startstop.s")
         .expect("could not connect to UnixStream");
 
-    let m_b = cli.message  as u8;
+    stream.send(cli.message)?;
+    //let m_b = cli.message  as u8;
 
-    let _ = stream.write(&[m_b]);
+    //let _ = stream.write(&[m_b]);
 
 
     Ok(())
