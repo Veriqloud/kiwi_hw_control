@@ -1,17 +1,15 @@
+#!/bin/python
+
 import socket
 import time
 import struct  # For unpacking data size
 import subprocess, sys, argparse
 import numpy as np
-import main
+import main_Alice as main
+from lib.config_lib import get_tmp, save_tmp, update_tmp, update_default, get_default, Angle, Sync_Gc, wait_for_pps_ret
+import lib.gen_seq as gen_seq
+from termcolor import colored
 
-
-# def Write(base_add, value):
-#     str_base = str(base_add)
-#     str_value = str(value)
-#     command ="../../tools/reg_rw /dev/xdma0_user "+ str_base + " w "+ str_value 
-#     #print(command)
-#     s = subprocess.check_call(command, shell = True)
 
 # Client configuration
 SERVER_HOST = '192.168.1.77'  # Server's IP address
@@ -21,181 +19,217 @@ BUFFER_SIZE = 64  # Increased buffer size for receiving data
 # ROUNDS = 1  # Number of rounds to perform
 # DELAY_BETWEEN_ROUNDS = 2  # Delay between rounds in seconds
 
-# Create TCP socket
-# client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-# client_socket.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, BUFFER_SIZE)
-# client_socket.connect((SERVER_HOST, SERVER_PORT))
-
-# try:
-#     command = 'init'
-#     print(f"Sending command '{command}' to server...")
-#     client_socket.sendall(command.encode())
-#     #Wait for server response
-#     # res = client_socket.recv(1024)
-#     # print("Server response: ", res.decode()) 
-#     if command == 'init':
-#         main.Config_Ltc()
-#         main.Sync_Ltc()
-#         main.Write_Sequence_Dacs('off_am')
-#         main.Write_Sequence_Rng()
-#         main.Write_Dac1_Shift(2, 0, 0, 0, 0, 0)
-#         main.Config_Fda()
-#         main.Config_Sda()
-#         main.Set_vol(7, 0)
-#         # while True:\
-#         count_rcv_arr = []
-#         for i in range(41):
-#             main.Set_vol(4, -2 + 0.1*i)
-#             cmd = 'sv_done'
-#             client_socket.sendall(cmd.encode())
-#             count_rcv = client_socket.recv(4)
-#             int_count_rcv = int.from_bytes(count_rcv, byteorder='big')
-#             count_rcv_arr.append(int_count_rcv)
-#         print("Min count: ", min(count_rcv_arr), "index: ", count_rcv_arr.index(min(count_rcv_arr)))
-#         main.Set_vol(4, -2 + 0.1*count_rcv_arr.index(min(count_rcv_arr)))
-#         # response_rcv = client_socket.recv(1024)
-#         # print("Response from server: ", response_rcv.decode())
-#     elif command == 'gen_dp':
-#         main.Gen_Dp('alice')
-
-#     response_rcv = client_socket.recv(1024)
-#     print("Response from server: ", response_rcv.decode())
-
-# except KeyboardInterrupt:
-#     print("Client stopped by keyboard interrupt.")
-# finally:
-#     client_socket.close()
-#     print("Client has been shut down gracefully.")
 
 
+#def rcv_all(bufsize):
+#    # make sure bufsize bytes have been received
+#    mr = client_socket.recv(bufsize)
+#    while (len(mr)<bufsize):
+#        mr += client_socket.recv(bufsize-len(mr))
+#    return mr
 
+def rcv_all(socket, num):
+    # make sure bufsize bytes have been received
+    mr = socket.recv(num)
+    while (len(mr)<num):
+        mr += socket.recv(num-len(mr))
+    return mr
 
 def client_start(commands_in):
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     client_socket.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, BUFFER_SIZE)
     client_socket.connect((SERVER_HOST, SERVER_PORT))
 
+    # send command
+    def sendc(c):
+        print(colored(c, 'cyan'))
+        b = c.encode()
+        m = len(c).to_bytes(1, 'little')+b
+        client_socket.sendall(m)
+
+    def rcvc():
+        l = int.from_bytes(client_socket.recv(1), 'little')
+        mr = client_socket.recv(l)
+        while len(mr)<l:
+            mr += client_socket.recv(l-len(mr))
+        command = mr.decode().strip()
+        print(colored(command, 'cyan'))
+        return command
+
     try:
         for command in commands_in:
             # command = 'init'
-            print(f"Sending command '{command}' to server...")
-            client_socket.sendall(command.encode())
-            #Wait for server response
-            # res = client_socket.recv(1024)
-            # print("Server response: ", res.decode()) 
+            sendc(command)
+
             if command == 'init':
-                main.Config_Ltc()
-                main.Sync_Ltc()
-                main.Write_Sequence_Dacs('off_am')
-                main.Write_Sequence_Rng()
-                main.Write_Dac1_Shift(2, 0, 0, 0, 0, 0)
-                main.Config_Fda()
-                main.Config_Sda()
-                main.Set_vol(7, 2.5)
-                # while True:\
+                main.init_all()
+
+                sendc('ready')
+                rcvc()
+
+                wait_for_pps_ret()
+                sendc('sync_gc_go')
+
+                Sync_Gc()
+
+            if command == 'sync_gc':
+                wait_for_pps_ret()
+                sendc('go')
+                Sync_Gc()
+
+            if command == 'find_am_bias':
+                t = get_tmp()
+                bias_default = t['am_bias']
+                t['am_mode'] = 'off'
+                save_tmp(t)
+                main.Update_Dac()
                 count_rcv_arr = []
                 for i in range(21):
-                    main.Set_vol(4,  -1 + 0.1*i)
+                    main.Set_Am_Bias(-1 + 0.1*i)
                     cmd = 'sv_done'
                     client_socket.sendall(cmd.encode())
                     count_rcv = client_socket.recv(4)
                     int_count_rcv = int.from_bytes(count_rcv, byteorder='big')
                     count_rcv_arr.append(int_count_rcv)
-                print("Min count: ", min(count_rcv_arr), "index: ", count_rcv_arr.index(min(count_rcv_arr)))
-                am_bias_opt = -1 + 0.1*count_rcv_arr.index(min(count_rcv_arr))
-                main.Set_vol(4, am_bias_opt)
-                #Initialize var file: am_bias, shift_am, shift_pm
-                with open("data/var.txt","w") as var_file:
-                    var_file.write("0.8"+'\n') #am_bias
-                    var_file.write("1"+'\n')   #shift_am
-                    var_file.write("0"+'\n')   #shift_pm
-                    var_file.write("0"+'\n')   #delay_mod
-                var_file.close()
-                #Write am_bias voltage to the file
-                lines = np.loadtxt("data/var.txt",dtype=str,encoding='utf-8')
-                lines[0] = str(round(am_bias_opt,2))+'\n'
-                np.savetxt("data/var.txt",lines,fmt="%s",encoding='utf-8')
+                min_counts = min(count_rcv_arr)
+                min_idx = count_rcv_arr.index(min_counts)
+                print("Min count: ", min_counts , "index: ", min_idx)
+                am_bias_opt = -1 + 0.1*min_idx
+                main.Set_Am_Bias(am_bias_opt)
+                update_tmp('am_bias', round(am_bias_opt, 2))
+                update_default('am_bias', round(am_bias_opt, 2))
 
-            elif command == 'sp':
-                #1.Send single pulse, shift_am 0
-                main.Gen_Sp('alice', 0)
-                #2. Receive shift_am value from Bob
+            elif command == 'find_sp':
+                #1.Send single pulse, am_shift 0
+                update_tmp('am_shift', 0)
+                update_tmp('am_mode', 'single')
+                main.Update_Dac()
+                #2. Receive am_shift value from Bob
                 global int_shift_am_rcv
                 shift_am_rcv = client_socket.recv(4)
-                int_shift_am_rcv = int.from_bytes(shift_am_rcv, byteorder='big')
-                #Write shift_am to var.txt
-                lines = np.loadtxt("data/var.txt",dtype=str,encoding='utf-8')
-                lines[1] = str(int_shift_am_rcv)
-                np.savetxt("data/var.txt",lines,fmt="%s",encoding='utf-8')
-                #3. Apply new value of shift_am
-                main.Gen_Sp('alice',int_shift_am_rcv)
-                cmd = 'ss_done'
-                client_socket.sendall(cmd.encode())
+                am_shift = int.from_bytes(shift_am_rcv, byteorder='big')
+                update_tmp('am_shift', am_shift)
+                update_tmp('am_mode', 'single64')
+                main.Update_Dac()
+                rcv_message = client_socket.recv(4)
+                coarse_shift = int.from_bytes(rcv_message, byteorder='big')
 
-            elif command == 'fg':
-                lines = np.loadtxt("data/var.txt",usecols=0)
-                int_shift_am_rcv = int(lines[1])
-                main.Gen_Dp('alice', int_shift_am_rcv, 0)
+                am_shift = (am_shift + coarse_shift) % 640
+                print("updating am_shift to", am_shift)
+                update_tmp('am_shift', am_shift)
+                main.Update_Dac()
+
+
+            elif command == 'verify_gates':
+                update_tmp('am_mode', 'off')
+                main.Update_Dac()
+                print(client_socket.recv(4))
+                update_tmp('am_mode', 'double')
+                main.Update_Dac()
+
+
 
             elif command == 'fs_b':
-                lines = np.loadtxt("data/var.txt",usecols=0)
-                int_shift_am_rcv = int(lines[1])
-                main.Verify_Shift_B('alice',int_shift_am_rcv)
+                t = get_tmp()
+                t['am_mode'] = 'double'
+                t['pm_mode'] = 'off'
+                save_tmp(t)
+                main.Update_Dac()
 
             elif command == 'fs_a':
-                lines = np.loadtxt("data/var.txt",usecols=0)
-                int_shift_am_rcv = int(lines[1])
-                for i in range(10):
-                    main.Verify_Shift_A('alice',i,int_shift_am_rcv)
-                    # main.Verify_Shift_A('alice',i,2)
-                    #tell bob setting is done on alice
+                t = get_tmp()
+                t['am_mode'] = 'double'
+                t['pm_mode'] = 'seq64'
+                save_tmp(t)
+                d = get_default()
+                pm_shift_coarse = (d['pm_shift']//10) * 10
+                for s in range(10):
+                    t['pm_shift'] = pm_shift_coarse + s
+                    save_tmp(t)
+                    main.Update_Dac()
                     cmd = 'shift_done'
                     client_socket.sendall(cmd.encode())
-                    #Receive detection done from Bob
                     cmd_rcv = client_socket.recv(4)
                     int_cmd_rcv = int.from_bytes(cmd_rcv,byteorder='big')
                     print(int_cmd_rcv) #should return 7
-                #Receive shift_pm value from bob and write it to var file
-                shift_pm_rcv = client_socket.recv(4)
-                int_shift_pm_rcv = int.from_bytes(shift_pm_rcv,byteorder='big')
-                print("Received shift_pm from bob: ", int_shift_pm_rcv)
-                #Save best shift of Alice reveiced from Bob to var file
-                lines = np.loadtxt("data/var.txt",dtype=str,encoding='utf-8')
-                lines[2] = str(int_shift_pm_rcv)
-                np.savetxt("data/var.txt",lines,fmt="%s",encoding='utf-8')
+                pm_shift_rcv = client_socket.recv(4)
+                pm_shift = int.from_bytes(pm_shift_rcv, byteorder='big')
+                print("Received shift_pm from bob: ", pm_shift)
+                update_tmp('pm_shift', pm_shift_coarse + pm_shift)
+                main.Update_Dac()
+
 
             elif command == 'fd_b':
-                main.Write_Dac1_Shift(2,0,0,0,0,0)
+                update_tmp('am_mode', 'double')
+                update_tmp('pm_mode', 'fake_rng')
+                update_tmp('insert_zeros', 'off')
+                main.Write_To_Fake_Rng(gen_seq.seq_rng_zeros())
+                main.Update_Dac()
+            
+            elif command == 'fd_b_long':
+                update_tmp('am_mode', 'double')
+                update_tmp('pm_mode', 'fake_rng')
+                update_tmp('insert_zeros', 'off')
+                main.Write_To_Fake_Rng(gen_seq.seq_rng_zeros())
+                main.Update_Dac()
+            
+            elif command == 'fd_a':
+                main.Write_To_Fake_Rng(gen_seq.seq_rng_single())
+                update_tmp('pm_mode', 'fake_rng')
+                update_tmp('am_mode', 'double')
+                update_tmp('insert_zeros', 'off')
+                main.Update_Dac()
+                m = client_socket.recv(4)
+                fiber_delay = int.from_bytes(m, byteorder='big')
+                t = get_tmp()
+                t['fiber_delay_mod'] = fiber_delay
+                t['fiber_delay'] = (fiber_delay-1)%80 + t['fiber_delay_long']
+                save_tmp(t)
+            
+            elif command == 'fd_a_long':
+                t = get_tmp()
+                t['pm_mode'] = 'fake_rng'
+                t['am_mode'] = 'double'
+                t['insert_zeros'] = 'off'
+                save_tmp(t)
+                main.Write_To_Fake_Rng(gen_seq.seq_rng_block1())
+                main.Update_Dac()
+                client_socket.sendall(t['fiber_delay_mod'].to_bytes(4,byteorder='big'))
+                m = client_socket.recv(4)
+                fiber_delay_long = int.from_bytes(m, byteorder='big')
+                t = get_tmp()
+                t['fiber_delay_long'] = fiber_delay_long
+                t['fiber_delay'] = t['fiber_delay_mod'] + fiber_delay_long*80 
+                save_tmp(t)
+            
+            
+            elif command == 'fz_b':
+                update_tmp('am_mode', 'double')
+                update_tmp('pm_mode', 'fake_rng')
+                update_tmp('insert_zeros', 'off')
+                main.Write_To_Fake_Rng(gen_seq.seq_rng_zeros())
+                main.Update_Dac()
+            
+            elif command == 'fz_a':
+                t = get_tmp()
+                t['pm_mode'] = 'fake_rng'
+                t['insert_zeros'] = 'on'
+                t['zero_pos'] = 0
+                save_tmp(t)
+                main.Write_To_Fake_Rng(gen_seq.seq_rng_all_one())
+                main.Update_Dac()
+                client_socket.sendall(t['fiber_delay_mod'].to_bytes(4,byteorder='big'))
+                m = client_socket.recv(4)
+                zero_pos = int.from_bytes(m, byteorder='big')
+                update_tmp('zero_pos', zero_pos)
+                main.Update_Dac()
+        
+            #elif command == 'czp':
+            #    update_tmp('pm_mode', 'off')
+            #    update_tmp('am_mode', 'double')
+            #    main.Update_Dac()
 
-            elif command == 'fd_ab_mod':
-                lines = np.loadtxt("data/var.txt",usecols=0)
-                shift_pm_a = int(lines[2])
-                ret_shift_am = int(lines[1])
-                # main.Find_Opt_Delay_AB_mod64('alice',shift_pm_a)
-                # main.Find_Opt_Delay_AB_mod64('alice',(ret_shift_am+6)%10)
-                main.Find_Opt_Delay_AB_mod32('alice',0)
-                #tell bob setting phase on alice done
-                cmd = 'fd_mod_done'
-                client_socket.sendall(cmd.encode())
-                #Receive delay_mod from Bob
-                delay_mod_rcv = client_socket.recv(4)
-                int_delay_mod_rcv = int.from_bytes(delay_mod_rcv,byteorder='big')
-                print("Delay in modulo mod received from bob: ", int_delay_mod_rcv, "[q_bins]")
-                #Write to var file
-                lines = np.loadtxt("data/var.txt",dtype=str,encoding='utf-8')
-                lines[3] = str(int_delay_mod_rcv)
-                np.savetxt("data/var.txt",lines,fmt="%s",encoding='utf-8')
 
-            elif command == 'fd_ab':
-                lines = np.loadtxt("data/var.txt",usecols=0)
-                delay_mod = int(lines[3])
-                shift_pm_a = int(lines[2])
-                ret_shift_am = int(lines[1])
-                # main.Find_Opt_Delay_AB('alice',shift_pm_a)
-                # main.Find_Opt_Delay_AB('alice',(ret_shift_am+6)%10)
-                main.Find_Opt_Delay_AB('alice',0,delay_mod)
-                cmd = 'fd_ab_done'
-                client_socket.sendall(cmd.encode())
             elif command == 'ver_sync':
                 current_gc = main.Get_Current_Gc()
                 print('Alice current_gc: ', current_gc)
@@ -214,6 +248,38 @@ def client_start(commands_in):
                     client_socket.sendall(cmd.encode())
                     print('NOT SYNC')
 
+            elif command == 'ra':
+                time.sleep(0.01)
+                print("reading angles")
+                num = 32000
+                client_socket.sendall(num.to_bytes(4, byteorder='big'))
+                angles = Angle(num, save=True)
+            
+            elif command == 'qber_a':
+                main.Write_To_Fake_Rng(gen_seq.seq_rng_random())
+                time.sleep(0.01)
+                print("reading angles")
+                num = 32000
+                client_socket.sendall(num.to_bytes(4, byteorder='big'))
+                while True:
+                    angles = Angle(num)
+                    rb = rcv_all(client_socket, num)
+                    r = np.frombuffer(rb, dtype=np.uint8)
+                    r0 = [
+                            r[angles==0]==0, 
+                            r[angles==1]==0, 
+                            r[angles==2]==0, 
+                            r[angles==3]==0]
+                    r1 = [
+                            r[angles==0]==1, 
+                            r[angles==1]==1, 
+                            r[angles==2]==1, 
+                            r[angles==3]==1]
+                    qber = r0/r1
+                    print(qber)
+
+            
+            
             response_rcv = client_socket.recv(1024)
             print("Response from server: ", response_rcv.decode(),"--------------------------------")
 
