@@ -26,32 +26,29 @@ fn get_fiber_delay() -> std::io::Result<u32> {
 }
 
 // write to fpga
-fn xdma_write(addr: u32, value: u32, offset: u32) -> std::io::Result<()>{
+fn xdma_write(addr: usize, value: u32, offset: u64) -> std::io::Result<()>{
+    // we write single values to a memory mapped file
+    // addr and offset are with respect to bytes; datatype is u32
     let file = OpenOptions::new().read(true).write(true).open("/dev/xdma_user")?;
-    unsafe {
-        let mut mmap = MmapOptions::new()
-            .len(0x1000)
-            .offset(offset as u64)
-            .map_mut(&file)?;
-        let (_, mem, _) = mmap.align_to_mut::<u32>();
-        //let mem = std::mem::transmute::<u8, u32>(&mmap);
-        mem[(addr/4) as usize] = value;
+    let mut mmap = unsafe {
+        MmapOptions::new().len(0x1000).offset(offset).map_mut(&file)?;
     }
+    // recast to u32
+    let ptr = mmap.as_mut_ptr() as *mut [u32;0x400];
+    let data = unsafe {&mut *ptr};
+    data[addr/4] = value;
     Ok(())
 }
 
 // read from fpga
-fn xdma_read(addr: u32, offset: u32) -> std::io::Result<u32>{
+fn xdma_read(addr: usize, offset: u64) -> std::io::Result<u32>{
     let file = OpenOptions::new().read(true).open("/dev/xdma_user")?;
-    unsafe {
-        let mut mmap = MmapOptions::new()
-            .len(0x1000)
-            .offset(offset as u64)
-            .map_mut(&file)?;
-        let (_, mem, _) = mmap.align_to_mut::<u32>();
-        //let mem = std::mem::transmute::<&u8, &u32>(mmap);
-        return Ok(mem[(addr/4) as usize]);
+    let mmap = unsafe {
+        MmapOptions::new().len(0x1000).offset(offset).map(&file)?;
     }
+    let ptr = mmap.as_ptr() as *const [u32;0x400];
+    let data = unsafe {& *ptr};
+    Ok(data[addr/4])
 }
 
 fn get_counts() -> std::io::Result<u32>{
