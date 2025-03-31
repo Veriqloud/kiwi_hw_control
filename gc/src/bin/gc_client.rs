@@ -1,8 +1,9 @@
 use clap::{Parser};
 use std::fs;
-//use std::fs::File;
+use std::fs::{OpenOptions};
 use serde::Deserialize;
 use gc::comm::{Request, HwControl, Response, Comm};
+use gc::hw::{init_ddr, sync_at_pps, wait_for_pps, gc_for_fpga};
 use std::{thread, time};
 use std::path::PathBuf;
 use std::env::var;
@@ -10,6 +11,7 @@ use std::net::{TcpListener, TcpStream};
 use std::os::unix::net::UnixListener;
 use std::io::prelude::*;
 use std::sync::mpsc::{Receiver, Sender, channel, TryRecvError};
+
 
 #[derive(Deserialize, Debug)]
 struct Configuration{
@@ -35,11 +37,24 @@ fn interaction_with_bob(rx: Receiver<Request>, ip_bob: String){
     loop {
         match rx.recv().unwrap() {
             Request::Start => {
-                // send InitDdr to Bob
-                bob.send(HwControl::InitDdr).expect("could not send to Bob");
+                bob.send(HwControl::InitDdr).expect("sending to Bob");
+                init_ddr();
+                wait_for_pps();
+                bob.send(HwControl::SyncAtPps).expect("sending to Bob");
+                sync_at_pps();
                 // loop until Stop
                 loop {
-                    thread::sleep(time::Duration::from_millis(100));
+                    bob.send(HwControl::SendGc).expect("sending to Bob");
+                    //thread::sleep(time::Duration::from_millis(100));
+                    let mut file_gcw = OpenOptions::new().read(true).write(true)
+                        .open("/dev/xdma0_c2h_0").expect("opening /dev/xdma0_h2c_0");
+                    for i in 0..1000{
+                        let mut gc_buf: [u8; 8] = [0; 8];
+                        bob.read_exact(&mut gc_buf);
+                        let gc = u64::from_le_bytes(gc_buf);
+                        file_gcw.write_all(&gc_for_fpga(gc)).expect("writing gc to fpga");
+                        if i==0{ println!("{:?}", gc);};
+                    }
                     match rx.try_recv() {
                         Ok(m) => match m {
                             Request::Stop => {break}
@@ -58,9 +73,6 @@ fn interaction_with_bob(rx: Receiver<Request>, ip_bob: String){
 }
 
     
-
-
-
 fn interaction_with_control(tx: Sender<Request>) -> u32{
     
     // remove unix socket if it exists
@@ -94,7 +106,7 @@ fn main() -> std::io::Result<()> {
 
     let mut configfile = PathBuf::from(
         var("CONFIGPATH").expect("os variable CONFIGPATH"));
-    configfile.push("config.json");
+    configfile.push("ip.json");
 
     let config_str = fs::read_to_string(configfile)
         .expect("could not read config file\n");
