@@ -1,12 +1,17 @@
+use std::path::PathBuf;
+use std::env::var;
 use std::fs::{File, OpenOptions};
-use memmap::{MmapMut, MmapOptions};
+use memmap::MmapOptions;
 use std::{thread, time};
 use std::io::prelude::*;
 
 
 // get value for fiber delay from file
 fn get_fiber_delay() -> u32 {
-    let mut file = File::open("config/tmp.txt").expect("opening config/tmp.txt");
+    let mut tmpfile = PathBuf::from(
+        var("CONFIGPATH").expect("os variable CONFIGPATH"));
+    tmpfile.push("tmp.txt");
+    let mut file = File::open(tmpfile).expect("opening tmp.txt");
     let mut contents = String::new();
     file.read_to_string(&mut contents).expect("get_fiber_delay: read to string");
     let mut get_next = false;
@@ -53,10 +58,10 @@ fn xdma_read(addr: usize, offset: u64) -> u32{
     value
 }
 
-fn get_counts() -> std::io::Result<u32>{
-    let counts = xdma_read(56+8, 0);
-    Ok(counts)
-}
+//fn get_counts() -> std::io::Result<u32>{
+//    let counts = xdma_read(56+8, 0);
+//    Ok(counts)
+//}
 
 fn ddr_data_reg(command: u32, gc_delay: u32, delay_ab: u32){
     let offset = 0x1000;
@@ -80,7 +85,7 @@ fn ddr_data_init(){
     xdma_write(0, 0, 0x1000);
     xdma_write(16, 0, 0x12000);
     xdma_write(16, 1, 0x12000);
-    thread::sleep(time::Duration::from_secs(1));
+    thread::sleep(time::Duration::from_millis(100));
 }
 
 pub fn init_ddr(){
@@ -110,7 +115,7 @@ pub fn sync_at_pps(){
     // enable save alpha
     xdma_write(24, 0, 0x1000);
     xdma_write(24, 1, 0x1000);
-    thread::sleep(time::Duration::from_secs(1));
+    //thread::sleep(time::Duration::from_secs(1));
 }
 
 
@@ -131,7 +136,7 @@ pub fn process_stream(file: &mut File) -> std::io::Result<([u8;16], u64, u8)>{
 pub fn gc_for_fpga(gc: u64) -> [u8;16]{
     let gc_mod = gc/2;
     let byte6 = gc % 2;
-    let mut buf: [u8;16] = (gc as u128).to_le_bytes();
+    let mut buf: [u8;16] = (gc_mod as u128).to_le_bytes();
     buf[6] = byte6 as u8;
     buf
 }

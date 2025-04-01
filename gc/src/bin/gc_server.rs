@@ -11,12 +11,14 @@ fn send_gc(stream: &mut TcpStream) -> std::io::Result<()>{
     let mut file_gcr = OpenOptions::new().read(true)
         .open("/dev/xdma0_c2h_0").expect("opening /dev/xdma0_c2h_0");
     let mut file_gcw = OpenOptions::new().read(true).write(true)
-        .open("/dev/xdma0_c2h_0").expect("opening /dev/xdma0_h2c_0");
+        .open("/dev/xdma0_h2c_0").expect("opening /dev/xdma0_h2c_0");
     for i in 0..1000{
         let (_, gc, r) = process_stream(&mut file_gcr)?;
-        if i==0 {println!("{:?}\t{:?}", gc, r);};
+        if i==0 {println!("{:?}\t{:?}\t{:?}", gc, gc as f64 / 80e6, r);};
         stream.write_all(&gc.to_le_bytes())?;
+        //println!("{:?}\t{:?}", raw, gc_for_fpga(gc));
         file_gcw.write_all(&gc_for_fpga(gc))?;
+        //file_gcw.write_all(&raw)?;
     }
     Ok(())
 }
@@ -26,11 +28,13 @@ fn handle_connection(stream: &mut TcpStream) -> std::io::Result<()>{
     loop {
         match stream.recv::<HwControl>() {
             Ok(message) => {
-                println!("message: {:?}", message);
+                //println!("message: {:?}", message);
                 match message{
                     HwControl::InitDdr => {init_ddr();}
                     HwControl::SyncAtPps => {sync_at_pps();}
-                    HwControl::SendGc => {send_gc(stream)?}
+                    HwControl::SendGc => {
+                        send_gc(stream)?;
+                    }
                 }
             }
             Err(err) => {
