@@ -16,13 +16,14 @@ pub enum Request{
     Status = 3
 }
 
-//// Messages from gc_client to node
-//#[derive(Debug)]
-//pub enum Response{
-//    Done = 1,
-//    Idle = 2,
-//    Running = 3
-//}
+// Messages from gc_client to node
+#[derive(Debug)]
+pub enum Response{
+    Done = 1,
+    DidNothing = 2,
+    //Idle = 2,
+    //Running = 3
+}
 
 // Messages from Alice to Bob
 #[derive(Debug)]
@@ -48,19 +49,19 @@ impl From<u8> for Request{
     }
 }
 
-//impl From<u8> for Response{
-//    fn from(value: u8) -> Self {
-//        const DONE: u8 = Response::Done as u8;
-//        const IDLE: u8 = Response::Idle as u8;
-//        const RUNNING: u8 = Response::Running as u8;
-//        match value {
-//            DONE => Response::Done,
-//            IDLE => Response::Idle,
-//            RUNNING => Response::Running,
-//            _ => panic!("Byte cannot be converted to Response")
-//        }
-//    }
-//}
+impl From<u8> for Response{
+    fn from(value: u8) -> Self {
+        const DONE: u8 = Response::Done as u8;
+        const DIDNOTHING: u8 = Response::DidNothing as u8;
+        //const RUNNING: u8 = Response::Running as u8;
+        match value {
+            DONE => Response::Done,
+            DIDNOTHING => Response::DidNothing,
+            //RUNNING => Response::Running,
+            _ => panic!("Byte cannot be converted to Response")
+        }
+    }
+}
 
 impl From<u8> for HwControl{
     fn from(value: u8) -> Self {
@@ -84,9 +85,9 @@ pub trait ToByte{
 impl ToByte for Request{
     fn tobyte(self) -> u8{ self as u8 }
 }
-//impl ToByte for Response{
-//    fn tobyte(self) -> u8{ self as u8 }
-//}
+impl ToByte for Response{
+    fn tobyte(self) -> u8{ self as u8 }
+}
 impl ToByte for HwControl{
     fn tobyte(self) -> u8{ self as u8 }
 }

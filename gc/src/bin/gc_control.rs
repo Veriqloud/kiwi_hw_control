@@ -1,5 +1,5 @@
 use clap::{Parser};
-use gc::comm::{Request, Comm};
+use gc::comm::{Request, Response, Comm};
 use std::os::unix::net::UnixStream;
 //use std::io::prelude::*;
 
@@ -22,9 +22,8 @@ fn main() -> std::io::Result<()> {
         .expect("could not connect to UnixStream");
 
     stream.send(cli.message)?;
-    //let m_b = cli.message  as u8;
-
-    //let _ = stream.write(&[m_b]);
+    let m: Response = stream.recv()?;
+    println!("message received {:?}", m);
 
 
     Ok(())
