@@ -3,7 +3,7 @@ use std::env::var;
 use std::fs::{File, OpenOptions};
 use memmap::MmapOptions;
 use std::{thread, time};
-use std::io::prelude::*;
+use std::io::{prelude::*, BufReader};
 
 
 // get value for fiber delay from file
@@ -120,9 +120,9 @@ pub fn sync_at_pps(){
 
 
 
-pub fn process_stream(file: &mut File) -> std::io::Result<([u8;16], u64, u8)>{
+pub fn process_stream(file: &mut BufReader<File>) -> std::io::Result<([u8;16], u64, u8)>{
     let mut buf: [u8;16] = [0;16];
-    file.read(&mut buf)?;
+    file.read_exact(&mut buf)?;
     let mut buf_for_gc: [u8;8] = buf[..8].try_into().unwrap();
     buf_for_gc[6] = 0;
     buf_for_gc[7] = 0;

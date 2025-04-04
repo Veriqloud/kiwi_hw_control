@@ -31,6 +31,7 @@ pub enum HwControl{
     InitDdr = 1,
     SyncAtPps = 2,
     SendGc = 3,
+    SendAngles = 4,
 }
 
 
@@ -68,10 +69,12 @@ impl From<u8> for HwControl{
         const INITDDR: u8 = HwControl::InitDdr as u8;
         const SYNCATPPS: u8 = HwControl::SyncAtPps as u8;
         const SENDGC: u8 = HwControl::SendGc as u8;
+        const SENDANGLES: u8 = HwControl::SendAngles as u8;
         match value {
             INITDDR => HwControl::InitDdr,
             SYNCATPPS => HwControl::SyncAtPps,
             SENDGC => HwControl::SendGc,
+            SENDANGLES => HwControl::SendAngles,
             _ => panic!("Byte cannot be converted to HwControl")
         }
     }

@@ -8,14 +8,16 @@ use std::path::PathBuf;
 use std::env::var;
 use std::net::TcpStream;
 use std::os::unix::net::UnixListener;
-use std::io::prelude::*;
+use std::io::{prelude::*, BufReader};
 use std::sync::mpsc::{Receiver, Sender, channel, TryRecvError};
 use serde::Deserialize;
+use std::io::{BufWriter, BufRead};
 
 
 #[derive(Deserialize, Clone, Debug)]
 struct Configuration{
-    ip_bob: String
+    bob_gc: String,
+//    bob_qber: String,
 }
 
 
@@ -38,13 +40,14 @@ fn recv_gc(bob: &mut TcpStream, file_gcw: Option<File>) -> std::io::Result<Optio
     };
 
     bob.send(HwControl::SendGc).expect("sending to Bob");
+    let mut bob_buffered = BufReader::with_capacity(800, bob);
     //thread::sleep(time::Duration::from_millis(100));
-    for i in 0..1000{
+    for i in 0..10000{
         let mut gc_buf: [u8; 8] = [0; 8];
-        bob.read_exact(&mut gc_buf)?;
+        bob_buffered.read_exact(&mut gc_buf)?;
         let gc = u64::from_le_bytes(gc_buf);
         file_gcw.write_all(&gc_for_fpga(gc)).expect("writing gc to fpga");
-        if i==0{ println!("{:?}", gc);};
+        if (i%1000)==0{ println!("{:?}", gc);};
     }
     Ok(Some(file_gcw))
 }
@@ -133,19 +136,16 @@ fn main() -> std::io::Result<()> {
 
 
     loop {
-        let mut configfile = PathBuf::from(
-            var("CONFIGPATH").expect("os variable CONFIGPATH"));
+        let mut configfile = PathBuf::from(var("CONFIGPATH").expect("os variable CONFIGPATH"));
         configfile.push("ip.json");
 
-        let config_str = fs::read_to_string(configfile)
-            .expect("could not read config file\n");
-        let config: Configuration = serde_json::from_str(&config_str)
-            .expect("JSON not well formatted\n");
+        let config_str = fs::read_to_string(configfile).expect("could not read config file\n");
+        let config: Configuration = serde_json::from_str(&config_str).expect("JSON not well formatted\n");
 
         let (c1_tx, c1_rx) = channel();
         let (c2_tx, c2_rx) = channel();
         let thread_join_handle = thread::spawn(move || {
-            handle_bob(c1_rx, c2_tx, config.ip_bob)
+            handle_bob(c1_rx, c2_tx, config.bob_gc)
         });
         handle_control(c1_tx, c2_rx);
         
