@@ -92,7 +92,8 @@ fn main() -> std::io::Result<()> {
                     println!("connected to Alice");
                     handle_alice(&mut alice).unwrap_or_else(|e| match e.kind(){
                         std::io::ErrorKind::BrokenPipe => println!("Warning: Broken Pipe; closing stream"),
-                        std::io::ErrorKind::Other => println!("{:}", e),
+                        std::io::ErrorKind::Other => println!("{}", e),
+                        std::io::ErrorKind::ConnectionReset => println!("{}", e),
                         _ => panic!("{}", e),
                         });
                 }
