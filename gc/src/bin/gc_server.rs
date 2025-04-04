@@ -6,16 +6,21 @@ use gc::hw::{init_ddr, sync_at_pps, process_stream, gc_for_fpga};
 //use std::{thread, time};
 
 
+
 struct FileDescriptors {
+    // global counter read stream from fpga
     gcr : File,
+    // global counter write stream to fpga
     gcw : File,
+    // result fifo to node
     fifo : File
 }
 
 
 
 
-fn send_gc(stream: &mut TcpStream, files: Option<FileDescriptors>) -> std::io::Result<Option<FileDescriptors>>{
+fn send_gc(alice: &mut TcpStream, files: Option<FileDescriptors>) -> std::io::Result<Option<FileDescriptors>>{
+    // reuse file descriptors if already opened earlier
     let mut fd = match files{
         Some(fd) => {fd}
         None => {
@@ -30,10 +35,11 @@ fn send_gc(stream: &mut TcpStream, files: Option<FileDescriptors>) -> std::io::R
             fd
         }
     };
+    // read gc, process, send and write
     for i in 0..1000{
         let (_, gc, r) = process_stream(&mut fd.gcr)?;
         if i==0 {println!("{:?}\t{:?}\t{:?}", gc, gc as f64 / 80e6, r);};
-        stream.write_all(&gc.to_le_bytes())?;
+        alice.write_all(&gc.to_le_bytes())?;
         //println!("{:?}\t{:?}", raw, gc_for_fpga(gc));
         fd.gcw.write_all(&gc_for_fpga(gc))?;
         //file_gcw.write_all(&raw)?;
@@ -43,17 +49,16 @@ fn send_gc(stream: &mut TcpStream, files: Option<FileDescriptors>) -> std::io::R
 }
 
 
-fn handle_connection(stream: &mut TcpStream) -> std::io::Result<()>{
+fn handle_alice(alice: &mut TcpStream) -> std::io::Result<()>{
     let mut files: Option<FileDescriptors> = None;
     loop {
-        match stream.recv::<HwControl>() {
+        match alice.recv::<HwControl>() {
             Ok(message) => {
-                //println!("message: {:?}", message);
                 match message{
                     HwControl::InitDdr => {init_ddr();}
                     HwControl::SyncAtPps => {sync_at_pps();}
                     HwControl::SendGc => {
-                        files = send_gc(stream, files)?;
+                        files = send_gc(alice, files)?;
                     }
                 }
             }
@@ -80,19 +85,30 @@ fn main() -> std::io::Result<()> {
     let listener = TcpListener::bind("0.0.0.0:15403")
         .expect("TcpListener could not bind to address\n");
     
-    for stream in listener.incoming(){
-        match stream {
-            Ok(mut stream) => {
-                handle_connection(&mut stream).unwrap_or_else(|e| match e.kind(){
-                    std::io::ErrorKind::BrokenPipe => println!("Warning: Broken Pipe"),
-                    _ => panic!("{}", e),
-                    });
-            }
-            Err(err) => {
-                println!("Error: {}", err);
-                break;
+    loop {
+        for stream in listener.incoming(){
+            match stream {
+                Ok(mut alice) => {
+                    println!("connected to Alice");
+                    handle_alice(&mut alice).unwrap_or_else(|e| match e.kind(){
+                        std::io::ErrorKind::BrokenPipe => println!("Warning: Broken Pipe; closing stream"),
+                        std::io::ErrorKind::Other => println!("{:}", e),
+                        _ => panic!("{}", e),
+                        });
+                }
+                Err(err) => {
+                    println!("Error: {}", err);
+                    break;
+                }
             }
         }
     }
-    Ok(())
 }
+
+
+
+
+
+
+
+

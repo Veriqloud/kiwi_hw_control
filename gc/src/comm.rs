@@ -1,12 +1,12 @@
 use std::net::TcpStream;
 use std::io::prelude::*;
+//use clap::error::ErrorKind;
 //use std::io;
 use clap::ValueEnum;
 use std::os::unix::net::UnixStream;
 //use std::fs::File;
 //use itertools::izip;
 //use std::io::prelude::*;
-
 
 // Messages from node to gc_client
 #[derive(Debug, Clone, ValueEnum)]
@@ -121,7 +121,13 @@ impl Comm for TcpStream{
     }
     fn recv<T: ToByte + From<u8>>(&mut self) -> std::io::Result<T>{
         let mut m_b : [u8;1] = [0];
-        self.read(&mut m_b)?;
+        let l = self.read(&mut m_b)?;
+        // if you hit ctrl-c on Alice, read returns without error and length 0; we make an error
+        // out of this
+        if l==0 { 
+            let myerror = std::io::Error::new(std::io::ErrorKind::Other, "connection closed");
+            return Err(myerror)
+        }
         let message = T::from(m_b[0]);
         Ok(message)
     }
