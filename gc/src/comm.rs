@@ -30,7 +30,13 @@ pub enum Response{
 pub enum HwControl{
     InitDdr = 1,
     SyncAtPps = 2,
-    SendGc = 3,
+    //SendGc = 3,
+    //SendAngles = 4,
+}
+
+// Messages from Alice to Bob
+#[derive(Debug)]
+pub enum Qber{
     SendAngles = 4,
 }
 
@@ -68,13 +74,23 @@ impl From<u8> for HwControl{
     fn from(value: u8) -> Self {
         const INITDDR: u8 = HwControl::InitDdr as u8;
         const SYNCATPPS: u8 = HwControl::SyncAtPps as u8;
-        const SENDGC: u8 = HwControl::SendGc as u8;
-        const SENDANGLES: u8 = HwControl::SendAngles as u8;
+        //const SENDGC: u8 = HwControl::SendGc as u8;
+        //const SENDANGLES: u8 = HwControl::SendAngles as u8;
         match value {
             INITDDR => HwControl::InitDdr,
             SYNCATPPS => HwControl::SyncAtPps,
-            SENDGC => HwControl::SendGc,
-            SENDANGLES => HwControl::SendAngles,
+            //SENDGC => HwControl::SendGc,
+            //SENDANGLES => HwControl::SendAngles,
+            _ => panic!("Byte cannot be converted to HwControl")
+        }
+    }
+}
+
+impl From<u8> for Qber{
+    fn from(value: u8) -> Self {
+        const SENDANGLES: u8 = Qber::SendAngles as u8;
+        match value {
+            SENDANGLES => Qber::SendAngles,
             _ => panic!("Byte cannot be converted to HwControl")
         }
     }
@@ -92,6 +108,9 @@ impl ToByte for Response{
     fn tobyte(self) -> u8{ self as u8 }
 }
 impl ToByte for HwControl{
+    fn tobyte(self) -> u8{ self as u8 }
+}
+impl ToByte for Qber{
     fn tobyte(self) -> u8{ self as u8 }
 }
 

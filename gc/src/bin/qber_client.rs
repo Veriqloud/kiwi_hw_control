@@ -1,5 +1,5 @@
-use clap::{Parser};
-use gc::comm::{Comm, HwControl, Request, Response};
+use clap::Parser;
+use gc::comm::{Comm, Qber, Request, Response};
 use std::io::Read;
 use std::os::unix::net::UnixStream;
 //use std::io::prelude::*;
@@ -76,6 +76,14 @@ fn main() -> std::io::Result<()> {
     
 //    let cli = Cli::parse();
 
+    // connect to qber_server Bob
+    let mut configfile = PathBuf::from(var("CONFIGPATH").expect("os variable CONFIGPATH"));
+    configfile.push("ip.json");
+    let config_str = fs::read_to_string(configfile).expect("could not read config file\n");
+    let config: Configuration = serde_json::from_str(&config_str).expect("JSON not well formatted\n");
+    let mut bob = TcpStream::connect(config.bob_qber).expect("connecting to Bob via TcpStream\n");
+    println!("connected to Bob");
+
     // send start to Alice
     let mut stream = UnixStream::connect("startstop.s").expect("could not connect to UnixStream");
 
@@ -84,19 +92,12 @@ fn main() -> std::io::Result<()> {
     println!("message received {:?}", m);
 
 
-    // connect to qber_server Bob
-    let mut configfile = PathBuf::from(var("CONFIGPATH").expect("os variable CONFIGPATH"));
-    configfile.push("ip.json");
 
-    let config_str = fs::read_to_string(configfile).expect("could not read config file\n");
-    let config: Configuration = serde_json::from_str(&config_str).expect("JSON not well formatted\n");
 
-    let mut bob = TcpStream::connect(config.bob_qber).expect("could not connect to stream\n");
-    println!("connected to Bob");
 
     let mut file_angles: Option<File> = None;
     loop {
-        bob.send(HwControl::SendAngles)?;
+        bob.send(Qber::SendAngles)?;
         file_angles = recv_angles(&mut bob, file_angles)?;
     }
 

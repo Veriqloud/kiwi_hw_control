@@ -1,7 +1,7 @@
 use std::net::{TcpListener, TcpStream};
 use std::fs::{OpenOptions, File};
 use std::io::prelude::*;
-use gc::comm::{HwControl, Comm};
+use gc::comm::{Qber, Comm};
 //use std::{thread, time};
 
 
@@ -44,13 +44,12 @@ fn send_angles(alice: &mut TcpStream, files: Option<FileDescriptors>) -> std::io
 fn handle_alice(alice: &mut TcpStream) -> std::io::Result<()>{
     let mut files: Option<FileDescriptors> = None;
     loop {
-        match alice.recv::<HwControl>() {
+        match alice.recv::<Qber>() {
             Ok(message) => {
                 match message{
-                    HwControl::SendAngles => {
+                    Qber::SendAngles => {
                         files = send_angles(alice, files)?;
                     }
-                    m => {println!("WARNING: message [{:?}] not treated", m);}
                 }
             }
             Err(err) => {

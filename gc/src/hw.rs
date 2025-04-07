@@ -1,9 +1,10 @@
+use std::net::TcpStream;
 use std::path::PathBuf;
 use std::env::var;
 use std::fs::{File, OpenOptions};
 use memmap::MmapOptions;
 use std::{thread, time};
-use std::io::{prelude::*, BufReader};
+use std::io::prelude::*;
 
 
 // get value for fiber delay from file
@@ -90,8 +91,8 @@ fn ddr_data_init(){
 
 pub fn init_ddr(){
     let fiber_delay = get_fiber_delay();
-    ddr_data_reg(4, fiber_delay + 128, 5000);
-    ddr_data_reg(3, fiber_delay + 128, 5000);
+    ddr_data_reg(4, fiber_delay, 5000);
+    ddr_data_reg(3, fiber_delay, 5000);
     ddr_data_init();
     println!("init ddr done");
 }
@@ -119,30 +120,75 @@ pub fn sync_at_pps(){
 }
 
 
-
-pub fn process_stream(file: &mut BufReader<File>) -> std::io::Result<([u8;16], u64, u8)>{
-    let mut buf: [u8;16] = [0;16];
-    file.read_exact(&mut buf)?;
-    let mut buf_for_gc: [u8;8] = buf[..8].try_into().unwrap();
-    buf_for_gc[6] = 0;
-    buf_for_gc[7] = 0;
-    let mut gc = u64::from_le_bytes(buf_for_gc);
-    gc = gc*2 + (buf[6] & 1) as u64;
-    let result = (buf[6] >> 1) & 1;
-    Ok((buf, gc, result))
+// separate gc from result bit; return as integers
+fn split_gcr(buf_gcr: [u8;8]) -> (u64, u8){
+    let mut buf = buf_gcr;
+    buf[6] = 0;
+    buf[7] = 0;
+    let mut gc = u64::from_le_bytes(buf);
+    gc = gc*2 + (buf_gcr[6] & 1) as u64;
+    let result = (buf_gcr[6] >> 1) & 1;
+    return (gc, result)
 }
 
-
-pub fn gc_for_fpga(gc: u64) -> [u8;16]{
+// format gc value before writing back to fpga; return as buf
+fn gc_for_fpga(gc: u64) -> [u8;16]{
     let gc_mod = gc/2;
     let byte6 = gc % 2;
     let mut buf: [u8;16] = (gc_mod as u128).to_le_bytes();
     buf[6] = byte6 as u8;
-    buf
+    return buf
+}
+
+const BATCHSIZE: usize = 32; // number of clicks to process in one batch
+
+// read gcr from fpga and split gc and r
+pub fn process_gcr_stream(file: &mut File) -> std::io::Result<([u64; BATCHSIZE], [u8; BATCHSIZE])>{
+    let mut buf: [u8; BATCHSIZE*16] = [0; BATCHSIZE*16];
+    file.read_exact(&mut buf)?;
+    let mut gc: [u64; BATCHSIZE] = [0; BATCHSIZE];
+    let mut result: [u8; BATCHSIZE] = [0; BATCHSIZE];
+    for i in 0..BATCHSIZE{
+        (gc[i], result[i]) = split_gcr(buf[i*16..i*16+8].try_into().unwrap());
+    }
+    Ok((gc, result))
+}
+
+
+// write gc back to fpga
+pub fn write_gc_to_fpga(gc: [u64; BATCHSIZE], file: &mut File) -> std::io::Result<()>{
+    let mut buf: [u8; BATCHSIZE*16] = [0; BATCHSIZE*16];
+    for i in 0..BATCHSIZE{
+        let gcbuf = gc_for_fpga(gc[i]);
+        buf[i*16..(i+1)*16].copy_from_slice(&gcbuf);
+    }
+    file.write_all(&buf)?;
+    Ok(())
+}
+
+// write gc to Alice
+pub fn write_gc_to_alice(gc: [u64; BATCHSIZE], alice: &mut TcpStream) -> std::io::Result<()>{
+    let mut buf: [u8; BATCHSIZE*8] = [0; BATCHSIZE*8];
+    for i in 0..BATCHSIZE{
+        let gcbuf = gc[i].to_le_bytes();
+        buf[i*8..(i+1)*8].copy_from_slice(&gcbuf);
+    }
+    alice.write_all(&buf)?;
+    Ok(())
 }
 
 
 
+// read gc coming from Bob
+pub fn read_gc_from_bob(bob: &mut TcpStream) -> std::io::Result<[u64;BATCHSIZE]>{
+    let mut buf: [u8; BATCHSIZE*8] = [0; BATCHSIZE*8];
+    let mut gc: [u64; BATCHSIZE] = [0; BATCHSIZE];
+    bob.read_exact(&mut buf)?;
+    for i in 0..BATCHSIZE{
+        gc[i] = u64::from_le_bytes(buf[i*8..(i+1)*8].try_into().expect("converting gc from bob to u64"));
+    }
+    Ok(gc)
+}
 
 
 

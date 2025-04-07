@@ -1,17 +1,16 @@
 use clap::Parser;
 use std::fs;
-use std::fs::{OpenOptions, File};
+use std::fs::OpenOptions;
 use gc::comm::{Request, Response, HwControl, Comm};
-use gc::hw::{init_ddr, sync_at_pps, wait_for_pps, gc_for_fpga};
+use gc::hw::{init_ddr, read_gc_from_bob, sync_at_pps, wait_for_pps, write_gc_to_fpga};
 use std::thread;
 use std::path::PathBuf;
 use std::env::var;
 use std::net::TcpStream;
 use std::os::unix::net::UnixListener;
-use std::io::{prelude::*, BufReader};
+//use std::io::prelude::*;
 use std::sync::mpsc::{Receiver, Sender, channel, TryRecvError};
 use serde::Deserialize;
-use std::io::{BufWriter, BufRead};
 
 
 #[derive(Deserialize, Clone, Debug)]
@@ -30,30 +29,35 @@ struct Cli {
     save: bool
 }
 
-fn recv_gc(bob: &mut TcpStream, file_gcw: Option<File>) -> std::io::Result<Option<File>>{
-    let mut file_gcw = match file_gcw{
-        Some(fd) => {fd}
-        None => {
-            OpenOptions::new().read(true).write(true)
-                .open("/dev/xdma0_h2c_0").expect("opening /dev/xdma0_h2c_0")
-        }
-    };
+fn recv_gc(bob: &mut TcpStream, rx: &Receiver<Request>) -> std::io::Result<()>{
+    let mut file_gcw= OpenOptions::new().write(true).open("/dev/xdma0_h2c_0").expect("opening /dev/xdma0_h2c_0");
 
-    bob.send(HwControl::SendGc).expect("sending to Bob");
-    let mut bob_buffered = BufReader::with_capacity(800, bob);
-    //thread::sleep(time::Duration::from_millis(100));
-    for i in 0..10000{
-        let mut gc_buf: [u8; 8] = [0; 8];
-        bob_buffered.read_exact(&mut gc_buf)?;
-        let gc = u64::from_le_bytes(gc_buf);
-        file_gcw.write_all(&gc_for_fpga(gc)).expect("writing gc to fpga");
-        if (i%1000)==0{ println!("{:?}", gc);};
+    //bob.send(HwControl::SendGc).expect("sending to Bob");
+    
+    loop {
+        for i in 0..100{
+            let gc = read_gc_from_bob(bob)?;
+            write_gc_to_fpga(gc, &mut file_gcw)?;
+            if (i%1000)==0{ println!("{:?}", gc[0]);};
+        }
+        match rx.try_recv() {
+            Ok(m) => match m {
+                Request::Stop => {
+                    //tx.send(Response::Done).expect("sending message through c2");
+                    return Ok(())}
+                _ => {}
+                }
+            Err(e) => match e{
+                TryRecvError::Empty => {},
+                TryRecvError::Disconnected => panic!("rx channel disconnected")
+            }
+        }
     }
-    Ok(Some(file_gcw))
+    //thread::sleep(time::Duration::from_millis(100));
 }
 
 
-fn handle_bob(rx: Receiver<Request>, tx: Sender<Response>, ip_bob: String){
+fn handle_bob(rx: Receiver<Request>, tx: Sender<Response>, ip_bob: String) {
     let mut bob = TcpStream::connect(&ip_bob)
         .expect("could not connect to stream\n");
     println!("connected to Bob");
@@ -69,36 +73,22 @@ fn handle_bob(rx: Receiver<Request>, tx: Sender<Response>, ip_bob: String){
                 sync_at_pps();
                 println!("files opened");
                 // loop until Stop
-                let mut file_gcw: Option<File> = None;
-                loop {
-                    file_gcw = match recv_gc(&mut bob, file_gcw){
-                        Ok(f) => {f}
-                        Err(e) => match e.kind(){
-                            std::io::ErrorKind::UnexpectedEof => {
-                                println!("Warning: Unexpected Eof; reconnecting to Bob");
-                                bob = TcpStream::connect(&ip_bob)
-                                    .expect("could not connect to stream\n");
-                                break},
-                            _ => panic!("interaction with bob {}", e),
-                        }
-                    };
-                    match rx.try_recv() {
-                        Ok(m) => match m {
-                            Request::Stop => {
-                                tx.send(Response::Done).expect("sending message through c2");
-                                break}
-                            _ => {}
-                            }
-                        Err(e) => match e{
-                            TryRecvError::Empty => {},
-                            TryRecvError::Disconnected => panic!("rx channel disconnected")
-                        }
+                match recv_gc(&mut bob, &rx){
+                    Ok(()) => {
+                        tx.send(Response::Done).expect("sending message through c2");
+                        bob = TcpStream::connect(&ip_bob).expect("could not connect to stream\n");
+                        continue; 
+                    }
+                    Err(e) => match e.kind(){
+                        std::io::ErrorKind::UnexpectedEof => {
+                            println!("Warning: Unexpected Eof; reconnecting to Bob");
+                            bob = TcpStream::connect(&ip_bob).expect("could not connect to stream\n");
+                            continue;},
+                        _ => panic!("interaction with bob {}", e),
                     }
                 }
             }
-            _ => {
-                tx.send(Response::DidNothing).expect("sending message through c2");
-            }
+            _ => {tx.send(Response::DidNothing).expect("sending message through c2");}
         }
     }
 }
