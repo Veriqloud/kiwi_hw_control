@@ -8,9 +8,9 @@ use std::path::PathBuf;
 use std::env::var;
 use std::net::TcpStream;
 use std::os::unix::net::UnixListener;
-//use std::io::prelude::*;
 use std::sync::mpsc::{Receiver, Sender, channel, TryRecvError};
 use serde::Deserialize;
+use std::io::Write;
 
 
 #[derive(Deserialize, Clone, Debug)]
@@ -29,15 +29,22 @@ struct Cli {
     save: bool
 }
 
-fn recv_gc(bob: &mut TcpStream, rx: &Receiver<Request>) -> std::io::Result<()>{
+fn recv_gc(bob: &mut TcpStream, rx: &Receiver<Request>, debug: bool) -> std::io::Result<()>{
     let mut file_gcw= OpenOptions::new().write(true).open("/dev/xdma0_h2c_0").expect("opening /dev/xdma0_h2c_0");
 
-    //bob.send(HwControl::SendGc).expect("sending to Bob");
+    println!("DEBUG: {:?}", debug);
+
+
     
     loop {
+        let mut vgc: Vec<u64> = Vec::new();
+
         for i in 0..100{
             let gc = read_gc_from_bob(bob)?;
             write_gc_to_fpga(gc, &mut file_gcw)?;
+
+            if debug {vgc.extend_from_slice(&gc);}
+
             if (i%1000)==0{ println!("{:?}", gc[0]);};
         }
         match rx.try_recv() {
@@ -52,6 +59,12 @@ fn recv_gc(bob: &mut TcpStream, rx: &Receiver<Request>) -> std::io::Result<()>{
                 TryRecvError::Disconnected => panic!("rx channel disconnected")
             }
         }
+        if debug {
+            let mut file_gc_debug= OpenOptions::new().create(true).append(true).open("gc.txt").expect("opening gc.txt");
+            let strings: Vec<String> = vgc.iter().map(|n| n.to_string()).collect();
+            writeln!(file_gc_debug, "{}", strings.join("\n"))?;
+            //return Ok(())
+        }
     }
     //thread::sleep(time::Duration::from_millis(100));
 }
@@ -61,9 +74,20 @@ fn handle_bob(rx: Receiver<Request>, tx: Sender<Response>, ip_bob: String) {
     let mut bob = TcpStream::connect(&ip_bob)
         .expect("could not connect to stream\n");
     println!("connected to Bob");
+
+    let mut debug = false;
     
     loop {
         match rx.recv().unwrap() {
+            Request::DebugOn => { 
+                debug = true; 
+                // remove gc.txt if it exists
+                std::fs::remove_file("gc.txt").unwrap_or_else(|e| match e.kind() {
+                    std::io::ErrorKind::NotFound => (),
+                    _ => panic!("{}", e),
+                    });
+                tx.send(Response::Done).expect("sending message through c2");
+            }
             Request::Start => {
                 bob.send(HwControl::InitDdr).expect("sending to Bob");
                 init_ddr();
@@ -73,7 +97,7 @@ fn handle_bob(rx: Receiver<Request>, tx: Sender<Response>, ip_bob: String) {
                 sync_at_pps();
                 println!("files opened");
                 // loop until Stop
-                match recv_gc(&mut bob, &rx){
+                match recv_gc(&mut bob, &rx, debug){
                     Ok(()) => {
                         tx.send(Response::Done).expect("sending message through c2");
                         bob = TcpStream::connect(&ip_bob).expect("could not connect to stream\n");

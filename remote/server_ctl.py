@@ -113,14 +113,13 @@ try:
         elif command == 'verify_gates':
             update_tmp('soft_gate', 'off')
             main.Update_Softgate()
-            aurea = Aurea()
-            aurea.mode("gated")
+            main.Ensure_Spd_Mode('gated')
             main.Download_Time(10000, 'verify_gate_off')
             conn.sendall("done".encode())
+
             main.Download_Time(10000, 'verify_gate_double')
-            aurea.mode("continuous")
-            aurea.close()
-            update_tmp('spd_mode', 'continuous')
+            main.Ensure_Spd_Mode('continuous')
+            time.sleep(0.1)
             response = "Verify gates done"
 
 

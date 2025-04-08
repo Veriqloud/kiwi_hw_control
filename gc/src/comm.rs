@@ -13,7 +13,7 @@ use std::os::unix::net::UnixStream;
 pub enum Request{
     Start = 1,
     Stop = 2,
-    Status = 3
+    DebugOn = 3
 }
 
 // Messages from gc_client to node
@@ -46,11 +46,11 @@ impl From<u8> for Request{
     fn from(value: u8) -> Self {
         const START: u8 = Request::Start as u8;
         const STOP: u8 = Request::Stop as u8;
-        const STATUS: u8 = Request::Status as u8;
+        const DEBUGON: u8 = Request::DebugOn as u8;
         match value {
             START => Request::Start,
             STOP => Request::Stop,
-            STATUS => Request::Status,
+            DEBUGON => Request::DebugOn,
             _ => panic!("Byte cannot be converted to Request")
         }
     }
