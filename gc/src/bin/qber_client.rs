@@ -16,6 +16,8 @@ use std::fmt;
 
 #[derive(Parser, Debug)]
 struct Cli {
+    /// number of clicks to average over
+    num: u32,
     /// message to send
     #[arg(value_enum, short, long)]
     debug: bool,
@@ -33,10 +35,10 @@ struct QberMatrix([[f64;4]; 4]);
 impl fmt::Display for QberMatrix{
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let m = self.0;
-        write!(f, "{:>6.2}  {:>6.2}  {:>6.2}  {:>6.2}
-{:>6.2}  {:>6.2}  {:>6.2}  {:>6.2}
-{:>6.2}  {:>6.2}  {:>6.2}  {:>6.2}
-{:>6.2}  {:>6.2}  {:>6.2}  {:>6.2}", 
+        write!(f, "{:>6.3}  {:>6.3}  {:>6.3}  {:>6.3}
+{:>6.3}  {:>6.3}  {:>6.3}  {:>6.3}
+{:>6.3}  {:>6.3}  {:>6.3}  {:>6.3}
+{:>6.3}  {:>6.3}  {:>6.3}  {:>6.3}", 
             m[0][0], m[0][1], m[0][2], m[0][3], 
             m[1][0], m[1][1], m[1][2], m[1][3], 
             m[2][0], m[2][1], m[2][2], m[2][3], 
@@ -55,7 +57,7 @@ impl fmt::Display for Line{
     }
 }
 
-fn recv_angles(bob: &mut TcpStream, file_angles: Option<File>, debug: bool) -> std::io::Result<Option<File>>{
+fn recv_angles(bob: &mut TcpStream, num: u32, file_angles: Option<File>, debug: bool) -> std::io::Result<Option<File>>{
     // reuse file descriptors if already opened earlier
     let mut file_angles = match file_angles{
         Some(fd) => {fd}
@@ -75,7 +77,7 @@ fn recv_angles(bob: &mut TcpStream, file_angles: Option<File>, debug: bool) -> s
     // save vector for debug: angle_alice, angle_bob, result
     let mut vdebug: Vec<[u8;3]> = Vec::new();
 
-    for _ in 0..100{
+    for _ in 0..num/64{
         file_angles.read_exact(&mut aa)?;
         bob.read_exact(&mut ab)?;
         bob.read_exact(&mut r)?;
@@ -112,7 +114,12 @@ fn recv_angles(bob: &mut TcpStream, file_angles: Option<File>, debug: bool) -> s
     }
     //println!("m0 {:?}", m0);
     //println!("m1 {:?}", m1);
-    println!("counts: 6400\n{:}", QberMatrix(mdiv));
+    
+    let qber_alice = (m0[1][0] + m1[2][0]) as f64 / (m0[1][0] + m1[1][0] + m0[2][0] + m1[2][0]) as f64;
+    let qber_bob = (m0[0][1] + m1[0][2]) as f64 / (m0[0][1] + m1[0][1] + m0[0][2] + m1[0][2]) as f64;
+    let qber = (m0[1][0] + m1[2][0] + m0[0][1] + m1[0][2]) as f64 / (m0[1][0] + m1[1][0] + m0[2][0] + m1[2][0] + m0[0][1] + m1[0][1] + m0[0][2] + m1[0][2]) as f64;
+    println!("counts: {:}\n{:}", (num/64)*64, QberMatrix(mdiv));
+    println!("qber (alice, bob, total): {:>6.2}  {:>6.2}  {:>6.2}\n", qber_alice*100., qber_bob*100., qber*100.);
     if debug {
         let mut file_debug= OpenOptions::new().create(true).append(true).open("angles.txt").expect("opening angles.txt");
         let strings: Vec<String> = vdebug.iter().map(|&n| Line(n).to_string()).collect();
@@ -161,7 +168,7 @@ fn main() -> std::io::Result<()> {
     let mut file_angles: Option<File> = None;
     loop {
         bob.send(Qber::SendAngles)?;
-        file_angles = recv_angles(&mut bob, file_angles, debug)?;
+        file_angles = recv_angles(&mut bob, cli.num, file_angles, debug)?;
     }
 
 }
