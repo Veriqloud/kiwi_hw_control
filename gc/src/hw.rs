@@ -71,7 +71,7 @@ fn ddr_data_reg(command: u32, gc_delay: u32, delay_ab: u32){
     xdma_write(8, command, offset);
     xdma_write(16, 0, offset);
     xdma_write(20, 0, offset);
-    xdma_write(32, 2000, offset); // read speed
+    xdma_write(32, 100, offset); // read speed
     xdma_write(36, 4000, offset); // threshold full
     xdma_write(40, fiber_delay, offset);
     xdma_write(44, delay_ab, offset);
