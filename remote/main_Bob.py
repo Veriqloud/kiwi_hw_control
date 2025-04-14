@@ -748,6 +748,7 @@ def init_rst_tmp():
     t['pol1'] = 0
     t['pol2'] = 0
     t['pol3'] = 0
+    t['gate_delay0'] = 0
     t['gate_delay'] = 0
     t['soft_gate'] = 'off'
     t['soft_gate0'] = 0

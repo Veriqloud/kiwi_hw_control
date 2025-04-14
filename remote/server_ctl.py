@@ -82,33 +82,6 @@ try:
                     conn.sendall(current_count.to_bytes(4,byteorder='big'))
             response = "find_am_bias done"
 
-        elif command == 'find_sp':
-            t = get_tmp()
-            t['t0'] = 10 #to have some space to the left
-            t['soft_gate'] = 'off'
-            save_tmp(t)
-            main.Update_Softgate()
-
-            # detection single pulse at shift_am 0
-            global ret_shift_am
-            print("measure and search single peak")
-            shift_am, t0  = main.Measure_Sp(20000)
-            Set_t0(10+t0)
-            update_tmp('t0', 10+t0)
-            d = get_default()
-            update_tmp('gate_delay', (d['gate_delay']-t0*20) % 12500)
-            main.Gen_Gate()
-            
-            # send back shift_am value to alice
-            conn.sendall(shift_am.to_bytes(4,byteorder='big'))
-
-            # detect single64 pulse and send to Alice
-            update_tmp('soft_gate', 'on')
-            main.Update_Softgate()
-            print("measure sp64")
-            coarse_shift = main.Measure_Sp64()
-            conn.sendall(coarse_shift.to_bytes(4,byteorder='big'))
-            response = "Gen_Sp 2 rounds done"
 
 ###############################################################
         elif command == 'ad_test':
@@ -125,43 +98,39 @@ try:
             time.sleep(0.1)
             response = "adjust_delay done"
 ###################################################################
+
         elif command == 'ad':
             update_tmp('soft_gate', 'off')
             main.Update_Softgate()
             main.Ensure_Spd_Mode('gated')
             main.Download_Time(10000, 'verify_gate_off')
-            file_double = "~/qline/hw_control/data/tdc/verify_gate_double.txt"
             file_off = "~/qline/hw_control/data/tdc/verify_gate_off.txt"
 
             max_iter = 2
             iter_count = 0
 
             while True:
-                lf0 = main.fall_edge(file_double, 200, 900)
                 lf = main.fall_edge(file_off, 200, 900)
-
-                print("Last falling edge double between 200 and 900:", lf0)
                 print("Last falling edge off between 200 and 900:", lf)
 
-                if abs(lf - lf0) <= 2 or iter_count >= max_iter:
+                if abs(lf - 725) <= 2 or iter_count >= max_iter:
                     break
 
-                with open("config/tmp.txt", "r") as f:
-                    for line in f:
-                        if line.startswith("gate_delay") and not line.startswith("gate_delayf"):
-                            tmp_delay = int(line.split()[1])
-                            print("tmp_delay =", tmp_delay)
-                            break
-
-                if lf > lf0:
-                    ad = tmp_delay - ((lf - lf0) * 20)
+                d = get_tmp()
+                tmp_delay0=d['gate_delay0']
+                print("gate_delay0 =", tmp_delay0)
+                tmp_delay=d['gate_delay']
+                print("tmp_delay =", tmp_delay)
+                if lf > 725:
+                    ad = tmp_delay - ((lf - 725) * 20)
                 else:
-                    ad = tmp_delay + ((lf0 - lf) * 20)
+                    ad = tmp_delay + ((725 - lf) * 20)
 
                 ad = abs(ad)
-                ad = 5000 if ad > 12000 else ad
+                ad = 5000 if ad > 12500 else ad
 
                 update_tmp('gate_delay', ad)
+                update_tmp('gate_delay0', ad)
                 main.Gen_Gate()
                 main.Download_Time(10000, 'verify_gate_off')
                 iter_count += 1
@@ -170,6 +139,38 @@ try:
             main.Ensure_Spd_Mode('continuous')
             time.sleep(0.1)
             response = "adjust_delay done"
+
+############################################################################
+
+
+        elif command == 'find_sp':
+            t = get_tmp()
+            t['t0'] = 10 #to have some space to the left
+            t['soft_gate'] = 'off'
+            save_tmp(t)
+            main.Update_Softgate()
+
+            # detection single pulse at shift_am 0
+            global ret_shift_am
+            print("measure and search single peak")
+            shift_am, t0  = main.Measure_Sp(20000)
+            Set_t0(10+t0)
+            update_tmp('t0', 10+t0)
+            d = get_tmp()
+            update_tmp('gate_delay', (d['gate_delay0']-t0*20) % 12500)
+            main.Gen_Gate()
+            
+            # send back shift_am value to alice
+            conn.sendall(shift_am.to_bytes(4,byteorder='big'))
+
+            # detect single64 pulse and send to Alice
+            update_tmp('soft_gate', 'on')
+            main.Update_Softgate()
+            print("measure sp64")
+            coarse_shift = main.Measure_Sp64()
+            conn.sendall(coarse_shift.to_bytes(4,byteorder='big'))
+            response = "Gen_Sp 2 rounds done"
+
 
 
         elif command == 'verify_gates':
