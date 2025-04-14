@@ -538,6 +538,23 @@ def Test_delay():
     file0.close()
 
 
+def fall_edge(file_path, start_range=200, end_range=900):
+    data = np.loadtxt(os.path.expanduser(file_path), usecols=1)
+    bins = np.arange(0, 1251, 2) - 1
+    hist, _ = np.histogram(data % 1250, bins=bins)
+    index = bins[:-1] + 1
+    mask = (index >= start_range) & (index <= end_range)
+    index_filt = index[mask]
+    amp_filt = hist[mask]
+    lf = 724  # default
+    for i in range(1, len(amp_filt)):
+        if amp_filt[i] < amp_filt[i - 1]:
+            lf = index_filt[i]
+    return lf
+
+
+
+
 #----------MONITORING REGISTERS-------------------
 #Read back monitoring signal
 def Count_Mon():
@@ -898,11 +915,6 @@ def main():
             Measure_Sp(10000)
 
 
-
-
-
-            
-    
     #create top_level parser
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers(required=True)

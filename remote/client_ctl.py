@@ -99,6 +99,29 @@ def client_start(commands_in):
                 update_tmp('am_bias', round(am_bias_opt, 2))
                 update_default('am_bias', round(am_bias_opt, 2))
 
+
+
+###################################################################
+            elif command == 'ad_test':
+                update_tmp('am_mode', 'off')
+                main.Update_Dac()
+                print(client_socket.recv(4))
+                update_tmp('am_mode', 'double')
+                main.Update_Dac()
+###################################################################
+
+
+###################################################################
+            elif command == 'ad':
+                update_tmp('am_mode', 'off')
+                main.Update_Dac()
+                print(client_socket.recv(4))
+                update_tmp('am_mode', 'double')
+                main.Update_Dac()
+###################################################################
+
+
+
             elif command == 'find_sp':
                 #1.Send single pulse, am_shift 0
                 update_tmp('am_shift', 0)
