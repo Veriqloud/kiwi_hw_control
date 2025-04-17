@@ -66,6 +66,13 @@ KERNEL=="xdma0_h2c_2", MODE="0666"
 KERNEL=="xdma0_h2c_3", MODE="0666"
 ~~~~
 
+add vq-user to dialout group and reload the rules. Reboot!
+```
+sudo usermod -aG dialout vq-user
+sudo udevadm control --reload
+sudo udevadm trigger
+```
+
 # PCIe driver
 
 [reference about the key for secure boot](https://askubuntu.com/questions/760671/could-not-load-vboxdrv-after-upgrade-to-ubuntu-16-04-and-i-want-to-keep-secur/768310#768310)
@@ -153,3 +160,17 @@ You can start and stop rng.service manually when device need true RNG
 sudo systemctl start rng.service
 sudo systemctl stop rng.service
 ~~~~
+
+Create the second service decoy_rng similar to the rng.service on Alice when she use decoy state.
+
+```
+ExecStart=/home/vq-user/qline/hw_control/rng_fpga/decoy_rng2file
+```
+Start both service and check status
+
+```
+service rng status
+service decoy_rng status
+```
+
+
