@@ -18,7 +18,7 @@ def Set_Vca(voltage):
     update_tmp('vca', voltage)
 
 def Set_Am_Bias(voltage):
-    Set_vol(4, voltage)
+    Set_vol(6, voltage)
     update_tmp('am_bias', voltage)
 
 

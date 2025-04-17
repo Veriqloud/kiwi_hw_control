@@ -495,7 +495,7 @@ def Config_Sda():
 # channel 7 is for vca, channel 0 to 3 is for pol controller
 def Set_vol(channel, voltage):
     vz = float(voltage)
-    if (channel == 4):
+    if (channel == 4 or channel == 6):
         data_vol = int(((vz + 10) * (1<<16)-1)/20)  
     elif (channel == 7):
         data_vol = int((vz * (1<<16)-1)/10)
