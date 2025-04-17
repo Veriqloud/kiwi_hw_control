@@ -80,10 +80,12 @@ def client_start(commands_in):
             if command == 'find_am_bias':
                 t = get_tmp()
                 bias_default = t['am_bias']
+                bias_default_1 = t['am_bias_2']
                 t['am_mode'] = 'off'
                 save_tmp(t)
                 main.Update_Dac()
                 count_rcv_arr = []
+                main.Set_Am_Bias_2(0) 
                 for i in range(21):
                     main.Set_Am_Bias(-1 + 0.1*i)
                     cmd = 'sv_done'
@@ -96,9 +98,34 @@ def client_start(commands_in):
                 print("Min count: ", min_counts , "index: ", min_idx)
                 am_bias_opt = -1 + 0.1*min_idx
                 main.Set_Am_Bias(am_bias_opt)
+                main.Set_Am_Bias_2(bias_default_1)
                 update_tmp('am_bias', round(am_bias_opt, 2))
                 update_default('am_bias', round(am_bias_opt, 2))
 
+            if command == 'find_am_bias_2':
+                t = get_tmp()
+                bias_default = t['am_bias_2']
+                bias_default_1 = t['am_bias'] 
+                t['am_mode'] = 'off'
+                save_tmp(t)
+                main.Update_Dac()
+                count_rcv_arr = []
+                main.Set_Am_Bias(0) 
+                for i in range(21):
+                    main.Set_Am_Bias_2(0 + 0.1*i)
+                    cmd = 'sv_done'
+                    client_socket.sendall(cmd.encode())
+                    count_rcv = client_socket.recv(4)
+                    int_count_rcv = int.from_bytes(count_rcv, byteorder='big')
+                    count_rcv_arr.append(int_count_rcv)
+                min_counts = min(count_rcv_arr)
+                min_idx = count_rcv_arr.index(min_counts)
+                print("Min count: ", min_counts , "index: ", min_idx)
+                am_bias_opt = 0 + 0.1*min_idx
+                main.Set_Am_Bias_2(am_bias_opt) 
+                main.Set_Am_Bias(bias_default_1)
+                update_tmp('am_bias_2', round(am_bias_opt, 2))
+                update_default('am_bias_2', round(am_bias_opt, 2))
 
 
 ###################################################################

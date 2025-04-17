@@ -21,6 +21,13 @@ def Set_Am_Bias(voltage):
     Set_vol(6, voltage)
     update_tmp('am_bias', voltage)
 
+def Set_Am_Bias_2(voltage):
+    if (voltage>10) or (voltage<0):
+        print("Voltage out of range. Choose a value between 0 and 10")
+        exit()
+    Set_vol(4, voltage)
+    update_tmp('am_bias_2', voltage)
+
 
 def Config_Fda():
     WriteFPGA()
@@ -148,6 +155,7 @@ def init_sda():
     d = get_default()
     Set_Vca(d['vca'])
     Set_Am_Bias(d['am_bias'])
+    Set_Am_Bias_2(d['am_bias_2'])
 
 def init_apply_default():
     d = get_default()
@@ -174,6 +182,7 @@ def init_rst_default():
     d['vca'] = 2
     d['qdistance'] = 0.08
     d['am_bias'] = 0
+    d['am_bias_2'] = 0
     d['am_shift'] = 514
     d['pm_shift'] = 514
     d['angle0'] = 0
@@ -192,6 +201,7 @@ def init_rst_tmp():
     t['pm_shift'] = 0
     t['vca'] = 0
     t['am_bias'] = 0
+    t['am_bias_2'] = 0
     t['angle0'] = 0
     t['angle1'] = 0
     t['angle2'] = 0
@@ -240,6 +250,8 @@ def main():
             Set_Vca(args.vca)
         elif args.am_bias is not None:
             Set_Am_Bias(args.am_bias)
+        elif args.am_bias_2 is not None:
+            Set_Am_Bias_2(args.am_bias_2)    
         elif args.qdistance is not None:
             update_tmp('qdistance', args.qdistance)
             Update_Dac()
@@ -331,6 +343,8 @@ def main():
                             help="voltage controlled attenuator; float [0,5] V")
     parser_set.add_argument("--am_bias", type=float, metavar=("voltage"), 
                             help="bias of amplitude modulator; float [-10,10] V")
+    parser_set.add_argument("--am_bias_2", type=float, metavar=("voltage"), 
+                            help="bias of amplitude modulator; float [0,10] V")
     parser_set.add_argument("--am_mode", choices=['off', 'single', 'double', 'single64'],
                             help="send single pulse at 40MHz or double pulse at 80MHz or single64 at 80MHz/64")
     parser_set.add_argument("--am_shift", type=int, metavar=("steps"), 

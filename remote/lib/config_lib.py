@@ -16,7 +16,7 @@ def get_default():
     return : dictionary from config/default.txt
     """
     d = {}
-    floatlist = ['vca', 'am_bias', 'qdistance', 
+    floatlist = ['vca', 'am_bias','am_bias_2', 'qdistance', 
                  'angle0', 'angle1', 'angle2', 'angle3']
     with open("config/default.txt") as f:
         lines = f.readlines()
@@ -43,7 +43,7 @@ def get_tmp():
     return : dictionary from config/tmp.txt
     """
     t = {}
-    floatlist = ['qdistance', 'pol0', 'pol1', 'pol2', 'pol3', 'vca', 'am_bias',
+    floatlist = ['qdistance', 'pol0', 'pol1', 'pol2', 'pol3', 'vca', 'am_bias','am_bias_2',
                  'angle0', 'angle1', 'angle2', 'angle3']
     strlist = ['spd_mode', 'am_mode', 'pm_mode', 'feedback', 'soft_gate', 'insert_zeros']
     with open("config/tmp.txt") as f:
@@ -495,9 +495,9 @@ def Config_Sda():
 # channel 7 is for vca, channel 0 to 3 is for pol controller
 def Set_vol(channel, voltage):
     vz = float(voltage)
-    if (channel == 4 or channel == 6):
+    if (channel == 4 or channel == 6 ):
         data_vol = int(((vz + 10) * (1<<16)-1)/20)  
-    elif (channel == 7):
+    elif (channel == 7 ):
         data_vol = int((vz * (1<<16)-1)/10)
     else:
         data_vol = int((vz * (1<<16)-1)/5)

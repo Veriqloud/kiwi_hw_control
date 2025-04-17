@@ -73,14 +73,15 @@ try:
             
             response = "sync done"
 
-        elif command == 'find_am_bias':
+
+        elif command in ['find_am_bias', 'find_am_bias_2']:
             for i in range(21):
                 cmd = conn.recv(BUFFER_SIZE).decode().strip()
                 if cmd == 'sv_done':
                     time.sleep(0.2)
                     current_count = main.Read_Count()
-                    conn.sendall(current_count.to_bytes(4,byteorder='big'))
-            response = "find_am_bias done"
+                    conn.sendall(current_count.to_bytes(4, byteorder='big'))
+            response = f"{command} done"
 
 
 ###############################################################
