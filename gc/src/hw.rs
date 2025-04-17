@@ -16,6 +16,8 @@ fn get_fiber_delay() -> u32 {
     let mut contents = String::new();
     file.read_to_string(&mut contents).expect("get_fiber_delay: read to string");
     let mut get_next = false;
+
+    // go through the lines and look for the matching word, then take the integer next to it
     for line in contents.lines(){
         for word in line.split("\t"){
             if get_next {
@@ -32,12 +34,15 @@ fn get_fiber_delay() -> u32 {
     panic!("Did not find fiber_delay in tmp.txt");
 }
 
+
 // write to fpga
 fn xdma_write(addr: usize, value: u32, offset: u64) {
     // we write single values to a memory mapped file
     // addr and offset are with respect to bytes; datatype is u32
     assert!(addr%4 == 0);
     let file = OpenOptions::new().read(true).write(true).open("/dev/xdma0_user").expect("opening /dev/xdma0_user");
+    
+    // there is no "safe" way to modify a single value on the FPGA memory file 
     unsafe {
         let mut mmap = MmapOptions::new().len(0x1000).offset(offset).map_mut(&file).expect("creating memory map");
         // move pointer and recast to u32
@@ -64,6 +69,8 @@ fn xdma_read(addr: usize, offset: u64) -> u32{
 //    Ok(counts)
 //}
 
+
+// write some parameters to the fpga (see fpga doc)
 fn ddr_data_reg(command: u32, gc_delay: u32, delay_ab: u32){
     let offset = 0x1000;
     let fiber_delay = (gc_delay + 1) / 2;
@@ -89,6 +96,7 @@ fn ddr_data_init(){
     thread::sleep(time::Duration::from_millis(100));
 }
 
+// reset and start ddr stuff
 pub fn init_ddr(){
     let fiber_delay = get_fiber_delay();
     ddr_data_reg(4, fiber_delay, 5000);
@@ -97,6 +105,7 @@ pub fn init_ddr(){
     println!("init ddr done");
 }
 
+// wait for the syncronization pulse (pps)
 pub fn wait_for_pps(){
     loop {
         let pps = xdma_read(48, 0x1000);
@@ -104,6 +113,7 @@ pub fn wait_for_pps(){
     }
 }
 
+// syncronize at next pps
 pub fn sync_at_pps(){
     // start to write
     xdma_write(0, 0, 0x1000);
