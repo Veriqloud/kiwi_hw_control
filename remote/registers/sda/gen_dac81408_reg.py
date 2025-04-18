@@ -35,7 +35,7 @@ cfg8 = 0x0000   #disable toggle mode, dac 3 to 0
 cfg9 = 0xF00F   #in active mode, when 0xFFFF, all 8 channels are in powerdown mode
 
 #dacrange
-cfg11 = 0x1a01  #DAC[7:4] range. Set  channel 6 range -10V to 10V, channel 7 and channel 4 range 0-10V. The rest is 0-5V
+cfg11 = 0x1a0a  #DAC[7:4] range. Set  channel 6 range -10V to 10V, channel 7 and channel 4 range 0-10V. The rest is 0-5V
 cfg12 = 0x0000  #DAC[3:0] range. Set all cahnnels range 0-5V. Check datasheet page 42
 
 #trigger
