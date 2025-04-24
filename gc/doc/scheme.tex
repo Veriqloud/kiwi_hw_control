@@ -29,10 +29,10 @@
     \node(qberc) at (0,-5) [align=center] {\textbf{qber\_client}\\printing qber};
     \node(qbers) at (8,-5) {\textbf{qber\_server}};
     
-    \node[color=blue] (aa) at (-4,-5) {/dev/xdma0\_c2h\_2};
+    \node[color=blue] (aa) at (-4,-5) {/dev/xdma0\_c2h\_3};
     \draw[->] (aa) -- (qberc) node[midway, above]{\textcolor{magenta}{angles}};
     
-    \node[color=blue] (ab) at (12,-5) {/dev/xdma0\_c2h\_2};
+    \node[color=blue] (ab) at (12,-5) {/dev/xdma0\_c2h\_3};
     \draw[->] (ab) -- (qbers) node[midway, above]{\textcolor{magenta}{angles}};
     
 \draw[<->] (qberc) -- (qbers) node[below, midway, align=center]{TCP\\$\rightarrow$ \textcolor{teal}{recv\_angles}\\$\leftarrow$ \textcolor{magenta}{angles + r}};

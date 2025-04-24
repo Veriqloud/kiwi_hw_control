@@ -864,6 +864,29 @@ def trigger_fine_slv2():
 
 
 
+#--------------------------decoy state---------------------------------
+
+def decoy_reset():
+    Write(0x00012000 + 20,0x01)
+    time.sleep(2)
+    Write(0x00012000 + 20,0x00)
+#input fake rng
+def Test_Decoy():
+    #dpram_rng_max_addr
+    Write(0x00016000 + 28, 0x40)
+    #Write data to rng_dpram
+    Base_seq0 = 0x00016000 + 1024
+    rngseq0 = 0x00000001
+    rngseq1 = 0x00000000
+    Write(Base_seq0, rngseq0)
+    Write(Base_seq0+4, rngseq1)
+    #Write rng mode
+    Write(0x00016000 + 12, 0x0)
+    #enable regs values
+    Write(0x00016000 , 0x0)
+    Write(0x00016000 , 0x1)
+
+
 #-------------------------TDC AND JITTER CLEANER-----------------------
 
 def Set_Si5319():

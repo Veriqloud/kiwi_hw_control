@@ -698,6 +698,7 @@ def init_apply_default():
     t['soft_gatew'] = d['soft_gatew']
     t['t0'] = d['t0']
     t['fiber_delay'] = d['fiber_delay']
+    t['fiber_delay_long'] = d['fiber_delay_long']
     t['fiber_delay_mod'] = d['fiber_delay']%32
     t['zero_pos'] = d['zero_pos']
     save_tmp(t)
@@ -723,6 +724,7 @@ def init_rst_default():
     d['deadtime_cont'] = 20
     d['deadtime_gated'] = 15
     d['fiber_delay_mod'] = 0
+    d['fiber_delay_long'] = 0
     d['fiber_delay'] = 0
     d['zero_pos'] = 0
     save_default(d)
@@ -756,6 +758,7 @@ def init_rst_tmp():
     t['soft_gatew'] = 0
     t['t0'] = 0
     t['fiber_delay_mod'] = 0
+    t['fiber_delay_long'] = 0
     t['fiber_delay'] = 0
     t['zero_pos'] = 0
     save_tmp(t)

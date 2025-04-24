@@ -170,7 +170,9 @@ def init_apply_default():
     t['angle2'] = d['angle2']
     t['angle3'] = d['angle3']
     t['fiber_delay'] = d['fiber_delay']
+    t['fiber_delay_long'] = d['fiber_delay_long']
     t['fiber_delay_mod'] = d['fiber_delay']%32
+    t['decoy_delay'] = d['decoy_delay']
     t['zero_pos'] = d['zero_pos']
     save_tmp(t)
     Set_Vca(t['vca'])
@@ -190,6 +192,8 @@ def init_rst_default():
     d['angle2'] = -0.18
     d['angle3'] = 0.36
     d['fiber_delay'] = 0
+    d['fiber_delay_long'] = 0
+    d['decoy_delay'] = 0
     d['zero_pos'] = 0
     save_default(d)
 
@@ -209,6 +213,8 @@ def init_rst_tmp():
     t['qdistance'] = 0
     t['fiber_delay_mod'] = 0
     t['fiber_delay'] = 0
+    t['fiber_delay_long'] = 0
+    t['decoy_delay'] = 0
     t['zero_pos'] = 0
     t['insert_zeros'] = 'off'
 
@@ -286,6 +292,9 @@ def main():
         elif args.am_mode:
             update_tmp('am_mode', args.am_mode)
             Update_Dac()
+        elif args.am2_mode:
+            update_tmp('am2_mode', args.am_mode)
+            Update_Dac()
         elif args.zero_pos:
             update_tmp('zero_pos', args.zero_pos)
             Update_Dac()
@@ -347,6 +356,8 @@ def main():
                             help="bias of amplitude modulator; float [0,10] V")
     parser_set.add_argument("--am_mode", choices=['off', 'single', 'double', 'single64'],
                             help="send single pulse at 40MHz or double pulse at 80MHz or single64 at 80MHz/64")
+    parser_set.add_argument("--am2_mode", choices=['off', 'single', 'frng', 'trng'],
+                            help="second amplitude modulator for decoy state")
     parser_set.add_argument("--am_shift", type=int, metavar=("steps"), 
                             help="time shift pulse generation in steps of 1.25ns")
     parser_set.add_argument("--pm_shift", type=int, metavar=("steps"), 

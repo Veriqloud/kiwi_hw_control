@@ -32,7 +32,7 @@ fn handle_alice(alice: &mut TcpStream) -> std::io::Result<()>{
         match alice.recv::<HwControl>() {
             Ok(message) => {
                 match message{
-                    HwControl::InitDdr => {init_ddr();}
+                    HwControl::InitDdr => {init_ddr(false);}
                     HwControl::SyncAtPps => {
                         sync_at_pps();
                         send_gc(alice)?;

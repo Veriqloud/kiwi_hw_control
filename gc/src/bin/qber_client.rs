@@ -67,31 +67,31 @@ fn recv_angles(bob: &mut TcpStream, num: u32, file_angles: Option<File>, debug: 
     let mut m0 :[[u32;4]; 4] = [[0;4]; 4];
     let mut m1 :[[u32;4]; 4] = [[0;4]; 4];
 
-    // angles stream is 128bit = 64 angles;
+    // angles stream is 128bit = 32 angles;
     let mut aa : [u8;16] = [0; 16];
     let mut ab : [u8;16] = [0; 16];
 
     // result stream is 1byte = 1result;
-    let mut r : [u8;64] = [0; 64];
+    let mut r : [u8;32] = [0; 32];
         
     // save vector for debug: angle_alice, angle_bob, result
     let mut vdebug: Vec<[u8;3]> = Vec::new();
 
-    for _ in 0..num/64{
+    for _ in 0..num/32{
         file_angles.read_exact(&mut aa)?;
         bob.read_exact(&mut ab)?;
         bob.read_exact(&mut r)?;
 
         // expand angles to array
-        let mut aa_expanded : [u8; 64] = [0;64];
-        let mut ab_expanded : [u8; 64] = [0;64];
+        let mut aa_expanded : [u8; 32] = [0;32];
+        let mut ab_expanded : [u8; 32] = [0;32];
         for i in 0..16{
-            for j in 0..4{
-                aa_expanded[4*i+j] = (aa[i] & (0b11 << j*2)) >> j*2;
-                ab_expanded[4*i+j] = (ab[i] & (0b11 << j*2)) >> j*2;
+            for j in 0..2{
+                aa_expanded[2*i+j] = (aa[i] & (0b11 << j*4)) >> j*4;
+                ab_expanded[2*i+j] = (ab[i] & (0b11 << j*4)) >> j*4;
             }
         }
-        for i in 0..64{
+        for i in 0..32{
             if debug { vdebug.push([aa_expanded[i], ab_expanded[i], r[i]]);}
             let x = aa_expanded[i] as usize;
             let y = ab_expanded[i] as usize;
@@ -118,7 +118,7 @@ fn recv_angles(bob: &mut TcpStream, num: u32, file_angles: Option<File>, debug: 
     let qber_alice = (m0[1][0] + m1[2][0]) as f64 / (m0[1][0] + m1[1][0] + m0[2][0] + m1[2][0]) as f64;
     let qber_bob = (m0[0][1] + m1[0][2]) as f64 / (m0[0][1] + m1[0][1] + m0[0][2] + m1[0][2]) as f64;
     let qber = (m0[1][0] + m1[2][0] + m0[0][1] + m1[0][2]) as f64 / (m0[1][0] + m1[1][0] + m0[2][0] + m1[2][0] + m0[0][1] + m1[0][1] + m0[0][2] + m1[0][2]) as f64;
-    println!("counts: {:}\n{:}", (num/64)*64, QberMatrix(mdiv));
+    println!("counts: {:}\n{:}", (num/32)*32, QberMatrix(mdiv));
     println!("qber (alice, bob, total): {:>6.2}  {:>6.2}  {:>6.2}\n", qber_alice*100., qber_bob*100., qber*100.);
     if debug {
         let mut file_debug= OpenOptions::new().create(true).append(true).open("angles.txt").expect("opening angles.txt");

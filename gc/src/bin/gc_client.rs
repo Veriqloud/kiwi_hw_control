@@ -90,7 +90,7 @@ fn handle_bob(rx: Receiver<Request>, tx: Sender<Response>, ip_bob: String) {
             }
             Request::Start => {
                 bob.send(HwControl::InitDdr).expect("sending to Bob");
-                init_ddr();
+                init_ddr(true);
                 tx.send(Response::Done).expect("sending message through c2");
                 wait_for_pps();
                 bob.send(HwControl::SyncAtPps).expect("sending to Bob");
