@@ -413,7 +413,7 @@ def Find_Zero_Pos_A(fiber_delay_mod):
     time.sleep(0.5)
     counts = get_counts()
     if min(counts[1], counts[2])/counts[0] < 0.25:
-        print("zeros pos found:", 0) 
+        print("Zeros pos found:", 0) 
         return 0
     
     Download_Time(50000, 'fz_a')
@@ -431,7 +431,7 @@ def Find_Zero_Pos_A(fiber_delay_mod):
     h1, b = np.histogram(gc1, bins=bins)
     h = abs(h0-h1)
     peakpos = np.argmax(h) 
-    zeros_pos = (fiber_delay_mod - 0 - peakpos) % 16
+    zeros_pos = (fiber_delay_mod - 2 - peakpos) % 16
     print("zeros pos found:", zeros_pos) 
     return int(zeros_pos )
 

@@ -6,32 +6,44 @@ from scipy.optimize import curve_fit
 # from scipy.signal import find_peaks
 
 
-def shift_unit(j,party, gc_compensation=0):
+def shift_unit(j,party, ):
     times_ref_click0=[]
     times_ref_click1=[]
     if party == 'alice':
-        int_click_gated = np.loadtxt("pm_shift_data/pm_a_shift_"+str(j)+".txt",usecols=(2,3,4),unpack=True, dtype=np.int64)
+        data = np.loadtxt("pm_shift_data/pm_a_shift_"+str(j)+".txt", usecols=(2,3,4), dtype=np.int64)
+        gc_compensation=59
     elif party == 'bob':
-        int_click_gated = np.loadtxt("pm_shift_data/pm_b_shift_"+str(j)+".txt",usecols=(2,3,4),unpack=True, dtype=np.int64)
+        data = np.loadtxt("pm_shift_data/pm_b_shift_"+str(j)+".txt", usecols=(2,3,4), dtype=np.int64)
+        gc_compensation=61
 
-    int_click_gated[0] = int_click_gated[0] + gc_compensation
-    seq = 64  #[q_bins]
-    # time_range = seq
-    for i in range(len(int_click_gated[1])):
-        if (int_click_gated[1][i] == 0):
-            if (int_click_gated[2][i] == 0):
-                gc_q = (int_click_gated[0][i]%(seq/2))*2
-            elif(int_click_gated[2][i] == 1):
-                gc_q = (int_click_gated[0][i]%(seq/2))*2 + 1
-            times_ref_click0.append(gc_q)
+    gc = data[:,0] 
+    r = data[:,1]
+    q_pos = data[:,2]
+    gc0 = (gc[r==0]*2 + q_pos[r==0] + gc_compensation) % 64
+    gc1 = (gc[r==1]*2 + q_pos[r==1] + gc_compensation) % 64
 
-        elif (int_click_gated[1][i] == 1):
-            if (int_click_gated[2][i] == 0):
-                gc_q = (int_click_gated[0][i]%(seq/2))*2
-            elif(int_click_gated[2][i] == 1):
-                gc_q = (int_click_gated[0][i]%(seq/2))*2 + 1
-            times_ref_click1.append(gc_q)
-    return times_ref_click0, times_ref_click1
+    return gc0, gc1
+
+
+    #int_click_gated[0] = int_click_gated[0] + gc_compensation
+    #print(int_click_gated)
+    #seq = 64  #[q_bins]
+    ## time_range = seq
+    #for i in range(len(int_click_gated[1])):
+    #    if (int_click_gated[1][i] == 0):
+    #        if (int_click_gated[2][i] == 0):
+    #            gc_q = (int_click_gated[0][i]%(seq/2))*2
+    #        elif(int_click_gated[2][i] == 1):
+    #            gc_q = (int_click_gated[0][i]%(seq/2))*2 + 1
+    #        times_ref_click0.append(gc_q)
+
+    #    elif (int_click_gated[1][i] == 1):
+    #        if (int_click_gated[2][i] == 0):
+    #            gc_q = (int_click_gated[0][i]%(seq/2))*2
+    #        elif(int_click_gated[2][i] == 1):
+    #            gc_q = (int_click_gated[0][i]%(seq/2))*2 + 1
+    #        times_ref_click1.append(gc_q)
+    #return times_ref_click0, times_ref_click1
 
 def sine_function(x, A, B, C, D):
     return A*np.sin(B*2*np.pi*x + C) + D
@@ -135,13 +147,13 @@ def best_shift(party):
     return_arr = fit_sine(party)
     # print(return_arr)
 
+
     amp_fre_arr=[]
     for amp,fre,i in return_arr:
         if (abs(amp) < 1000):
             if (0.1<fre<5):
                 amp_fre_arr.append(((abs(amp)*fre),i))
                 print(amp, fre, i)
-
     max_ele = max(amp_fre_arr, key=lambda t: t[0])
     best_shift = max_ele[1]
     print("Best shift: ", best_shift)
