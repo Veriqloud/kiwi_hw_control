@@ -92,6 +92,10 @@ def Update_Angles():
     Write_Angles(t['angle0'], t['angle1'], t['angle2'], t['angle3'])
 
 
+def Update_Decoy():
+    t = get_tmp()
+    decoy_state(t['am2_mode'])
+
 
 
 
@@ -200,8 +204,9 @@ def init_rst_default():
 def init_rst_tmp():
     t = {}
     t['am_mode'] = 'off'
+    t['am2_mode'] = 'off'
     t['am_shift'] = 0
-    t['pm_mode'] = 'seq64'
+    t['pm_mode'] = 'off'
     t['pm_shift'] = 0
     t['vca'] = 0
     t['am_bias'] = 0
@@ -228,6 +233,8 @@ def init_all():
     init_sync()
     init_fda()
     init_sda()
+    decoy_reset()
+    init_rst_tmp()
     init_apply_default()
 
 
@@ -241,8 +248,8 @@ def main():
             init_sync()
         elif args.sda:
             init_sda()
-#        elif args.ddr:
-#            init_ddr()
+        elif args.decoy:
+            decoy_reset()
         elif args.all:
             init_all()
         elif args.rst_default:
@@ -293,8 +300,8 @@ def main():
             update_tmp('am_mode', args.am_mode)
             Update_Dac()
         elif args.am2_mode:
-            update_tmp('am2_mode', args.am_mode)
-            Update_Dac()
+            update_tmp('am2_mode', args.am2_mode)
+            Update_Decoy()
         elif args.zero_pos:
             update_tmp('zero_pos', args.zero_pos)
             Update_Dac()
@@ -336,6 +343,8 @@ def main():
                              help="init fast dac")
     parser_init.add_argument("--sda", action="store_true", 
                              help="init slow dac")
+    parser_init.add_argument("--decoy", action="store_true", 
+                             help="reset decoy module")
     parser_init.add_argument("--sync", action="store_true", 
                              help="sync to PPS")
     parser_init.add_argument("--rst_default", action="store_true", 
@@ -356,7 +365,7 @@ def main():
                             help="bias of amplitude modulator; float [0,10] V")
     parser_set.add_argument("--am_mode", choices=['off', 'single', 'double', 'single64'],
                             help="send single pulse at 40MHz or double pulse at 80MHz or single64 at 80MHz/64")
-    parser_set.add_argument("--am2_mode", choices=['off', 'single', 'frng', 'trng'],
+    parser_set.add_argument("--am2_mode", choices=['off', 'single', 'fake_rng', 'true_rng'],
                             help="second amplitude modulator for decoy state")
     parser_set.add_argument("--am_shift", type=int, metavar=("steps"), 
                             help="time shift pulse generation in steps of 1.25ns")

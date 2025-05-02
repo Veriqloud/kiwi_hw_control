@@ -45,7 +45,7 @@ def get_tmp():
     t = {}
     floatlist = ['qdistance', 'pol0', 'pol1', 'pol2', 'pol3', 'vca', 'am_bias','am_bias_2',
                  'angle0', 'angle1', 'angle2', 'angle3']
-    strlist = ['spd_mode', 'am_mode', 'pm_mode', 'feedback', 'soft_gate', 'insert_zeros']
+    strlist = ['spd_mode', 'am_mode', 'pm_mode', 'feedback', 'soft_gate', 'insert_zeros', 'am2_mode']
     with open("config/tmp.txt") as f:
         lines = f.readlines()
         for l in lines:
@@ -868,16 +868,23 @@ def trigger_fine_slv2():
 
 def decoy_reset():
     Write(0x00012000 + 20,0x01)
-    time.sleep(2)
+    time.sleep(0.1)
     Write(0x00012000 + 20,0x00)
+
 #input fake rng
-def Test_Decoy():
+def decoy_state(mode):
     #dpram_rng_max_addr
     Write(0x00016000 + 28, 0x40)
     #Write data to rng_dpram
     Base_seq0 = 0x00016000 + 1024
-    rngseq0 = 0x00000001
-    rngseq1 = 0x00000000
+    if mode=='single':
+        rngseq0 = 0x00000001
+        rngseq1 = 0x00000000
+    elif mode=='off':
+        rngseq0 = 0x00000000
+        rngseq1 = 0x00000000
+    else:
+        exit("wrong decoy state string")
     Write(Base_seq0, rngseq0)
     Write(Base_seq0+4, rngseq1)
     #Write rng mode

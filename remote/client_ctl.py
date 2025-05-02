@@ -252,6 +252,19 @@ def client_start(commands_in):
                 t['fiber_delay'] = t['fiber_delay_mod'] + fiber_delay_long*80 
                 save_tmp(t)
             
+            #elif command == 'fd_decoy':
+            #    main.Write_To_Fake_Rng(gen_seq.seq_rng_single())
+            #    update_tmp('pm_mode', 'fake_rng')
+            #    update_tmp('am_mode', 'double')
+            #    update_tmp('insert_zeros', 'off')
+            #    main.Update_Dac()
+            #    m = client_socket.recv(4)
+            #    fiber_delay = int.from_bytes(m, byteorder='big')
+            #    t = get_tmp()
+            #    t['fiber_delay_mod'] = fiber_delay
+            #    t['fiber_delay'] = (fiber_delay-1)%80 + t['fiber_delay_long']
+            #    save_tmp(t)
+            
             
             elif command == 'fz_b':
                 update_tmp('am_mode', 'double')

@@ -731,7 +731,7 @@ def init_rst_default():
 
 def init_rst_tmp():
     t = {}
-    t['pm_mode'] = 'seq64'
+    t['pm_mode'] = 'off'
     t['pm_shift'] = 0
     t['feedback'] = 'off'
     t['insert_zeros'] = 'off'
@@ -771,6 +771,7 @@ def init_all():
     init_jic()
     init_tdc()
     init_ttl()
+    init_rst_tmp()
     init_apply_default()
 
 
