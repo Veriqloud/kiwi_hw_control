@@ -29,7 +29,10 @@ fn send_angles(alice: &mut TcpStream, files: Option<FileDescriptors>) -> std::io
         }
     };
     // angles stream is 128bit = 64 angles
-    for _i in 0..1000{
+    let mut buf: [u8;4] = [0;4];
+    alice.read_exact(&mut buf)?;
+    let num = u32::from_le_bytes(buf);
+    for _i in 0..num/32{
         let mut a : [u8;16] = [0; 16];
         let mut r : [u8;32] = [0; 32];
         fd.result.read_exact(&mut r)?;

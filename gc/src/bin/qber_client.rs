@@ -77,6 +77,8 @@ fn recv_angles(bob: &mut TcpStream, num: u32, file_angles: Option<File>, debug: 
     // save vector for debug: angle_alice, angle_bob, result
     let mut vdebug: Vec<[u8;3]> = Vec::new();
 
+    bob.write_all(&num.to_le_bytes())?;
+
     for _ in 0..num/32{
         file_angles.read_exact(&mut aa)?;
         bob.read_exact(&mut ab)?;

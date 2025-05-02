@@ -12,7 +12,7 @@ Bob=$SSH_BOB
 rsync -v lib/*.py $Bob:~/qline/hw_control/lib/
 rsync -v main_Bob.py $Bob:~/qline/hw_control/
 rsync -v server*.py $Bob:~/qline/hw_control/
-rsync -v ../gc/target/release/gc_server ../gc/target/release/qber_client $Bob:~/qline/hw_control/
+rsync -v ../gc/target/release/gc_server ../gc/target/release/qber_server $Bob:~/qline/hw_control/
 
 
 
