@@ -44,7 +44,7 @@ def get_tmp():
     """
     t = {}
     floatlist = ['qdistance', 'pol0', 'pol1', 'pol2', 'pol3', 'vca', 'am_bias','am_bias_2',
-                 'angle0', 'angle1', 'angle2', 'angle3']
+                 'angle0', 'angle1', 'angle2', 'angle3', 'vca_calib']
     strlist = ['spd_mode', 'am_mode', 'pm_mode', 'feedback', 'soft_gate', 'insert_zeros', 'am2_mode']
     with open("config/tmp.txt") as f:
         lines = f.readlines()

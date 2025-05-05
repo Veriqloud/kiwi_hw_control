@@ -585,7 +585,7 @@ def Read_Count():
     total_count = Read(BaseAddr + 64)
     hex_total_count = total_count.decode('utf-8').strip()
     dec_total_count = int(hex_total_count, 16)
-    print("Total count: ", dec_total_count)
+    #print("Total count: ", dec_total_count)
     return dec_total_count
 
 

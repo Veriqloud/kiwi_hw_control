@@ -167,6 +167,7 @@ def init_apply_default():
     t['vca'] = d['vca'] 
     t['qdistance'] = d['qdistance']
     t['am_bias'] = d['am_bias']
+    t['am_bias_2'] = d['am_bias_2']
     t['am_shift'] = d['am_shift']
     t['pm_shift'] = d['pm_shift']
     t['angle0'] = d['angle0']
@@ -187,8 +188,8 @@ def init_rst_default():
     d = {}
     d['vca'] = 2
     d['qdistance'] = 0.08
-    d['am_bias'] = 0
-    d['am_bias_2'] = 0
+    d['am_bias'] = -0.8
+    d['am_bias_2'] = 6
     d['am_shift'] = 514
     d['pm_shift'] = 514
     d['angle0'] = 0
@@ -209,6 +210,7 @@ def init_rst_tmp():
     t['pm_mode'] = 'off'
     t['pm_shift'] = 0
     t['vca'] = 0
+    t['vca_calib'] = 0
     t['am_bias'] = 0
     t['am_bias_2'] = 0
     t['angle0'] = 0
