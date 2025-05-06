@@ -96,26 +96,26 @@ while True:
                     send_u32(count)
 
     ###############################################################
-            elif command == 'ad_test':
-                update_tmp('soft_gate', 'off')
-                main.Update_Softgate()
-                main.Ensure_Spd_Mode('gated')
-                #############################################
-                ad=8000
-                update_tmp('gate_delay',ad)
-                main.Gen_Gate()
-                main.Download_Time(10000, 'verify_gate_off')
-                conn.sendall("done".encode())
-                #main.Ensure_Spd_Mode('continuous')
-                time.sleep(0.1)
+#            elif command == 'ad_test':
+#                update_tmp('soft_gate', 'off')
+#                main.Update_Softgate()
+#                main.Ensure_Spd_Mode('gated')
+#                #############################################
+#                ad=8000
+#                update_tmp('gate_delay',ad)
+#                main.Gen_Gate()
+#                main.Download_Time(10000, 'verify_gate_off')
+#                conn.sendall("done".encode())
+#                #main.Ensure_Spd_Mode('continuous')
+#                time.sleep(0.1)
     ###################################################################
 
             elif command == 'ad':
                 update_tmp('soft_gate', 'off')
                 main.Update_Softgate()
                 main.Ensure_Spd_Mode('gated')
-                main.Download_Time(10000, 'verify_gate_off')
-                file_off = "~/qline/hw_control/data/tdc/verify_gate_off.txt"
+                main.Download_Time(10000, 'verify_gate_ad_0')
+                file_off = "~/qline/hw_control/data/tdc/verify_gate_ad_0.txt"
 
                 max_iter = 2
                 iter_count = 0
@@ -143,8 +143,9 @@ while True:
                     update_tmp('gate_delay', ad)
                     update_tmp('gate_delay0', ad)
                     main.Gen_Gate()
-                    main.Download_Time(10000, 'verify_gate_off')
                     iter_count += 1
+                    main.Download_Time(10000, 'verify_gate_ad_'+str(iter_count))
+                    file_off = "~/qline/hw_control/data/tdc/verify_gate_ad_"+str(iter_count)+".txt"
 
                 sendc('done')
                 main.Ensure_Spd_Mode('continuous')

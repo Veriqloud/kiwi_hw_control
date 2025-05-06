@@ -91,7 +91,7 @@ def client_start(commands_in):
                 d = get_default()
                 vca = d['vca']
                 count = 0
-                while  (count < 2000) and (vca <= 4.8) :
+                while  (count < 3000) and (vca <= 4.8) :
                     vca = round(vca + 0.2, 2)
                     main.Set_Vca(round(vca, 2))
                     time.sleep(0.2)
@@ -112,6 +112,7 @@ def client_start(commands_in):
                 main.Update_Dac()
                 counts = []
                 main.Set_Am_Bias_2(0) 
+                time.sleep(0.2)
                 for i in range(21):
                     main.Set_Am_Bias(bias_default -1 + 0.1*i)
                     sendc('get counts')
@@ -119,40 +120,42 @@ def client_start(commands_in):
                 min_counts = min(counts)
                 min_idx = counts.index(min_counts)
                 print("Min count: ", min_counts , "index: ", min_idx)
-                am_bias_opt = -1 + 0.1*min_idx
+                am_bias_opt = bias_default -1 + 0.1*min_idx
                 main.Set_Am_Bias(am_bias_opt)
                 main.Set_Am_Bias_2(bias_default_1)
 
             if command == 'find_am_bias_2':
-                update_tmp('am_mode', 'off')
+                update_tmp('am_mode', 'double')
                 main.Update_Dac()
-                t = get_tmp()
-                bias_default = t['am_bias_2']
-                bias_default_1 = t['am_bias'] 
-                t['am_mode'] = 'off'
-                save_tmp(t)
+                #t = get_tmp()
+                d = get_default()
+                bias_default = d['am_bias_2']
+                #bias_default_1 = t['am_bias'] 
+                #t['am_mode'] = 'off'
+                #save_tmp(t)
                 main.Update_Dac()
                 counts = []
-                main.Set_Am_Bias(0) 
+                #main.Set_Am_Bias(0) 
+                time.sleep(0.2)
                 for i in range(21):
-                    main.Set_Am_Bias_2(0 + 0.1*i)
+                    main.Set_Am_Bias_2(bias_default -3 + 0.1*i)
                     sendc('get counts')
                     counts.append(rcv_u32())
                 min_counts = min(counts)
                 min_idx = counts.index(min_counts)
                 print("Min count: ", min_counts , "index: ", min_idx)
-                am_bias_opt = 0 + 0.1*min_idx
+                am_bias_opt = bias_default -3 + 0.1*min_idx
                 main.Set_Am_Bias_2(round(am_bias_opt + 2, 2)) 
-                main.Set_Am_Bias(bias_default_1)
+                #main.Set_Am_Bias(bias_default_1)
 
 
 ###################################################################
-            elif command == 'ad_test':
-                update_tmp('am_mode', 'off')
-                main.Update_Dac()
-                print(client_socket.recv(4))
-                update_tmp('am_mode', 'double')
-                main.Update_Dac()
+#            elif command == 'ad_test':
+#                update_tmp('am_mode', 'off')
+#                main.Update_Dac()
+#                print(client_socket.recv(4))
+#                update_tmp('am_mode', 'double')
+#                main.Update_Dac()
 ###################################################################
 
 
@@ -160,9 +163,12 @@ def client_start(commands_in):
             elif command == 'ad':
                 update_tmp('am_mode', 'off')
                 main.Update_Dac()
+                t = get_tmp()
+                main.Set_Am_Bias(t['am_bias'] + 1)
                 rcvc()
                 update_tmp('am_mode', 'double')
                 main.Update_Dac()
+                main.Set_Am_Bias(t['am_bias'])
 ###################################################################
 
 

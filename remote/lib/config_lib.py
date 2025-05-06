@@ -495,7 +495,7 @@ def Config_Sda():
 # channel 7 is for vca, channel 0 to 3 is for pol controller
 def Set_vol(channel, voltage):
     vz = float(voltage)
-    if (channel == 4 or channel == 6 ):
+    if (channel == 4 or channel == 5 ):
         data_vol = int(((vz + 10) * (1<<16)-1)/20)  
     elif (channel == 7 ):
         data_vol = int((vz * (1<<16)-1)/10)
@@ -804,7 +804,7 @@ def Get_Id_Fda():
 def ttl_reset():
     Write(0x0001200c,0x01)
     Write(0x0001200c,0x00)
-    time.sleep(1.2)
+    time.sleep(0.2)
     #print("Reset TTL gate module")
 #Generate the pulse for APD gate
 #Input parameter: duty cycle, tune delay, fine delay, increase/decrease fine delay step

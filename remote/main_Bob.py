@@ -144,8 +144,8 @@ def Gen_Gate():
     save_tmp(t)
 
     print("gate pulse delay set to", delay/1000, "sn")
-    #print(coarse, fine0, fine1, fine2)
-    #print(coarse, direction0, direction1, direction2)
+    print(coarse, fine0, fine1, fine2)
+    print(coarse, direction0, direction1, direction2)
 
 
 def Find_Best_Shift(party):
@@ -676,8 +676,8 @@ def init_ttl():
     t['gate_delayf0'] = 0
     t['gate_delayf1'] = 0
     t['gate_delayf2'] = 0
-    d = get_default()
-    t['gate_delay'] = d['gate_delay']
+    #d = get_default()
+    #t['gate_delay'] = d['gate_delay']
     save_tmp(t)
     Gen_Gate()
 
@@ -764,6 +764,8 @@ def init_rst_tmp():
     save_tmp(t)
 
 def init_all():
+    init_rst_tmp()
+    init_apply_default()
     init_ltc()
     init_sync()
     init_fda()
@@ -771,8 +773,6 @@ def init_all():
     init_jic()
     init_tdc()
     init_ttl()
-    init_rst_tmp()
-    init_apply_default()
 
 
 
