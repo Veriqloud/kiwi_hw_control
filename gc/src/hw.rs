@@ -137,8 +137,8 @@ pub fn init_ddr(alice: bool){
     }
     println!("decoy delay: {:?}", decoy_delay);
     // we have to add 64 to the delay due to some latency in the fpga
-    ddr_data_reg(4, fiber_delay + 64, decoy_delay + 64, 50000);
-    ddr_data_reg(3, fiber_delay + 64, decoy_delay + 64, 50000);
+    ddr_data_reg(4, fiber_delay, decoy_delay, 50000);
+    ddr_data_reg(3, fiber_delay, decoy_delay, 50000);
     ddr_data_init();
     println!("init ddr done");
 }

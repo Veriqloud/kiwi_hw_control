@@ -197,6 +197,7 @@ def client_start(commands_in):
                 rcvc()
                 update_tmp('am_mode', 'double')
                 main.Update_Dac()
+                rcvc()
 
 
 
@@ -206,6 +207,7 @@ def client_start(commands_in):
                 t['pm_mode'] = 'off'
                 save_tmp(t)
                 main.Update_Dac()
+                rcvc()
 
             elif command == 'fs_a':
                 t = get_tmp()
@@ -232,6 +234,7 @@ def client_start(commands_in):
                 update_tmp('insert_zeros', 'off')
                 main.Write_To_Fake_Rng(gen_seq.seq_rng_zeros())
                 main.Update_Dac()
+                rcvc()
             
             elif command == 'fd_b_long':
                 update_tmp('am_mode', 'double')
@@ -239,6 +242,7 @@ def client_start(commands_in):
                 update_tmp('insert_zeros', 'off')
                 main.Write_To_Fake_Rng(gen_seq.seq_rng_zeros())
                 main.Update_Dac()
+                rcvc()
             
             elif command == 'fd_a':
                 main.Write_To_Fake_Rng(gen_seq.seq_rng_single())
@@ -287,6 +291,7 @@ def client_start(commands_in):
                 update_tmp('insert_zeros', 'off')
                 main.Write_To_Fake_Rng(gen_seq.seq_rng_zeros())
                 main.Update_Dac()
+                rcvc()
             
             elif command == 'fz_a':
                 t = get_tmp()

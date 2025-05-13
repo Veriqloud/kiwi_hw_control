@@ -78,13 +78,36 @@ def Update_Softgate():
     Time_Calib_Reg(command, t['t0'], 0, g0, w, g1, w)
             
 
+def Set_Pol(ch, vol):
+    if ch>3:
+        exit ("wrong channel in Set_Pol")
+    if (vol<0) or (vol>5):
+        exit ("wrong voltage in Set_Pol")
+    Set_vol(ch,vol)
+
 def Update_Pol():
     t = get_tmp()
     p = [t['pol0'], t['pol1'], t['pol2'], t['pol3']]
     for ch,vol in enumerate(p):
-        if (vol>5 or vol <0):
-            exit ("voltage not in the good range")
-        Set_vol(ch,vol)
+        Set_Pol(ch,vol)
+
+def Optimize_Pos():
+    t = get_tmp()
+    p = [t['pol0'], t['pol1'], t['pol2'], t['pol3']]
+    diff = np.zeros(4)
+    counts = np.zeros(4)
+    for ch in range(4):
+        Set_Pol(ch, p[ch] - 0.2)
+        time.sleep(0.2)
+        c1 = get_counts()
+        Set_Pol(ch, p[ch] + 0.2)
+        time.sleep(0.2)
+        c2 = get_counts()
+        diff[ch] = (c1-c2)
+        counts[ch] = (c1+c2)/2
+    snr = diff / np.sqrt(counts)
+    print(snr)
+
 
 
 def Config_Fda():
@@ -746,10 +769,10 @@ def init_rst_tmp():
     t['spd_mode'] = 'continuous'
     t['spd_deadtime'] = 100
     t['spd_eff'] = 20
-    t['pol0'] = 0
-    t['pol1'] = 0
-    t['pol2'] = 0
-    t['pol3'] = 0
+    t['pol0'] = 2.5
+    t['pol1'] = 2.5
+    t['pol2'] = 2.5
+    t['pol3'] = 2.5
     t['gate_delay0'] = 0
     t['gate_delay'] = 0
     t['soft_gate'] = 'off'

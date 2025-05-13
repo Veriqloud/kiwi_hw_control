@@ -190,6 +190,7 @@ while True:
                 sendc("gates off done")
                 time.sleep(0.1)
                 main.Download_Time(10000, 'verify_gate_double')
+                sendc('ok')
 
 
 
@@ -211,6 +212,7 @@ while True:
                 pm_shift = main.Find_Best_Shift('bob')
                 update_tmp('pm_shift', pm_shift_coarse + pm_shift)
                 main.Update_Dac()
+                sendc('ok')
            
             elif command == 'fs_a':
                 main.Ensure_Spd_Mode('gated')
@@ -236,6 +238,7 @@ while True:
                 t['fiber_delay_mod'] = fiber_delay
                 t['fiber_delay'] = fiber_delay % 80 + t['fiber_delay_long']
                 save_tmp(t)
+                sendc('ok')
             
             elif command == 'fd_b_long':
                 main.Ensure_Spd_Mode('gated')
@@ -245,6 +248,7 @@ while True:
                 t['fiber_delay_long'] = fiber_delay
                 t['fiber_delay'] = t['fiber_delay_mod']%80 + fiber_delay*80
                 save_tmp(t)
+                sendc('ok')
             
             elif command == 'fd_a':
                 main.Ensure_Spd_Mode('gated')
@@ -262,6 +266,7 @@ while True:
                 zero_pos = main.Find_Zero_Pos_B()
                 update_tmp('zero_pos', zero_pos)
                 main.Update_Dac()
+                sendc('ok')
             
             elif command == 'fz_a':
                 main.Ensure_Spd_Mode('gated')
