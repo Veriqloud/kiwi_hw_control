@@ -1,7 +1,9 @@
+use clap::Parser;
+use qber::config::ConfigFifoBob;
 use std::net::{TcpListener, TcpStream};
 use std::fs::{OpenOptions, File};
 use std::io::prelude::*;
-use gc::comm::{Qber, Comm};
+use qber::comm::{Qber, Comm};
 //use std::{thread, time};
 
 
@@ -14,16 +16,22 @@ struct FileDescriptors {
 }
 
 
+#[derive(Parser, Debug)]
+struct Cli {
+    /// Provide a config file for the fifos.
+    #[arg(short, default_value="~config/fifos.json")]
+    pub fifo_path: String,
+}
 
 
-fn send_angles(alice: &mut TcpStream, files: Option<FileDescriptors>) -> std::io::Result<Option<FileDescriptors>>{
+fn send_angles(alice: &mut TcpStream, fifos: &ConfigFifoBob, files: Option<FileDescriptors>) -> std::io::Result<Option<FileDescriptors>>{
     // reuse file descriptors if already opened earlier
     let mut fd = match files{
         Some(fd) => {fd}
         None => {
             let fd = FileDescriptors {
-                angles: OpenOptions::new().read(true).open("/dev/xdma0_c2h_3").expect("opening /dev/xdma0_c2h_3"),
-                result: OpenOptions::new().read(true).open("result.f").expect("opening result fifo"),
+                angles: OpenOptions::new().read(true).open(&fifos.angle_file_path).expect("opening /dev/xdma0_c2h_3"),
+                result: OpenOptions::new().read(true).open(&fifos.click_result_file_path).expect("opening result fifo"),
                 };
             fd
         }
@@ -44,14 +52,14 @@ fn send_angles(alice: &mut TcpStream, files: Option<FileDescriptors>) -> std::io
 }
 
 
-fn handle_alice(alice: &mut TcpStream) -> std::io::Result<()>{
+fn handle_alice(alice: &mut TcpStream, fifos: &ConfigFifoBob) -> std::io::Result<()>{
     let mut files: Option<FileDescriptors> = None;
     loop {
         match alice.recv::<Qber>() {
             Ok(message) => {
                 match message{
                     Qber::SendAngles => {
-                        files = send_angles(alice, files)?;
+                        files = send_angles(alice, &fifos, files)?;
                     }
                 }
             }
@@ -65,6 +73,9 @@ fn handle_alice(alice: &mut TcpStream) -> std::io::Result<()>{
 
 
 fn main() -> std::io::Result<()> {
+    
+    let cli = Cli::parse();
+    let fifos: ConfigFifoBob = serde_json::from_str(&cli.fifo_path).expect("deserializing network file");
 
     let listener = TcpListener::bind("0.0.0.0:15404")
         .expect("TcpListener could not bind to address\n");
@@ -74,7 +85,7 @@ fn main() -> std::io::Result<()> {
             match stream {
                 Ok(mut alice) => {
                     println!("connected to Alice");
-                    handle_alice(&mut alice).unwrap_or_else(|e| match e.kind(){
+                    handle_alice(&mut alice, &fifos).unwrap_or_else(|e| match e.kind(){
                         std::io::ErrorKind::BrokenPipe => println!("Warning: Broken Pipe; closing stream"),
                         std::io::ErrorKind::Other => println!("{}", e),
                         std::io::ErrorKind::ConnectionReset => println!("{}", e),

@@ -1,12 +1,7 @@
 use std::net::TcpStream;
 use std::io::prelude::*;
-//use clap::error::ErrorKind;
-//use std::io;
-use clap::ValueEnum;
 use std::os::unix::net::UnixStream;
-//use std::fs::File;
-//use itertools::izip;
-//use std::io::prelude::*;
+use clap::ValueEnum;
 
 // Messages from node to gc_client
 #[derive(Debug, Clone, ValueEnum)]
@@ -25,14 +20,6 @@ pub enum Response{
     //Running = 3
 }
 
-// Messages from Alice to Bob
-#[derive(Debug)]
-pub enum HwControl{
-    InitDdr = 1,
-    SyncAtPps = 2,
-    //SendGc = 3,
-    //SendAngles = 4,
-}
 
 // Messages from Alice to Bob
 #[derive(Debug)]
@@ -70,28 +57,13 @@ impl From<u8> for Response{
     }
 }
 
-impl From<u8> for HwControl{
-    fn from(value: u8) -> Self {
-        const INITDDR: u8 = HwControl::InitDdr as u8;
-        const SYNCATPPS: u8 = HwControl::SyncAtPps as u8;
-        //const SENDGC: u8 = HwControl::SendGc as u8;
-        //const SENDANGLES: u8 = HwControl::SendAngles as u8;
-        match value {
-            INITDDR => HwControl::InitDdr,
-            SYNCATPPS => HwControl::SyncAtPps,
-            //SENDGC => HwControl::SendGc,
-            //SENDANGLES => HwControl::SendAngles,
-            _ => panic!("Byte cannot be converted to HwControl")
-        }
-    }
-}
 
 impl From<u8> for Qber{
     fn from(value: u8) -> Self {
         const SENDANGLES: u8 = Qber::SendAngles as u8;
         match value {
             SENDANGLES => Qber::SendAngles,
-            _ => panic!("Byte cannot be converted to HwControl")
+            _ => panic!("Byte cannot be converted to Qber message")
         }
     }
 }
@@ -105,9 +77,6 @@ impl ToByte for Request{
     fn tobyte(self) -> u8{ self as u8 }
 }
 impl ToByte for Response{
-    fn tobyte(self) -> u8{ self as u8 }
-}
-impl ToByte for HwControl{
     fn tobyte(self) -> u8{ self as u8 }
 }
 impl ToByte for Qber{
@@ -155,23 +124,6 @@ impl Comm for TcpStream{
     }
 }
 
-
-//#[derive(Debug, Deserialize, Serialize, PartialEq)]
-//pub struct Configuration {
-//    pub command_socket_path: String,
-//    pub angle_file_path: String,
-//    pub click_result_file_path: String,
-//}
-//
-//impl Default for Configuration {
-//    fn default() -> Self {
-//        Self {
-//            command_socket_path: String::from_str("./xdma0_user").unwrap(),
-//            angle_file_path: String::from_str("/dev/xdma0_c2h_3").unwrap(),
-//            click_result_file_path: String::from_str("./click_result").unwrap(),
-//        }
-//    }
-//}
 
 
 

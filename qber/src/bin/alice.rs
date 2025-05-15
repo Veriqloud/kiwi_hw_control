@@ -1,13 +1,14 @@
 use clap::Parser;
-use gc::comm::{Comm, Qber, Request, Response};
+use qber::comm::{Comm, Qber, Request, Response};
+use qber::config::{ConfigNetworkAlice, ConfigFifoAlice};
 use std::io::{Read, Write};
 use std::os::unix::net::UnixStream;
 //use std::io::prelude::*;
-use std::path::PathBuf;
-use std::env::var;
-use serde::Deserialize;
+//use std::path::PathBuf;
+//use std::env::var;
+//use serde::Deserialize;
 use std::net::TcpStream;
-use std::fs;
+//use std::fs;
 use std::fs::{File, OpenOptions};
 use std::fmt;
 //use std::{thread, time};
@@ -18,16 +19,17 @@ use std::fmt;
 struct Cli {
     /// number of clicks to average over
     num: u32,
-    /// message to send
+    /// Save files for debug
     #[arg(value_enum, short, long)]
     debug: bool,
+    /// Provide a config file for the fifos.
+    #[arg(short, default_value="~config/fifos.json")]
+    pub fifo_path: String,
+    /// Provide a config file for the network.
+    #[arg(short, default_value="~config/network.json")]
+    pub network_path: String,
 }
 
-#[derive(Deserialize, Clone, Debug)]
-struct Configuration{
-//    bob_gc: String,
-    bob_qber: String,
-}
 
 // for printing the matrix nicely
 struct QberMatrix([[f64;4]; 4]);
@@ -57,11 +59,11 @@ impl fmt::Display for Line{
     }
 }
 
-fn recv_angles(bob: &mut TcpStream, num: u32, file_angles: Option<File>, debug: bool) -> std::io::Result<Option<File>>{
+fn recv_angles(bob: &mut TcpStream, fifos: &ConfigFifoAlice, num: u32, file_angles: Option<File>, debug: bool) -> std::io::Result<Option<File>>{
     // reuse file descriptors if already opened earlier
     let mut file_angles = match file_angles{
         Some(fd) => {fd}
-        None => {OpenOptions::new().read(true).open("/dev/xdma0_c2h_3").expect("opening /dev/xdma0_c2h_3")}
+        None => {OpenOptions::new().read(true).open(&fifos.angle_file_path).expect("opening /dev/xdma0_c2h_3")}
     };
     // 4x4 matrix for statistics
     let mut m0 :[[u32;4]; 4] = [[0;4]; 4];
@@ -135,11 +137,13 @@ fn main() -> std::io::Result<()> {
     let cli = Cli::parse();
 
     // connect to qber_server Bob
-    let mut configfile = PathBuf::from(var("CONFIGPATH").expect("os variable CONFIGPATH"));
-    configfile.push("ip.json");
-    let config_str = fs::read_to_string(configfile).expect("could not read config file\n");
-    let config: Configuration = serde_json::from_str(&config_str).expect("JSON not well formatted\n");
-    let mut bob = TcpStream::connect(config.bob_qber).expect("connecting to Bob via TcpStream\n");
+//    let mut configfile = PathBuf::from(var("CONFIGPATH").expect("os variable CONFIGPATH"));
+//    configfile.push("ip.json");
+//    let config_str = fs::read_to_string(configfile).expect("could not read config file\n");
+
+    let network: ConfigNetworkAlice = serde_json::from_str(&cli.network_path).expect("deserializing network file");
+    let fifos: ConfigFifoAlice = serde_json::from_str(&cli.fifo_path).expect("deserializing network file");
+    let mut bob = TcpStream::connect(network.bob_qber).expect("connecting to Bob via TcpStream\n");
     println!("connected to Bob");
 
     
@@ -170,7 +174,7 @@ fn main() -> std::io::Result<()> {
     let mut file_angles: Option<File> = None;
     loop {
         bob.send(Qber::SendAngles)?;
-        file_angles = recv_angles(&mut bob, cli.num, file_angles, debug)?;
+        file_angles = recv_angles(&mut bob, &fifos, cli.num, file_angles, debug)?;
     }
 
 }
