@@ -18,7 +18,7 @@ fn main() -> std::io::Result<()> {
     
     let cli = Cli::parse();
 
-    let mut stream = UnixStream::connect("startstop.s")
+    let mut stream = UnixStream::connect("/home/vq-user/qline/startstop.s")
         .expect("could not connect to UnixStream");
 
     stream.send(cli.message)?;

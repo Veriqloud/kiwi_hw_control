@@ -1,5 +1,4 @@
-//use std::str::FromStr;
-use serde::Deserialize;
+use serde::{Deserialize};
 
 
 
@@ -8,8 +7,8 @@ use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
 pub struct ConfigNetworkAlice {
-    pub bob_gc: String,
-    pub bob_qber: String,
+    pub ip_bob_gc: String,
+    pub ip_bob_qber: String,
 }
 
 
@@ -21,40 +20,30 @@ pub struct ConfigFifoAlice {
 
 #[derive(Debug, Deserialize)]
 pub struct ConfigFifoBob {
-    pub command_socket_path: String,
     pub angle_file_path: String,
     pub click_result_file_path: String,
 }
 
 
+impl ConfigNetworkAlice{
+    pub fn from_path(path: String) -> Self{
+        let s = std::fs::read_to_string(path).expect("opening config network Alice file");
+        serde_json::from_str(&s).expect("deserializing file")
+    }
+}
+
+impl ConfigFifoAlice{
+    pub fn from_path(path: String) -> Self{
+        let s = std::fs::read_to_string(path).expect("opening config fifo Alice file");
+        serde_json::from_str(&s).expect("deserializing file")
+    }
+}
+
+impl ConfigFifoBob{
+    pub fn from_path(path: String) -> Self{
+        let s = std::fs::read_to_string(path).expect("opening config fifo Bob file");
+        serde_json::from_str(&s).expect("deserializing file")
+    }
+}
 
 
-//impl Default for ConfigNetworkAlice {
-//    fn default() -> Self {
-//        Self {
-//            bob_gc: String::from_str("192.168.1.77:15403").unwrap(),
-//            bob_qber: String::from_str("192.168.1.77:15404").unwrap(),
-//        }
-//    }
-//}
-//
-//
-//impl Default for ConfigFifoAlice {
-//    fn default() -> Self {
-//        Self {
-//            command_socket_path: String::from_str("~/qline/startstop.s").unwrap(),
-//            angle_file_path: String::from_str("/dev/xdma0_c2h_3").unwrap(),
-//        }
-//    }
-//}
-//
-//
-//impl Default for ConfigFifoBob {
-//    fn default() -> Self {
-//        Self {
-//            command_socket_path: String::from_str("~/qline/startstop.s").unwrap(),
-//            angle_file_path: String::from_str("/dev/xdma0_c2h_3").unwrap(),
-//            click_result_file_path: String::from_str("~/qline/result.f").unwrap(),
-//        }
-//    }
-//}

@@ -1,23 +1,15 @@
 use clap::Parser;
-use std::fs;
 use std::fs::OpenOptions;
 use gc::comm::{Request, Response, HwControl, Comm};
 use gc::hw::{init_ddr, read_gc_from_bob, sync_at_pps, wait_for_pps, write_gc_to_fpga};
+use gc::config::ConfigNetworkAlice;
 use std::thread;
-use std::path::PathBuf;
-use std::env::var;
 use std::net::TcpStream;
 use std::os::unix::net::UnixListener;
 use std::sync::mpsc::{Receiver, Sender, channel, TryRecvError};
-use serde::Deserialize;
 use std::io::Write;
 
 
-#[derive(Deserialize, Clone, Debug)]
-struct Configuration{
-    bob_gc: String,
-//    bob_qber: String,
-}
 
 
 #[derive(Parser)]
@@ -121,12 +113,12 @@ fn handle_bob(rx: Receiver<Request>, tx: Sender<Response>, ip_bob: String) {
 fn handle_control(tx: Sender<Request>, rx: Receiver<Response>) {
     
     // remove unix socket if it exists
-    std::fs::remove_file("startstop.s").unwrap_or_else(|e| match e.kind() {
+    std::fs::remove_file("/home/vq-user/qline/startstop.s").unwrap_or_else(|e| match e.kind() {
         std::io::ErrorKind::NotFound => (),
         _ => panic!("{}", e),
         });
 
-    let listener = UnixListener::bind("startstop.s")
+    let listener = UnixListener::bind("/home/vq-user/qline/startstop.s")
         .expect("UnixListener could not bind to address\n");
 
     for stream in listener.incoming(){
@@ -150,16 +142,12 @@ fn main() -> std::io::Result<()> {
 
 
     loop {
-        let mut configfile = PathBuf::from(var("CONFIGPATH").expect("os variable CONFIGPATH"));
-        configfile.push("ip.json");
-
-        let config_str = fs::read_to_string(configfile).expect("could not read config file\n");
-        let config: Configuration = serde_json::from_str(&config_str).expect("JSON not well formatted\n");
+        let network = ConfigNetworkAlice::from_path("/home/vq-user/qline/config/network.json".into());
 
         let (c1_tx, c1_rx) = channel();
         let (c2_tx, c2_rx) = channel();
         let thread_join_handle = thread::spawn(move || {
-            handle_bob(c1_rx, c2_tx, config.bob_gc)
+            handle_bob(c1_rx, c2_tx, network.ip_bob_gc)
         });
         handle_control(c1_tx, c2_rx);
         

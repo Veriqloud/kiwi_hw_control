@@ -19,7 +19,7 @@ struct FileDescriptors {
 #[derive(Parser, Debug)]
 struct Cli {
     /// Provide a config file for the fifos.
-    #[arg(short, default_value="~config/fifos.json")]
+    #[arg(short, default_value="/home/vq-user/qline/config/fifos.json")]
     pub fifo_path: String,
 }
 
@@ -30,7 +30,7 @@ fn send_angles(alice: &mut TcpStream, fifos: &ConfigFifoBob, files: Option<FileD
         Some(fd) => {fd}
         None => {
             let fd = FileDescriptors {
-                angles: OpenOptions::new().read(true).open(&fifos.angle_file_path).expect("opening /dev/xdma0_c2h_3"),
+                angles: OpenOptions::new().read(true).open(&fifos.angle_file_path).expect("opening angle file"),
                 result: OpenOptions::new().read(true).open(&fifos.click_result_file_path).expect("opening result fifo"),
                 };
             fd
@@ -75,7 +75,7 @@ fn handle_alice(alice: &mut TcpStream, fifos: &ConfigFifoBob) -> std::io::Result
 fn main() -> std::io::Result<()> {
     
     let cli = Cli::parse();
-    let fifos: ConfigFifoBob = serde_json::from_str(&cli.fifo_path).expect("deserializing network file");
+    let fifos = ConfigFifoBob::from_path(cli.fifo_path);
 
     let listener = TcpListener::bind("0.0.0.0:15404")
         .expect("TcpListener could not bind to address\n");

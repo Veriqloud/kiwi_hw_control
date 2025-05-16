@@ -14,7 +14,7 @@ use std::io::prelude::*;
 fn send_gc(alice: &mut TcpStream) -> std::io::Result<()>{
     let mut file_gcr =  OpenOptions::new().read(true).open("/dev/xdma0_c2h_0").expect("opening /dev/xdma0_c2h_0");
     let mut file_gcw = OpenOptions::new().write(true).open("/dev/xdma0_h2c_0").expect("opening /dev/xdma0_h2c_0");
-    let mut file_result = OpenOptions::new().write(true).open("result.f").expect("opening result fifo");
+    let mut file_result = OpenOptions::new().write(true).open("/home/vq-user/qline/result.f").expect("opening result fifo");
     let mut i = 0;
     loop {
         let (gc, result) = process_gcr_stream(&mut file_gcr)?;
@@ -54,11 +54,11 @@ fn handle_alice(alice: &mut TcpStream) -> std::io::Result<()>{
 fn main() -> std::io::Result<()> {
 
     // delete and remake fifo file for result values
-    std::fs::remove_file("result.f").unwrap_or_else(|e| match e.kind() {
+    std::fs::remove_file("/home/vq-user/qline/result.f").unwrap_or_else(|e| match e.kind() {
         std::io::ErrorKind::NotFound => (),
         _ => panic!("{}", e),
         });
-    nix::unistd::mkfifo("result.f", nix::sys::stat::Mode::from_bits(0o644).unwrap())?;
+    nix::unistd::mkfifo("/home/vq-user/qline/result.f", nix::sys::stat::Mode::from_bits(0o644).unwrap())?;
     
     
 

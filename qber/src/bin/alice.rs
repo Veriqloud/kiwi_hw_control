@@ -23,10 +23,10 @@ struct Cli {
     #[arg(value_enum, short, long)]
     debug: bool,
     /// Provide a config file for the fifos.
-    #[arg(short, default_value="~config/fifos.json")]
+    #[arg(short, default_value="/home/vq-user/qline/config/fifos.json")]
     pub fifo_path: String,
     /// Provide a config file for the network.
-    #[arg(short, default_value="~config/network.json")]
+    #[arg(short, default_value="/home/vq-user/qline/config/network.json")]
     pub network_path: String,
 }
 
@@ -63,7 +63,7 @@ fn recv_angles(bob: &mut TcpStream, fifos: &ConfigFifoAlice, num: u32, file_angl
     // reuse file descriptors if already opened earlier
     let mut file_angles = match file_angles{
         Some(fd) => {fd}
-        None => {OpenOptions::new().read(true).open(&fifos.angle_file_path).expect("opening /dev/xdma0_c2h_3")}
+        None => {OpenOptions::new().read(true).open(&fifos.angle_file_path).expect("opening angle file")}
     };
     // 4x4 matrix for statistics
     let mut m0 :[[u32;4]; 4] = [[0;4]; 4];
@@ -132,19 +132,17 @@ fn recv_angles(bob: &mut TcpStream, fifos: &ConfigFifoAlice, num: u32, file_angl
     Ok(Some(file_angles))
 }
 
+
+
 fn main() -> std::io::Result<()> {
     
     let cli = Cli::parse();
 
-    // connect to qber_server Bob
-//    let mut configfile = PathBuf::from(var("CONFIGPATH").expect("os variable CONFIGPATH"));
-//    configfile.push("ip.json");
-//    let config_str = fs::read_to_string(configfile).expect("could not read config file\n");
+    let network = ConfigNetworkAlice::from_path(cli.network_path);
+    let fifos = ConfigFifoAlice::from_path(cli.fifo_path);
 
-    let network: ConfigNetworkAlice = serde_json::from_str(&cli.network_path).expect("deserializing network file");
-    let fifos: ConfigFifoAlice = serde_json::from_str(&cli.fifo_path).expect("deserializing network file");
-    let mut bob = TcpStream::connect(network.bob_qber).expect("connecting to Bob via TcpStream\n");
-    println!("connected to Bob");
+    let mut bob = TcpStream::connect(network.ip_bob_qber).expect("connecting to Bob_qber via TcpStream\n");
+    println!("connected to Bob_qber");
 
     
     let mut debug = false;
@@ -156,16 +154,16 @@ fn main() -> std::io::Result<()> {
             _ => panic!("{}", e),
             });
         
-        let mut stream = UnixStream::connect("startstop.s").expect("could not connect to UnixStream");
+        let mut stream = UnixStream::connect(&fifos.command_socket_path).expect("could not connect to UnixStream");
         stream.send(Request::DebugOn)?;
         let _m: Response = stream.recv()?;
         //println!("message received {:?}", m);
     }
     
-    let mut stream = UnixStream::connect("startstop.s").expect("could not connect to UnixStream");
+    let mut stream = UnixStream::connect(&fifos.command_socket_path).expect("could not connect to UnixStream");
     stream.send(Request::Start)?;
     let _m: Response = stream.recv()?;
-    //println!("message received {:?}", m);
+    println!("message received {:?}", _m);
 
 
 
