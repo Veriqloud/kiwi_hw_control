@@ -99,19 +99,21 @@ fn xdma_read(addr: usize, offset: u64) -> u32{
 
 // write some parameters to the fpga (see fpga doc)
 fn ddr_data_reg(command: u32, gc_delay: u32, decoy_delay: u32, delay_ab: u32){
+    //println!("{:?} {:?}", gc_delay, decoy_delay);
     let offset = 0x1000;
     let fiber_delay = (gc_delay + 1) / 2;
     let pair_mode = (gc_delay + 1) % 2;
-    let decoy_delay = (decoy_delay + 1) / 2;
-    let decoy_pair_mode = (decoy_delay + 1) % 2;
+    let de_delay = (decoy_delay + 1) / 2;
+    let de_pair_mode = (decoy_delay + 1) % 2;
+    //println!("{:?} {:?} {:?} {:?}", fiber_delay, pair_mode, de_delay, de_pair_mode);
     xdma_write(8, command, offset);
     xdma_write(16, 0, offset);
     xdma_write(20, 0, offset);
     xdma_write(32, 100, offset); // read speed
     xdma_write(36, 4000, offset); // threshold full
-    xdma_write(40, (decoy_delay<<16) + fiber_delay, offset);
+    xdma_write(40, (de_delay<<16) | fiber_delay, offset);
     xdma_write(44, delay_ab, offset);
-    xdma_write(24, (decoy_pair_mode<<2) + (pair_mode<<1), offset);
+    xdma_write(24, (de_pair_mode<<2) | (pair_mode<<1), offset);
     // enable register setting
     xdma_write(12, 0, offset);
     xdma_write(12, 1, offset);

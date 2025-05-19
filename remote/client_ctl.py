@@ -373,10 +373,11 @@ def client_start(commands_in):
 
 if __name__ =="__main__":
     parser = argparse.ArgumentParser(description="Send command")
-    parser.add_argument("commands", nargs='+',  choices=['init', 'find_gates', 'find_delays', 'verify_gates'])
+    #parser.add_argument("commands", nargs='+',  choices=['init_all', 'find_gates', 'find_delays', 'verify_gates'])
+    parser.add_argument("commands", nargs='+', help="init_all find_gates find_delays verify_gates")
     args = parser.parse_args()
     commands_in = []
-    if 'init' in args.commands:
+    if 'init_all' in args.commands:
         commands_in.append('init')
         commands_in.append('sync_gc')
         commands_in.append('find_max_vca')
@@ -398,6 +399,8 @@ if __name__ =="__main__":
     if 'verify_gates' in args.commands:
         if 'verify_gates' not in commands_in:
             commands_in.append('verify_gates')
+    if commands_in == []:
+        commands_in = args.commands
 
     client_start(commands_in)
 

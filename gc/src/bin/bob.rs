@@ -14,6 +14,8 @@ use std::io::prelude::*;
 fn send_gc(alice: &mut TcpStream) -> std::io::Result<()>{
     let mut file_gcr =  OpenOptions::new().read(true).open("/dev/xdma0_c2h_0").expect("opening /dev/xdma0_c2h_0");
     let mut file_gcw = OpenOptions::new().write(true).open("/dev/xdma0_h2c_0").expect("opening /dev/xdma0_h2c_0");
+    //let mut file_gcr =  OpenOptions::new().read(true).open("/dev/xdma0_c2h_1").expect("opening /dev/xdma0_c2h_1");
+    //let mut file_gcw = OpenOptions::new().write(true).open("/dev/xdma0_h2c_0").expect("opening /dev/xdma0_h2c_0");
     let mut file_result = OpenOptions::new().write(true).open("/home/vq-user/qline/result.f").expect("opening result fifo");
     let mut i = 0;
     loop {
