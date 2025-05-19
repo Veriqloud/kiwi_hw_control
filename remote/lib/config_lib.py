@@ -1,4 +1,5 @@
 import subprocess, time, mmap, numpy as np
+import os
 
 import lib.gen_seq as gen_seq
 
@@ -6,7 +7,8 @@ def save_default(data):
     """
     data : dictionary to be saved to config/tmp.txt
     """
-    with open("config/default.txt", 'w') as f:
+    path = os.environ.get('HWCONTROL')
+    with open(os.join(path, "config/default.txt"), 'w') as f:
         f.write("# tab separated\n")
         for i in data.items():
             f.write(i[0]+"\t"+str(i[1])+"\n")
@@ -18,7 +20,8 @@ def get_default():
     d = {}
     floatlist = ['vca', 'am_bias','am_bias_2', 'qdistance', 
                  'angle0', 'angle1', 'angle2', 'angle3']
-    with open("config/default.txt") as f:
+    path = os.environ.get('HWCONTROL')
+    with open(os.path.join(path, "config/default.txt")) as f:
         lines = f.readlines()
         for l in lines[1:]:
             s = l[:-1].split("\t")
@@ -34,7 +37,8 @@ def save_tmp(data):
     """
     data : dictionary to be saved to config/tmp.txt
     """
-    with open("config/tmp.txt", 'w') as f:
+    path = os.environ.get('HWCONTROL')
+    with open(os.path.join(path, "config/tmp.txt"), 'w') as f:
         for i in data.items():
             f.write(i[0]+"\t"+str(i[1])+"\n")
 
@@ -46,7 +50,8 @@ def get_tmp():
     floatlist = ['qdistance', 'pol0', 'pol1', 'pol2', 'pol3', 'vca', 'am_bias','am_bias_2',
                  'angle0', 'angle1', 'angle2', 'angle3', 'vca_calib']
     strlist = ['spd_mode', 'am_mode', 'pm_mode', 'feedback', 'soft_gate', 'insert_zeros', 'am2_mode']
-    with open("config/tmp.txt") as f:
+    path = os.environ.get('HWCONTROL')
+    with open(os.path.join(path, "config/tmp.txt")) as f:
         lines = f.readlines()
         for l in lines:
             s = l[:-1].split("\t")
@@ -120,14 +125,14 @@ def Write(base_add, value):
     str_base = str(base_add)
     str_value = str(value)
     # command ="../../tools/reg_rw /dev/xdma0_user "+ str_base + " w "+ str_value 
-    command ="../dma_ip_drivers/XDMA/linux-kernel/tools/reg_rw /dev/xdma0_user "+ str_base + " w "+ str_value 
+    command ="/home/vq-user/qline/dma_ip_drivers/XDMA/linux-kernel/tools/reg_rw /dev/xdma0_user "+ str_base + " w "+ str_value 
     #print(command)
     s = subprocess.check_call(command, shell = True)
 
 def Read(base_add):
     str_base = str(base_add)
     # command ="../../tools/reg_rw /dev/xdma0_user "+ str_base + " w "+ "| grep  \"Read.*:\" | sed 's/Read.*: 0x\([a-z0-9]*\)/\\1/'" 
-    command ="../dma_ip_drivers/XDMA/linux-kernel/tools/reg_rw /dev/xdma0_user "+ str_base + " w "+ "| grep  \"Read.*:\" | sed 's/Read.*: 0x\([a-z0-9]*\)/\\1/'" 
+    command ="/home/vq-user/qline/dma_ip_drivers/XDMA/linux-kernel/tools/reg_rw /dev/xdma0_user "+ str_base + " w "+ "| grep  \"Read.*:\" | sed 's/Read.*: 0x\([a-z0-9]*\)/\\1/'" 
     #print(command)
     s = subprocess.check_output(command, shell = True)
     return s
@@ -138,7 +143,7 @@ def Write_stream(device,file, size, count):
     str_size = str(size)
     str_count = str(count)
     # command ="../../tools/dma_to_device -d "+ str_device + " -f "+ str_file + " -s "+ str_size + " -c " + str_count 
-    command ="../dma_ip_drivers/XDMA/linux-kernel/tools/dma_to_device -d "+ str_device + " -f "+ str_file + " -s "+ str_size + " -c " + str_count 
+    command ="/home/vq-user/qline/dma_ip_drivers/XDMA/linux-kernel/tools/dma_to_device -d "+ str_device + " -f "+ str_file + " -s "+ str_size + " -c " + str_count 
     print(command)
     s = subprocess.check_call(command, shell = True)
 
@@ -148,7 +153,7 @@ def Read_stream(device, file, size, count):
     str_size = str(size)
     str_count = str(count)
     # command ="../../tools/dma_from_device -d "+ str_device + " -f "+ str_file + " -s "+ str_size + " -c " + str_count 
-    command ="../dma_ip_drivers/XDMA/linux-kernel/tools/dma_from_device -d "+ str_device + " -f "+ str_file + " -s "+ str_size + " -c " + str_count 
+    command ="/home/vq-user/qline/dma_ip_drivers/XDMA/linux-kernel/tools/dma_from_device -d "+ str_device + " -f "+ str_file + " -s "+ str_size + " -c " + str_count 
     print(command)
     s = subprocess.check_call(command, shell = True)
 
@@ -361,7 +366,8 @@ def Get_reg(spi_bus,device,expect,*args):
 #    reg_file.close()
 
 def Set_Ltc():
-    reg_file = open('registers/ltc/Ltc6951Regs.txt','r')
+    path = os.environ.get('HWCONTROL')
+    reg_file = open(os.path.join(path, 'registers/ltc/Ltc6951Regs.txt'),'r')
     for l in reg_file.readlines():
         add, val = l.split(',')
         add_shifted = int(add, base=16)<<1
@@ -378,7 +384,8 @@ def Sync_Ltc():
     print("Output clocks are aligned")
 
 def Get_Ltc_info():
-    reg_file = open('registers/ltc/Ltc6951Expect.txt','r')
+    path = os.environ.get('HWCONTROL')
+    reg_file = open(os.path.join(path, 'registers/ltc/Ltc6951Expect.txt'),'r')
     array = []
     print("Monitoring ltc registers")
     print("addr\texp\tret\tmatch")
@@ -446,7 +453,8 @@ def Soft_Reset_Sda():
     print('Soft reset sda finished')
     
 def Set_Sda_Config():
-    file = open('registers/sda/Dac81408_setting.txt','r')
+    path = os.environ.get('HWCONTROL')
+    file = open(os.path.join(path, 'registers/sda/Dac81408_setting.txt'),'r')
     for l in file.readlines():
         addb, val1, val2 = l.split(',')
         Set_reg(2,'sda', addb, val1, val2) #Set all registers
@@ -470,7 +478,8 @@ def Set_Sda_Config():
 #    file.close()
 
 def Get_Sda_Config():
-    file = open('registers/sda/Dac81408_setting.txt','r')
+    path = os.environ.get('HWCONTROL')
+    file = open(os.path.join(path, 'registers/sda/Dac81408_setting.txt'),'r')
     print("Monitoring sda readback configuration registers")
     print("addr\texp\tret\tmatch")
     for l in file.readlines():
@@ -528,7 +537,8 @@ def Set_vol(channel, voltage):
 
 def WriteFPGA():
     #file = open("registers/fda/FastdacFPGA.txt","r")
-    file = open("registers/fda/FastdacFPGA_204b.txt","r")
+    path = os.environ.get('HWCONTROL')
+    file = open(os.path.join(path, "registers/fda/FastdacFPGA_204b.txt"),"r")
     with open("/dev/xdma0_user", 'r+b', buffering=0) as fd:
         with mmap.mmap(fd.fileno(), 4096, offset=0x10000) as mm:
             for l in file.readlines():
@@ -669,7 +679,8 @@ def Write_Angles(a0, a1, a2, a3):
 
 #Read back the FGPA registers configured for JESD
 def ReadFPGA():
-    file = open("registers/fda/FastdacFPGAstats.txt","r")
+    path = os.environ.get('HWCONTROL')
+    file = open(os.path.join(path, "registers/fda/FastdacFPGAstats.txt"),"r")
     for l in file.readlines():
         addr, val = l.split(',')
         ad_fpga_addr = str(hex((int(addr,base=16) + 0x10000)))
@@ -688,7 +699,8 @@ def En_reset_jesd():
 
 # From Set_reg_powerup to Set_reg_seq2: Set all registers for AD9152 
 def Set_reg_powerup():
-    file = open('registers/fda/hop_regs/reg_powerup.txt','r')
+    path = os.environ.get('HWCONTROL')
+    file = open(os.path.join(path, 'registers/fda/hop_regs/reg_powerup.txt'),'r')
     for l in file.readlines():
         addb1, addb2, val = l.split(',')
         addr1 = int(addb1,16)
@@ -700,7 +712,8 @@ def Set_reg_powerup():
     file.close()
 
 def Set_reg_plls():
-    file = open('registers/fda/hop_regs/reg_plls.txt','r')
+    path = os.environ.get('HWCONTROL')
+    file = open(os.path.join(path, 'registers/fda/hop_regs/reg_plls.txt'),'r')
     for l in file.readlines():
         addb1, addb2, val = l.split(',')
         addr1 = int(addb1,16)
@@ -712,7 +725,8 @@ def Set_reg_plls():
     file.close()
 
 def Set_reg_seq1():
-    file = open('registers/fda/hop_regs/reg_seq1.txt','r')
+    path = os.environ.get('HWCONTROL')
+    file = open(os.path.join(path, 'registers/fda/hop_regs/reg_seq1.txt'),'r')
     for l in file.readlines():
         addb1, addb2, val = l.split(',')
         addr1 = int(addb1,16)
@@ -723,7 +737,8 @@ def Set_reg_seq1():
     file.close()
     
 def Set_reg_seq2():
-    file = open('registers/fda/hop_regs/reg_seq2.txt','r')
+    path = os.environ.get('HWCONTROL')
+    file = open(os.path.join(path, 'registers/fda/hop_regs/reg_seq2.txt'),'r')
     for l in file.readlines():
         addb1, addb2, val = l.split(',')
         addr1 = int(addb1,16)
@@ -734,7 +749,8 @@ def Set_reg_seq2():
     file.close()
 
 def Relink_Fda():
-    file = open('registers/fda/hop_regs/reg_relink.txt','r')
+    path = os.environ.get('HWCONTROL')
+    file = open(os.path.join(path, 'registers/fda/hop_regs/reg_relink.txt'),'r')
     for l in file.readlines():
         addb1, addb2, val = l.split(',')
         Set_reg(2,'fda', addb1, addb2, val)
@@ -758,7 +774,8 @@ def Relink_Fda():
 
 def Get_reg_monitor():
     array = []
-    file = open('registers/fda/hop_regs/reg_monitor.txt','r')
+    path = os.environ.get('HWCONTROL')
+    file = open(os.path.join(path, 'registers/fda/hop_regs/reg_monitor.txt'),'r')
     print("Monitoring pll locked, dyn_link_latency, and jesd link ")
     check = []
     print("addb1\taddb2\texp\tret\tcomp")
@@ -897,7 +914,8 @@ def decoy_state(mode):
 #-------------------------TDC AND JITTER CLEANER-----------------------
 
 def Set_Si5319():
-    reg_file = open('registers/jit_cleaner/Si5319_regs.txt','r')
+    path = os.environ.get('HWCONTROL')
+    reg_file = open(os.path.join(path, 'registers/jit_cleaner/Si5319_regs.txt'),'r')
     ins_set_addr = 0x00
     ins_write = 0x40
     for l in reg_file.readlines():
@@ -910,7 +928,8 @@ def Set_Si5319():
     reg_file.close()
 
 def Get_Si5319():
-    reg_file = open('registers/jit_cleaner/Si5319_regs.txt','r')
+    path = os.environ.get('HWCONTROL')
+    reg_file = open(os.path.join(path, 'registers/jit_cleaner/Si5319_regs.txt'),'r')
     ins_set_addr = 0x00
     ins_read = 0x80
     print("Monitoring jic registers")
@@ -938,7 +957,8 @@ def Config_Jic():
     Get_Si5319()
 
 def Set_AS6501():
-    reg_file = open('registers/tdc/AS6501_regs.txt','r')
+    path = os.environ.get('HWCONTROL')
+    reg_file = open(os.path.join(path, 'registers/tdc/AS6501_regs.txt'),'r')
     #opc_write_config = 0x80
     for l in reg_file.readlines():
         add, val = l.split(',')
@@ -949,7 +969,8 @@ def Set_AS6501():
     reg_file.close()
 
 def Get_AS6501():
-    reg_file = open('registers/tdc/AS6501_regs.txt','r')
+    path = os.environ.get('HWCONTROL')
+    reg_file = open(os.path.join(path, 'registers/tdc/AS6501_regs.txt'),'r')
     opc_read_config = 0x40
     print("Montoring tdc registers")
     print("addr\texp\tret\tmatch")

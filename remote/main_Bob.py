@@ -91,22 +91,22 @@ def Update_Pol():
     for ch,vol in enumerate(p):
         Set_Pol(ch,vol)
 
-def Optimize_Pos():
-    t = get_tmp()
-    p = [t['pol0'], t['pol1'], t['pol2'], t['pol3']]
-    diff = np.zeros(4)
-    counts = np.zeros(4)
-    for ch in range(4):
-        Set_Pol(ch, p[ch] - 0.2)
-        time.sleep(0.2)
-        c1 = get_counts()
-        Set_Pol(ch, p[ch] + 0.2)
-        time.sleep(0.2)
-        c2 = get_counts()
-        diff[ch] = (c1-c2)
-        counts[ch] = (c1+c2)/2
-    snr = diff / np.sqrt(counts)
-    print(snr)
+#def Optimize_Pos():
+#    t = get_tmp()
+#    p = [t['pol0'], t['pol1'], t['pol2'], t['pol3']]
+#    diff = np.zeros(4)
+#    counts = np.zeros(4)
+#    for ch in range(4):
+#        Set_Pol(ch, p[ch] - 0.2)
+#        time.sleep(0.2)
+#        c1 = get_counts()
+#        Set_Pol(ch, p[ch] + 0.2)
+#        time.sleep(0.2)
+#        c2 = get_counts()
+#        diff[ch] = (c1-c2)
+#        counts[ch] = (c1+c2)/2
+#    snr = diff / np.sqrt(counts)
+#    print(snr)
 
 
 
@@ -263,6 +263,7 @@ def Polarisation_Control():
         c = []
         for v in voltages:
             Set_vol(ch,v)
+            time.sleep(0.2)
             c.append(Read_Count_InGates())
         c = np.array(c)
         print(c)
@@ -270,6 +271,7 @@ def Polarisation_Control():
         bests.append(best)
         print("Best voltage on channel ", ch, "is", best)
         Set_vol(ch,best)
+        time.sleep(0.2)
 
     bests2 = []
     for ch in range(4):
@@ -277,13 +279,17 @@ def Polarisation_Control():
         c = []
         for v in voltages:
             Set_vol(ch,v)
+            time.sleep(0.2)
             c.append(Read_Count_InGates())
         c = np.array(c)
         print(c)
         best = voltages[c.argmax()]
         bests2.append(best)
         print("Best voltage on channel ", ch, "is", best)
+        t = get_tmp()
+        t['pol'+str(ch)] = best
         Set_vol(ch,best)
+    save_tmp(t)
 
 #-----------APPLY GATE--------------------------
 #Apply the gate parameter to FPGA and take just the click inside the gate
@@ -907,6 +913,8 @@ def main():
             t['pol3'] = args.pol_bias[3]
             save_tmp(t)
             Update_Pol()
+        elif args.optimize_pol:
+            Polarisation_Control()
         elif args.soft_gate_filter:
             update_tmp('soft_gate', args.soft_gate_filter)
             Update_Softgate()
@@ -1009,6 +1017,8 @@ def main():
     parser_set.add_argument("--pol_bias",nargs=4, type=float, metavar="V",  help="float [0,5] V")
     
     parser_set.add_argument("--pos",type=int, default=0, help="peak position for single")
+    
+    parser_set.add_argument("--optimize_pol", action="store_true", help="find best setting for polarization controller")
     
 
 

@@ -373,6 +373,39 @@ def client_start(commands_in):
 
 if __name__ =="__main__":
     parser = argparse.ArgumentParser(description="Send command")
-    parser.add_argument("commands_in", nargs="+",type=str, help="init, exit")
+    parser.add_argument("commands", nargs='+',  choices=['init', 'find_gates', 'find_delays', 'verify_gates'])
     args = parser.parse_args()
-    client_start(args.commands_in)
+    commands_in = []
+    if 'init' in args.commands:
+        commands_in.append('init')
+        commands_in.append('sync_gc')
+        commands_in.append('find_max_vca')
+        commands_in.append('find_am_bias')
+        commands_in.append('find_am_bias_2')
+    if 'find_gates' in args.commands:
+        commands_in.append('ad')
+        commands_in.append('find_sp')
+        commands_in.append('verify_gates')
+    if 'find_delays' in args.commands:
+        commands_in.append('fs_b')
+        commands_in.append('fs_a')
+        commands_in.append('fd_b')
+        commands_in.append('fd_b_long')
+        commands_in.append('fd_a')
+        commands_in.append('fd_a_long')
+        commands_in.append('fz_b')
+        commands_in.append('fz_a')
+    if 'verify_gates' in args.commands:
+        if 'verify_gates' not in commands_in:
+            commands_in.append('verify_gates')
+
+    client_start(commands_in)
+
+
+
+
+
+
+
+
+

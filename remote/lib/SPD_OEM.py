@@ -17,7 +17,7 @@ import platform
 # Load library
 def oem_shared_lib():
     if platform.system() == "Linux":
-        return CDLL("lib/OEM.so")
+        return CDLL("/home/vq-user/qline/hw_control/lib/OEM.so")
     else:
         return None
 
