@@ -8,7 +8,7 @@ def save_default(data):
     data : dictionary to be saved to config/tmp.txt
     """
     path = os.environ.get('HWCONTROL')
-    with open(os.join(path, "config/default.txt"), 'w') as f:
+    with open(os.path.join(path, "config/default.txt"), 'w') as f:
         f.write("# tab separated\n")
         for i in data.items():
             f.write(i[0]+"\t"+str(i[1])+"\n")

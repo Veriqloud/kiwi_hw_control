@@ -460,7 +460,7 @@ def Find_Zero_Pos_A(fiber_delay_mod):
     h1, b = np.histogram(gc1, bins=bins)
     h = abs(h0-h1)
     peakpos = np.argmax(h) 
-    zeros_pos = (fiber_delay_mod - 2 - peakpos) % 16
+    zeros_pos = (fiber_delay_mod - 1 - peakpos) % 16
     print("zeros pos found:", zeros_pos) 
     return int(zeros_pos )
 
@@ -746,9 +746,9 @@ def init_rst_default():
     d['angle2'] = -0.18
     d['angle3'] = 0.36
     d['gate_delay'] = 6000
-    d['soft_gate0'] = 20
-    d['soft_gate1'] = 530
-    d['soft_gatew'] = 60
+    d['soft_gate0'] = 28
+    d['soft_gate1'] = 542
+    d['soft_gatew'] = 40
     d['t0'] = 0
     d['deadtime_cont'] = 20
     d['deadtime_gated'] = 15

@@ -273,6 +273,8 @@ while True:
                 print("received command fz_a")
                 fiber_delay_mod = rcv_u32()
                 zero_pos = main.Find_Zero_Pos_A(fiber_delay_mod)
+                update_tmp('insert_zeros', 'on')
+                main.Update_Dac()
                 send_u32(zero_pos)
             
             #elif command == 'czp':

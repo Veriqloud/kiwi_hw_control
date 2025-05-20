@@ -269,6 +269,7 @@ def client_start(commands_in):
                 t = get_tmp()
                 t['fiber_delay_long'] = fiber_delay_long
                 t['fiber_delay'] = t['fiber_delay_mod'] + fiber_delay_long*80 
+                t['decoy_delay'] = t['fiber_delay'] 
                 save_tmp(t)
             
             #elif command == 'fd_decoy':

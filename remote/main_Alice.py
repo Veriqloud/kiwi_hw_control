@@ -187,7 +187,7 @@ def init_apply_default():
 def init_rst_default():
     d = {}
     d['vca'] = 2
-    d['qdistance'] = 0.1
+    d['qdistance'] = 0.095
     d['am_bias'] = -0.8
     d['am_bias_2'] = 6
     d['am_shift'] = 514
