@@ -273,6 +273,7 @@ def Polarisation_Control():
         Set_vol(ch,best)
         time.sleep(0.2)
 
+    t = get_tmp()
     bests2 = []
     for ch in range(4):
         voltages = np.arange(bests[ch]-0.2,bests[ch]+0.3,0.1)
@@ -286,7 +287,6 @@ def Polarisation_Control():
         best = voltages[c.argmax()]
         bests2.append(best)
         print("Best voltage on channel ", ch, "is", best)
-        t = get_tmp()
         t['pol'+str(ch)] = best
         Set_vol(ch,best)
     save_tmp(t)
