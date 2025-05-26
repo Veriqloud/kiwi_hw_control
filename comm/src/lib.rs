@@ -1,16 +1,24 @@
 pub mod gc_comms {
     use serde::{Deserialize, Serialize};
+    use strum::EnumString;
 
-    #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq)]
+    /// From node to gc_client
+    #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, EnumString)]
     pub enum Request {
+        #[strum(serialize = "1")]
         Start,
+        #[strum(serialize = "2")]
         Stop,
+        #[strum(serialize = "3")]
         DebugOn,
     }
 
-    #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq)]
+    /// From gc_client to node
+    #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, EnumString)]
     pub enum Response {
+        #[strum(serialize = "1")]
         Done,
+        #[strum(serialize = "2")]
         DidNothing,
     }
 }
