@@ -1,8 +1,9 @@
 use comm::gc_comms::*;
 use comm::qber_comms::*;
-use qber::sockets::{read_message, write_message};
 
 use clap::Parser;
+use comm::read_message;
+use comm::write_message;
 use qber::config::{ConfigFifoAlice, ConfigNetworkAlice};
 use std::fmt;
 use std::fs::{File, OpenOptions};

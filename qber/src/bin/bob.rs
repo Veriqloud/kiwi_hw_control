@@ -1,7 +1,7 @@
 use clap::Parser;
 use comm::qber_comms::Qber;
+use comm::read_message;
 use qber::config::ConfigFifoBob;
-use qber::sockets::read_message;
 use std::fs::{File, OpenOptions};
 use std::io::prelude::*;
 use std::net::{TcpListener, TcpStream};
