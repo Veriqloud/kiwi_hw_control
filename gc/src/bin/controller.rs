@@ -1,36 +1,27 @@
-use clap::{Parser};
-use gc::comm::{Request, Response, Comm};
-use std::os::unix::net::UnixStream;
-//use std::io::prelude::*;
-
-
-
+use clap::Parser;
+use comm::{
+    gc_comms::{Request, Response},
+    read_message, write_message,
+};
+use std::{os::unix::net::UnixStream, str::FromStr};
 
 #[derive(Parser)]
 struct Cli {
-    /// message to send
-    #[arg(value_enum, short, long)]
+    // message to send
+    #[arg(short, long, value_parser = Request::from_str)]
     message: Request,
 }
 
-
 fn main() -> std::io::Result<()> {
-    
     let cli = Cli::parse();
 
     let mut stream = UnixStream::connect("/home/vq-user/qline/startstop.s")
         .expect("could not connect to UnixStream");
 
-    stream.send(cli.message)?;
-    let m: Response = stream.recv()?;
-    println!("message received {:?}", m);
+    write_message(&mut stream, cli.message)?;
 
+    let m: Response = read_message(&mut stream)?;
+    println!("message received {:?}", m);
 
     Ok(())
 }
-
-
-
-
-
-
