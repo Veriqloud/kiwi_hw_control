@@ -2,7 +2,7 @@ use clap::Parser;
 use std::fs::OpenOptions;
 use gc::comm::{Request, Response, HwControl, Comm};
 use gc::hw::{init_ddr, read_gc_from_bob, sync_at_pps, wait_for_pps, write_gc_to_fpga};
-use gc::config::ConfigNetworkAlice;
+use gc::config::{ConfigNetworkAlice, ConfigFifoAlice};
 use std::thread;
 use std::net::TcpStream;
 use std::os::unix::net::UnixListener;
@@ -22,7 +22,8 @@ struct Cli {
 }
 
 fn recv_gc(bob: &mut TcpStream, rx: &Receiver<Request>, debug: bool) -> std::io::Result<()>{
-    let mut file_gcw= OpenOptions::new().write(true).open("/dev/xdma0_h2c_0").expect("opening /dev/xdma0_h2c_0");
+    let config_fifos = ConfigFifoAlice::from_path("/home/vq-user/qline/config/fifos.json".into());
+    let mut file_gcw= OpenOptions::new().write(true).open(config_fifos.gc_file_path).expect("opening gc_file");
 
     println!("DEBUG: {:?}", debug);
 

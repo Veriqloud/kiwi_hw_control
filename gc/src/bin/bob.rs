@@ -1,6 +1,7 @@
 use std::net::{TcpListener, TcpStream};
 use std::fs::OpenOptions;
 use gc::comm::{HwControl, Comm};
+use gc::config::ConfigFifoBob;
 use gc::hw::{init_ddr, process_gcr_stream, sync_at_pps, write_gc_to_alice, write_gc_to_fpga};
 use std::io::prelude::*;
 //use std::{thread, time};
@@ -12,11 +13,10 @@ use std::io::prelude::*;
 
 // read the gcr stream, split gcr, write gc to Alice and r to fifo
 fn send_gc(alice: &mut TcpStream) -> std::io::Result<()>{
-    let mut file_gcr =  OpenOptions::new().read(true).open("/dev/xdma0_c2h_0").expect("opening /dev/xdma0_c2h_0");
-    let mut file_gcw = OpenOptions::new().write(true).open("/dev/xdma0_h2c_0").expect("opening /dev/xdma0_h2c_0");
-    //let mut file_gcr =  OpenOptions::new().read(true).open("/dev/xdma0_c2h_1").expect("opening /dev/xdma0_c2h_1");
-    //let mut file_gcw = OpenOptions::new().write(true).open("/dev/xdma0_h2c_0").expect("opening /dev/xdma0_h2c_0");
-    let mut file_result = OpenOptions::new().write(true).open("/home/vq-user/qline/result.f").expect("opening result fifo");
+    let config_fifos = ConfigFifoBob::from_path("/home/vq-user/qline/config/fifos.json".into());
+    let mut file_gcr =  OpenOptions::new().read(true).open(config_fifos.gcr_file_path).expect("opening gcr_file");
+    let mut file_gcw = OpenOptions::new().write(true).open(config_fifos.gc_file_path).expect("opening gc_file");
+    let mut file_result = OpenOptions::new().write(true).open(config_fifos.click_result_file_path).expect("opening click result file");
     let mut i = 0;
     loop {
         let (gc, result) = process_gcr_stream(&mut file_gcr)?;

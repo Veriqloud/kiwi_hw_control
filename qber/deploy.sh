@@ -4,7 +4,7 @@ Alice=$SSH_ALICE
 Bob=$SSH_BOB
 
 rsync -v target/release/alice $Alice:~/qline/bin/qber
-rsync -v target/release/bob $Bob:~/qline/servers/qber
+rsync -v target/release/bob $Bob:~/qline/server/qber
 
 if [[ $# > 0 ]]; then
     if [[ $1 == "with_config" ]]; then
