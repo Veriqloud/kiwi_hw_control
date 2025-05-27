@@ -1,12 +1,6 @@
 use std::io::prelude::*;
 use std::net::TcpStream;
-//use clap::error::ErrorKind;
-//use std::io;
-use clap::ValueEnum;
 use std::os::unix::net::UnixStream;
-//use std::fs::File;
-//use itertools::izip;
-//use std::io::prelude::*;
 
 // Messages from Alice to Bob
 #[derive(Debug)]
