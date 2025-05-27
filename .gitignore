@@ -1,0 +1,11 @@
+# Ignore build artifacts for the qber crate
+qber/target/
+qber/Cargo.lock
+
+# Ignore build artifacts for the gc crate
+gc/target/
+gc/Cargo.lock
+
+# Ignore build artifacts for the comm crate
+comm/target/
+comm/Cargo.lock
