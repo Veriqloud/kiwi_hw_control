@@ -84,7 +84,7 @@ def Update_Dac():
     
     Write_To_Dac(dac0, dac1)
     Write_Pm_Shift(t['pm_shift']%10, t['zero_pos'])
-    print("Dac", t['am_mode'], t['pm_mode'], t['am_shift'], t['pm_shift'], t['insert_zeros'])
+#    print("Dac", t['am_mode'], t['pm_mode'], t['am_shift'], t['pm_shift'], t['insert_zeros'])
     
 
 def Update_Angles():

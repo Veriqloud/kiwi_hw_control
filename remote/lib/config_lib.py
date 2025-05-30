@@ -520,7 +520,7 @@ def Set_vol(channel, voltage):
     # print(val1)
     # print(val2)
     Set_reg(2,'sda', addr_shift, val1, val2) #Set data register
-    print("Channel",channel,"is set to", round(voltage,2), "V")
+    #print("Channel",channel,"is set to", round(voltage,2), "V")
 
 ###-------------AD9152 FUNCTIONS -------------------------------------
 ### This function, write config for JESD to the FPGA registers

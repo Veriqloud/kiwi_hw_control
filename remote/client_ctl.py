@@ -12,7 +12,7 @@ from termcolor import colored
 
 
 # Client configuration
-SERVER_HOST = '192.168.1.77'  # Server's IP address
+SERVER_HOST = '192.168.1.113'  # Server's IP address
 SERVER_PORT = 9999  # Server's port
 # BUFFER_SIZE = 65536  # Increased buffer size for receiving data
 BUFFER_SIZE = 64  # Increased buffer size for receiving data
@@ -42,20 +42,20 @@ def client_start(commands_in):
 
     # send command
     def sendc(c):
-        print(colored(c, 'cyan'))
+#        print(colored(c, 'cyan'))
         b = c.encode()
         m = len(c).to_bytes(1, 'little')+b
         client_socket.sendall(m)
     
     def send_u32(value):
-        print(colored(value, 'green'))
+#        print(colored(value, 'green'))
         m = value.to_bytes(4, byteorder='little')
         client_socket.sendall(m)
     
     def rcv_u32():
         m = client_socket.recv(4)
         value = int.from_bytes(m, byteorder='little')
-        print(colored(value, 'green'))
+#        print(colored(value, 'green'))
         return value
 
     def rcvc():
@@ -64,7 +64,7 @@ def client_start(commands_in):
         while len(mr)<l:
             mr += client_socket.recv(l-len(mr))
         command = mr.decode().strip()
-        print(colored(command, 'cyan'))
+ #       print(colored(command, 'cyan'))
         return command
 
     try:
@@ -76,16 +76,19 @@ def client_start(commands_in):
                 main.init_all()
                 sendc('Alice init done')
                 rcvc()
+                print(colored('sync_gc \n', 'cyan'))
                 wait_for_pps_ret()
                 sendc('sync gc')
                 Sync_Gc()
 
             if command == 'sync_gc':
+                print(colored('sync_gc \n', 'cyan'))
                 wait_for_pps_ret()
                 sendc('go')
                 Sync_Gc()
 
             if command == 'find_max_vca':
+                print(colored('find_max_vca', 'cyan'))
                 update_tmp('am_mode', 'double')
                 main.Update_Dac()
                 d = get_default()
@@ -97,10 +100,17 @@ def client_start(commands_in):
                     time.sleep(0.2)
                     sendc('get counts')
                     count = rcv_u32()
+
+                if count >= 3000:
+                   print(colored(f"Success, {vca}V / {count} cts \n", "green"))
+                else:
+                   print(colored(f"Fail, {vca}V / {count} cts \n", "red"))
+
                 update_tmp('vca_calib', vca)
                 sendc('done')
 
             if command == 'find_am_bias':
+                print(colored('find_am_bias', 'cyan'))
                 update_tmp('am_mode', 'off')
                 main.Update_Dac()
                 t = get_tmp()
@@ -113,18 +123,45 @@ def client_start(commands_in):
                 counts = []
                 main.Set_Am_Bias_2(0) 
                 time.sleep(0.2)
-                for i in range(21):
-                    main.Set_Am_Bias(bias_default -1 + 0.1*i)
+                for i in range(11):
+                    main.Set_Am_Bias(bias_default -0.5 + 0.1*i)
                     sendc('get counts')
                     counts.append(rcv_u32())
                 min_counts = min(counts)
                 min_idx = counts.index(min_counts)
-                print("Min count: ", min_counts , "index: ", min_idx)
-                am_bias_opt = bias_default -1 + 0.1*min_idx
+                print("Min count: ", min_counts , "index: ", min_idx,"\n")
+                am_bias_opt = bias_default -0.5 + 0.1*min_idx
                 main.Set_Am_Bias(am_bias_opt)
                 main.Set_Am_Bias_2(bias_default_1)
 
+
+            if command == 'verify_am_bias':
+                print(colored('verify_am_bias', 'cyan'))
+                update_tmp('am_mode', 'off')
+                main.Update_Dac()
+                sendc('get counts')
+                count_off = rcv_u32()
+
+                update_tmp('am_mode', 'double')
+                main.Update_Dac()
+                time.sleep(0.2)
+
+                sendc('get counts')
+                count_double = rcv_u32()
+
+                ratio = count_double / count_off
+                if ratio >= 1.9:
+                   print(colored(f"Success: double/off  = {ratio:.2f} ({count_double}/{count_off}) \n", "green"))
+                else:
+                   print(colored(f"Fail: double/off = {ratio:.2f} ({count_double}/{count_off}) \n", "red"))
+                update_tmp('am_mode', 'off')
+                main.Update_Dac()
+
+
+
+
             if command == 'find_am_bias_2':
+                print(colored('find_am_bias_2', 'cyan'))
                 update_tmp('am_mode', 'double')
                 main.Update_Dac()
                 #t = get_tmp()
@@ -138,42 +175,42 @@ def client_start(commands_in):
                 #main.Set_Am_Bias(0) 
                 time.sleep(0.2)
                 for i in range(21):
-                    main.Set_Am_Bias_2(bias_default -3 + 0.1*i)
+                    value = bias_default - 3 + 0.1 * i
+                    if value < 0:
+                       value = 0
+                    main.Set_Am_Bias_2(value)
+                   # main.Set_Am_Bias_2(bias_default -3 + 0.1*i)
                     sendc('get counts')
                     counts.append(rcv_u32())
                 min_counts = min(counts)
                 min_idx = counts.index(min_counts)
                 print("Min count: ", min_counts , "index: ", min_idx)
                 am_bias_opt = bias_default -3 + 0.1*min_idx
-                main.Set_Am_Bias_2(round(am_bias_opt + 2, 2)) 
+                main.Set_Am_Bias_2(max(0, round(am_bias_opt + 2, 2))) 
                 #main.Set_Am_Bias(bias_default_1)
 
 
-###################################################################
-#            elif command == 'ad_test':
-#                update_tmp('am_mode', 'off')
-#                main.Update_Dac()
-#                print(client_socket.recv(4))
-#                update_tmp('am_mode', 'double')
-#                main.Update_Dac()
-###################################################################
+            elif command == 'pol_bob':
+                print(colored('Bob polarization in progress…', 'cyan'))
+                rcvc()
 
 
-###################################################################
             elif command == 'ad':
+                print(colored('ad', 'cyan'))
                 update_tmp('am_mode', 'off')
                 main.Update_Dac()
-                t = get_tmp()
-                main.Set_Am_Bias(t['am_bias'] + 1)
+           #     t = get_tmp()
+            #    main.Set_Am_Bias(t['am_bias'] + 1)
                 rcvc()
                 update_tmp('am_mode', 'double')
                 main.Update_Dac()
-                main.Set_Am_Bias(t['am_bias'])
-###################################################################
+             #   main.Set_Am_Bias(t['am_bias'])
+                rcvc()
 
 
 
             elif command == 'find_sp':
+                print(colored('find_sp', 'cyan'))
                 #1.Send single pulse, am_shift 0
                 update_tmp('am_shift', 0)
                 update_tmp('am_mode', 'single')
@@ -192,13 +229,17 @@ def client_start(commands_in):
 
 
             elif command == 'verify_gates':
+                print(colored('verify_gates', 'cyan'))
                 update_tmp('am_mode', 'off')
                 main.Update_Dac()
                 rcvc()
                 update_tmp('am_mode', 'double')
                 main.Update_Dac()
-                rcvc()
-
+                status = rcvc()
+                if status == "success":
+                    print(colored("Success: good gates found \n", "green"))
+                else:
+                    print(colored("Fail: bad gates \n", "red"))
 
 
             elif command == 'fs_b':
@@ -378,15 +419,25 @@ if __name__ =="__main__":
     parser.add_argument("commands", nargs='+', help="init_all find_gates find_delays verify_gates")
     args = parser.parse_args()
     commands_in = []
+
+    for cmd in args.commands:
+        if cmd not in commands_in:
+            commands_in.append(cmd)
+
     if 'init_all' in args.commands:
         commands_in.append('init')
         commands_in.append('sync_gc')
         commands_in.append('find_max_vca')
         commands_in.append('find_am_bias')
+        commands_in.append('verify_am_bias')
         commands_in.append('find_am_bias_2')
+        commands_in.append('pol_bob')
+        commands_in.append('find_max_vca')
+
     if 'find_gates' in args.commands:
         commands_in.append('ad')
         commands_in.append('find_sp')
+        commands_in.append('ad')
         commands_in.append('verify_gates')
     if 'find_delays' in args.commands:
         commands_in.append('fs_b')

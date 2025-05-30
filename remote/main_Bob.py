@@ -9,6 +9,7 @@ import lib.gen_seq as gen_seq
 import lib.cal_lib as cal_lib
 from lib.config_lib import *
 from lib.Aurea import Aurea
+from scipy.optimize import curve_fit
 
 def Ensure_Spd_Mode(mode):
     deadtime_cont = 20
@@ -580,6 +581,27 @@ def fall_edge(file_path, start_range=200, end_range=900):
         if amp_filt[i] < amp_filt[i - 1]:
             lf = index_filt[i]
     return lf
+
+
+def verify_gate_double(input_file, gate0, gate1, width, binstep=2, maxtime=590):
+    raw = np.loadtxt(input_file, usecols=1) % 1250
+    data = raw[(raw >= 0) & (raw < maxtime)]
+    bins = np.arange(0, maxtime + binstep, binstep) - 1
+    h, _ = np.histogram(data, bins=bins)
+    idx0 = np.where((bins[:-1] >= gate0) & (bins[:-1] < gate0 + width))[0]
+    idx1 = np.where((bins[:-1] >= gate1) & (bins[:-1] < gate1 + width))[0]
+    peak0 = h[idx0].max() if idx0.size else 0
+    peak1 = h[idx1].max() if idx1.size else 0
+    mask = np.ones_like(h, dtype=bool)
+    mask[idx0] = False
+    mask[idx1] = False
+    background_max = h[mask].max()
+    return "success" if (peak0 > background_max and peak1 > background_max) else "fail"
+
+
+
+
+
 
 
 
