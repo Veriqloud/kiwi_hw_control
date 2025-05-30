@@ -15,7 +15,7 @@ from termcolor import colored
 
 
 # Server configuration
-HOST = '192.168.1.113'  # Localhost
+HOST = '192.168.1.77'  # Localhost
 PORT = 9999  # Port to listen on
 # BUFFER_SIZE = 65536  # Increased buffer size for sending data
 BUFFER_SIZE = 64  # Increased buffer size for sending data
@@ -167,7 +167,7 @@ while True:
                 sendc('done')
                 main.Ensure_Spd_Mode('continuous')
                 sendc('ok')
-    ############################################################################
+                time.sleep(0.2)
 
 
             elif command == 'find_sp':
@@ -207,11 +207,12 @@ while True:
                 main.Download_Time(10000, 'verify_gate_off')
                 sendc("gates off done")
                 time.sleep(0.1)
-                main.Download_Time(10000, 'verify_gate_double')
-                
+                main.Download_Time(10000, 'verify_gate_double')                
                 t = get_tmp()
                 gate0=t['soft_gate0']
+                print('gate0',gate0)
                 gate1=t['soft_gate1']
+                print('gate0',gate0)
                 width=t['soft_gatew']
                 binstep = 2
                 maxtime = gate1 + width

@@ -12,7 +12,7 @@ from termcolor import colored
 
 
 # Client configuration
-SERVER_HOST = '192.168.1.113'  # Server's IP address
+SERVER_HOST = '192.168.1.77'  # Server's IP address
 SERVER_PORT = 9999  # Server's port
 # BUFFER_SIZE = 65536  # Increased buffer size for receiving data
 BUFFER_SIZE = 64  # Increased buffer size for receiving data
@@ -448,9 +448,8 @@ if __name__ =="__main__":
         commands_in.append('fd_a_long')
         commands_in.append('fz_b')
         commands_in.append('fz_a')
-    if 'verify_gates' in args.commands:
-        if 'verify_gates' not in commands_in:
-            commands_in.append('verify_gates')
+
+
     if commands_in == []:
         commands_in = args.commands
 

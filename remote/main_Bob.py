@@ -588,16 +588,29 @@ def verify_gate_double(input_file, gate0, gate1, width, binstep=2, maxtime=590):
     data = raw[(raw >= 0) & (raw < maxtime)]
     bins = np.arange(0, maxtime + binstep, binstep) - 1
     h, _ = np.histogram(data, bins=bins)
-    idx0 = np.where((bins[:-1] >= gate0) & (bins[:-1] < gate0 + width))[0]
-    idx1 = np.where((bins[:-1] >= gate1) & (bins[:-1] < gate1 + width))[0]
+    centers = bins[:-1] + binstep / 2
+
+    idx0 = np.where((centers >= gate0) & (centers < gate0 + width))[0]
+    idx1 = np.where((centers >= gate1) & (centers < gate1 + width))[0]
+
+    bg0_range = np.where((centers >= gate0 - width) & (centers < gate0 + 2 * width))[0]
+    bg0_mask = np.setdiff1d(bg0_range, idx0)
+    background_max0 = h[bg0_mask].max() if bg0_mask.size else 0
+
+    bg1_range = np.where((centers >= gate1 - width) & (centers < gate1 + 2 * width))[0]
+    bg1_mask = np.setdiff1d(bg1_range, idx1)
+    background_max1 = h[bg1_mask].max() if bg1_mask.size else 0
+
     peak0 = h[idx0].max() if idx0.size else 0
     peak1 = h[idx1].max() if idx1.size else 0
-    mask = np.ones_like(h, dtype=bool)
-    mask[idx0] = False
-    mask[idx1] = False
-    background_max = h[mask].max()
-    return "success" if (peak0 > background_max and peak1 > background_max) else "fail"
 
+    print(f'peak0 = {peak0}, background0 = {background_max0}')
+    print(f'peak1 = {peak1}, background1 = {background_max1}')
+
+    if peak0 > (background_max0 + 20) and peak1 > (background_max1 + 20):
+        return "success"
+    else:
+        return "fail"
 
 
 
