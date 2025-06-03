@@ -2,14 +2,18 @@ use clap::Parser;
 use comm::gc_comms::{Request, Response};
 use comm::{read_message, write_message};
 use gc::comm::{Comm, HwControl};
-use gc::config::{ConfigNetworkAlice, ConfigFifoAlice};
+use gc::config::Configuration;
 use gc::hw::{init_ddr, read_gc_from_bob, sync_at_pps, wait_for_pps, write_gc_to_fpga};
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::net::TcpStream;
 use std::os::unix::net::UnixListener;
+use std::path::PathBuf;
+use std::sync::OnceLock;
 use std::sync::mpsc::{Receiver, Sender, TryRecvError, channel};
 use std::thread;
+
+static CONFIG: OnceLock<Configuration> = OnceLock::new();
 
 #[derive(Parser)]
 struct Cli {
@@ -18,14 +22,17 @@ struct Cli {
     /// save result to file
     #[arg(short, long)]
     save: bool,
+
+    /// Path to the configuration file
+    #[arg(short = 'c', long, default_value_os_t = PathBuf::from("/home/vq-user/qline/config/config.json"))]
+    config_path: PathBuf,
 }
 
 fn recv_gc(bob: &mut TcpStream, rx: &Receiver<Request>, debug: bool) -> std::io::Result<()> {
-    let config_fifos = ConfigFifoAlice::from_path("/home/vq-user/qline/config/fifos.json".into());
     let mut file_gcw = OpenOptions::new()
         .write(true)
-        .open(config_fifos.gc_file_path)
-        .expect("opening /dev/xdma0_h2c_0");
+        .open(&CONFIG.get().unwrap().alice_config().fifo.gc_file_path)
+        .expect("opening /dev/xdma0_h2c_0\n");
 
     println!("DEBUG: {:?}", debug);
 
@@ -62,16 +69,15 @@ fn recv_gc(bob: &mut TcpStream, rx: &Receiver<Request>, debug: bool) -> std::io:
                 .create(true)
                 .append(true)
                 .open("gc.txt")
-                .expect("opening gc.txt");
+                .expect("opening gc.txt\n");
             let strings: Vec<String> = vgc.iter().map(|n| n.to_string()).collect();
             writeln!(file_gc_debug, "{}", strings.join("\n"))?;
-            //return Ok(())
         }
     }
     //thread::sleep(time::Duration::from_millis(100));
 }
 
-fn handle_bob(rx: Receiver<Request>, tx: Sender<Response>, ip_bob: String) {
+fn handle_bob(rx: Receiver<Request>, tx: Sender<Response>, ip_bob: &str) {
     let mut bob = TcpStream::connect(&ip_bob).expect("could not connect to stream\n");
     println!("connected to Bob");
 
@@ -86,20 +92,23 @@ fn handle_bob(rx: Receiver<Request>, tx: Sender<Response>, ip_bob: String) {
                     std::io::ErrorKind::NotFound => (),
                     _ => panic!("{}", e),
                 });
-                tx.send(Response::Done).expect("sending message through c2");
+                tx.send(Response::Done)
+                    .expect("sending message through c2\n");
             }
             Request::Start => {
-                bob.send(HwControl::InitDdr).expect("sending to Bob");
+                bob.send(HwControl::InitDdr).expect("sending to Bob\n");
                 init_ddr(true);
-                tx.send(Response::Done).expect("sending message through c2");
+                tx.send(Response::Done)
+                    .expect("sending message through c2\n");
                 wait_for_pps();
-                bob.send(HwControl::SyncAtPps).expect("sending to Bob");
+                bob.send(HwControl::SyncAtPps).expect("sending to Bob\n");
                 sync_at_pps();
                 println!("files opened");
                 // loop until Stop
                 match recv_gc(&mut bob, &rx, debug) {
                     Ok(()) => {
-                        tx.send(Response::Done).expect("sending message through c2");
+                        tx.send(Response::Done)
+                            .expect("sending message through c2\n");
                         bob = TcpStream::connect(&ip_bob).expect("could not connect to stream\n");
                         continue;
                     }
@@ -116,7 +125,7 @@ fn handle_bob(rx: Receiver<Request>, tx: Sender<Response>, ip_bob: String) {
             }
             _ => {
                 tx.send(Response::DidNothing)
-                    .expect("sending message through c2");
+                    .expect("sending message through c2\n");
             }
         }
     }
@@ -135,10 +144,11 @@ fn handle_control(tx: Sender<Request>, rx: Receiver<Response>) {
     for stream in listener.incoming() {
         match stream {
             Ok(mut stream) => {
-                let message: Request = read_message(&mut stream).expect("recv");
-                tx.send(message).expect("sending message through  channel");
+                let message: Request = read_message(&mut stream).expect("recv\n");
+                tx.send(message)
+                    .expect("sending message through  channel\n");
                 let m = rx.recv().unwrap();
-                write_message(&mut stream, m).expect("sending message");
+                write_message(&mut stream, m).expect("sending message\n");
             }
             Err(err) => {
                 println!("Error: {}", err);
@@ -149,15 +159,27 @@ fn handle_control(tx: Sender<Request>, rx: Receiver<Response>) {
 }
 
 fn main() -> std::io::Result<()> {
-    loop {
-        let network =
-            ConfigNetworkAlice::from_path("/home/vq-user/qline/config/network.json".into());
+    let cli = Cli::parse();
 
+    let config: Configuration = Configuration::from_pathbuf_alice(&cli.config_path);
+
+    CONFIG
+        .set(config)
+        .expect("failed to set the config global var\n");
+
+    loop {
         let (c1_tx, c1_rx) = channel();
         let (c2_tx, c2_rx) = channel();
-        let thread_join_handle = thread::spawn(move || handle_bob(c1_rx, c2_tx, network.ip_bob_gc));
+        let thread_join_handle = thread::spawn(move || {
+            handle_bob(
+                c1_rx,
+                c2_tx,
+                &CONFIG.get().unwrap().alice_config().network.ip_bob_gc,
+            )
+        });
+
         handle_control(c1_tx, c2_rx);
 
-        thread_join_handle.join().expect("joining thread");
+        thread_join_handle.join().expect("joining thread\n");
     }
 }
