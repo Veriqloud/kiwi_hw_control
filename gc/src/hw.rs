@@ -4,7 +4,12 @@ use std::fs::{File, OpenOptions};
 use std::io::prelude::*;
 use std::net::TcpStream;
 use std::path::PathBuf;
+use std::sync::OnceLock;
 use std::{thread, time};
+
+use crate::config::Configuration;
+
+pub static CONFIG: OnceLock<Configuration> = OnceLock::new();
 
 // get value for fiber delay from file
 fn get_fiber_delay() -> u32 {

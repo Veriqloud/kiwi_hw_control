@@ -1,14 +1,13 @@
 use clap::Parser;
 use gc::comm::{Comm, HwControl};
 use gc::config::Configuration;
-use gc::hw::{init_ddr, process_gcr_stream, sync_at_pps, write_gc_to_alice, write_gc_to_fpga};
+use gc::hw::{
+    CONFIG, init_ddr, process_gcr_stream, sync_at_pps, write_gc_to_alice, write_gc_to_fpga,
+};
 use std::fs::OpenOptions;
 use std::io::prelude::*;
 use std::net::{TcpListener, TcpStream};
 use std::path::PathBuf;
-use std::sync::OnceLock;
-
-static CONFIG: OnceLock<Configuration> = OnceLock::new();
 
 #[derive(Parser)]
 struct Cli {

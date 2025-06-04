@@ -3,17 +3,14 @@ use comm::gc_comms::{Request, Response};
 use comm::{read_message, write_message};
 use gc::comm::{Comm, HwControl};
 use gc::config::Configuration;
-use gc::hw::{init_ddr, read_gc_from_bob, sync_at_pps, wait_for_pps, write_gc_to_fpga};
+use gc::hw::{CONFIG, init_ddr, read_gc_from_bob, sync_at_pps, wait_for_pps, write_gc_to_fpga};
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::net::TcpStream;
 use std::os::unix::net::UnixListener;
 use std::path::PathBuf;
-use std::sync::OnceLock;
 use std::sync::mpsc::{Receiver, Sender, TryRecvError, channel};
 use std::thread;
-
-static CONFIG: OnceLock<Configuration> = OnceLock::new();
 
 #[derive(Parser)]
 struct Cli {
