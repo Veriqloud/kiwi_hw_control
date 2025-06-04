@@ -4,6 +4,7 @@ import numpy as np
 from scipy.optimize import curve_fit
 import os
 import matplotlib.pyplot as plt
+from termcolor import colored
 
 
 def Shift_Unit(j,party):
@@ -11,7 +12,7 @@ def Shift_Unit(j,party):
     #times_ref_click1=[]
     if party == 'alice':
         data = np.loadtxt("data/tdc/pm_a_shift_"+str(j)+".txt",usecols=(2,3,4), dtype=np.int64)
-        gc_compensation=36
+        gc_compensation=59
     elif party == 'bob':
         data = np.loadtxt("data/tdc/pm_b_shift_"+str(j)+".txt",usecols=(2,3,4), dtype=np.int64)
         gc_compensation=61
@@ -144,35 +145,55 @@ def Find_First_Peak(ref_time_arr):
 
 
 
-def plot_shift(party, best_shift):
-    gc0, _ = Shift_Unit(best_shift, party)
+import os
+import matplotlib.pyplot as plt
+from scipy.optimize import curve_fit
+import numpy as np
 
-    n0, bins0 = np.histogram(gc0, 64)
+def plot_shift(party, shift):
+    if shift is None:
+        fig = plt.figure()
+        fig.patch.set_facecolor('white')
+        plt.axis('off')
+        plt.text(0.5, 0.5, 'Shift None', ha='center', va='center', fontsize=20, color='gray')
+        plt.savefig(f"data/calib_res/{party}_shift.png")
+        plt.close()
+        return
+
+    times0, times1 = Shift_Unit(shift, party)
+    n0, bins0 = np.histogram(times0, 64)
     bin_center = (bins0[:-1] + bins0[1:]) / 2
+
     n0[1::2] = n0[1::2][::-1]
 
     amp_guess = (max(n0) - min(n0)) / 2
-    fre_guess = np.pi * 2 * 10 * Fre_Est(bin_center, n0)
+    fre_guess = 2 * np.pi * 10 * Fre_Est(bin_center, n0)
     phase_guess = 0
     offset_guess = np.mean(n0)
 
     guess = [amp_guess, fre_guess, phase_guess, offset_guess]
     bounds = ([0, 1, -np.pi, -np.inf], [200, 3, np.pi, np.inf])
 
-    params, _ = curve_fit(Sine_Function, bin_center / 64, n0, p0=guess, bounds=bounds, maxfev=10000)
-    fit = Sine_Function(bin_center / 64, *params)
+    for i in range(len(guess)):
+        if guess[i] < bounds[0][i]:
+            guess[i] = bounds[0][i] + 1e-6
+        elif guess[i] > bounds[1][i]:
+            guess[i] = bounds[1][i] - 1e-6
 
-    plt.figure()
-    plt.plot(bin_center, n0, 'o', label='data')
-    plt.plot(bin_center, fit, '-', label='fit')
-    plt.legend()
-    plt.title(f"{party.capitalize()} shift (shift {best_shift})")
-    plt.xlabel("Time bin")
-    plt.ylabel("Counts")
+    try:
+        params, _ = curve_fit(Sine_Function, bin_center / 64, n0, p0=guess, bounds=bounds, maxfev=10000)
+        fit = Sine_Function(bin_center / 64, *params)
 
-    os.makedirs("data/calib_res", exist_ok=True)
-    plt.savefig(f"data/calib_res/{party}_shift.png")
-    plt.close()
-
+        plt.figure()
+        plt.plot(bin_center, n0, 'o', label='data')
+        plt.plot(bin_center, fit, '-', label='fit')
+        plt.legend()
+        plt.title(f"{party.capitalize()} shift histogram (shift {shift})")
+        plt.xlabel("Time bin")
+        plt.ylabel("Counts")
+        plt.savefig(f"data/calib_res/{party}_shift.png")
+        plt.close()
+    except Exception as e:
+        print(f"[Error in plot_shift for {party} shift={shift}]: {e}")
 
 # Best_Shift('bob')

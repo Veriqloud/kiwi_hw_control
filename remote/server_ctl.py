@@ -167,7 +167,6 @@ while True:
                     iter_count += 1
                     main.Download_Time(10000, 'verify_gate_ad_'+str(iter_count))
                     file_off = "~/qline/hw_control/data/tdc/verify_gate_ad_"+str(iter_count)+".txt"
-
                 sendc('done')
                 main.Ensure_Spd_Mode('continuous')
                 sendc('ok')
@@ -225,6 +224,7 @@ while True:
 
 
             elif command == 'fs_b':
+                print(colored('fs_b', 'cyan'))
                 main.Ensure_Spd_Mode('gated')
                 t = get_tmp()
                 t['pm_mode'] = 'seq64'
@@ -240,11 +240,15 @@ while True:
                     main.Update_Dac()
                     main.Download_Time(10000, 'pm_b_shift_'+str(s))
                 pm_shift = main.Find_Best_Shift('bob')
-                update_tmp('pm_shift', pm_shift_coarse + pm_shift)
-                main.Update_Dac()
-                sendc('ok')
+                if pm_shift is not None:
+                   update_tmp('pm_shift', pm_shift_coarse + pm_shift)
+                   main.Update_Dac()
+                else:
+                   pm_shift=1000
+                send_u32(pm_shift)
            
             elif command == 'fs_a':
+                print(colored('fs_a', 'cyan'))
                 main.Ensure_Spd_Mode('gated')
                 t = get_tmp()
                 t['pm_mode'] = 'off'
@@ -258,12 +262,15 @@ while True:
                     main.Download_Time(10000, 'pm_a_shift_'+str(s))
                     sendc("ok")
                 pm_shift = main.Find_Best_Shift('alice')
+                if pm_shift is None:
+                   pm_shift = 1000
                 send_u32(pm_shift)
 
 
 
            
             elif command == 'fd_b':
+                print(colored('fd_b', 'cyan'))
                 main.Ensure_Spd_Mode('gated')
                 fiber_delay = main.Find_Opt_Delay_B()
                 response = 'Find delay bob done'
@@ -274,6 +281,7 @@ while True:
                 sendc('ok')
             
             elif command == 'fd_b_long':
+                print(colored('fd_b_long', 'cyan'))
                 main.Ensure_Spd_Mode('gated')
                 fiber_delay = main.Find_Opt_Delay_B_long()
                 response = 'Find delay bob done'
@@ -284,17 +292,20 @@ while True:
                 sendc('ok')
             
             elif command == 'fd_a':
+                print(colored('fd_a', 'cyan'))
                 main.Ensure_Spd_Mode('gated')
                 fiber_delay = main.Find_Opt_Delay_A()
                 send_u32(fiber_delay)
             
             elif command == 'fd_a_long':
+                print(colored('fd_a_long', 'cyan'))
                 main.Ensure_Spd_Mode('gated')
                 fiber_delay_mod = rcv_u32()
                 fiber_delay = main.Find_Opt_Delay_A_long(fiber_delay_mod)
                 send_u32(fiber_delay)
             
             elif command == 'fz_b':
+                print(colored('fz_b', 'cyan'))
                 main.Ensure_Spd_Mode('gated')
                 zero_pos = main.Find_Zero_Pos_B()
                 update_tmp('zero_pos', zero_pos)
@@ -302,6 +313,7 @@ while True:
                 sendc('ok')
             
             elif command == 'fz_a':
+                print(colored('fz_a', 'cyan'))
                 main.Ensure_Spd_Mode('gated')
                 print("received command fz_a")
                 fiber_delay_mod = rcv_u32()

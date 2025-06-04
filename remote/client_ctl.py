@@ -248,7 +248,11 @@ def client_start(commands_in):
                 t['pm_mode'] = 'off'
                 save_tmp(t)
                 main.Update_Dac()
-                rcvc()
+                pm_shift = rcv_u32()
+                if pm_shift != 1000:
+                        print(colored("Success: Shift_Bob found\n", "green"))
+                else:
+                        print(colored("Fail: pm_shift_Bob is None\n", "red"))
 
             elif command == 'fs_a':
                 print(colored('fs_a', 'cyan'))
@@ -266,8 +270,12 @@ def client_start(commands_in):
                     sendc('download data')
                     rcvc()
                 pm_shift = rcv_u32()
-                update_tmp('pm_shift', pm_shift_coarse + pm_shift)
-                main.Update_Dac()
+                if pm_shift != 1000:
+                    update_tmp('pm_shift', pm_shift_coarse + pm_shift)
+                    main.Update_Dac()
+                    print(colored("Success: Shift_Alice found\n", "green"))
+                else:
+                    print(colored("Fail: pm_shift_Alice is None\n", "red"))
 
 
             elif command == 'fd_b':
