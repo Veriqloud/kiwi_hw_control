@@ -2,6 +2,8 @@
 import time
 import numpy as np
 from scipy.optimize import curve_fit
+import os
+import matplotlib.pyplot as plt
 
 
 def Shift_Unit(j,party):
@@ -9,7 +11,7 @@ def Shift_Unit(j,party):
     #times_ref_click1=[]
     if party == 'alice':
         data = np.loadtxt("data/tdc/pm_a_shift_"+str(j)+".txt",usecols=(2,3,4), dtype=np.int64)
-        gc_compensation=59
+        gc_compensation=36
     elif party == 'bob':
         data = np.loadtxt("data/tdc/pm_b_shift_"+str(j)+".txt",usecols=(2,3,4), dtype=np.int64)
         gc_compensation=61
@@ -90,7 +92,9 @@ def Best_Shift(party):
             if (0.1<fre<5):
                 amp_fre_arr.append(((abs(amp)*fre),i))
                 print(f"{abs(amp):.2f}  {fre:.2f}  {i:.2f}")
-
+    if not amp_fre_arr:
+          print(colored('amp_fre_arr is empty', 'red'))
+          return None
     max_ele = max(amp_fre_arr, key=lambda t: t[0])
     best_shift = max_ele[1]
     print("Best shift: ", best_shift)
@@ -137,6 +141,38 @@ def Find_First_Peak(ref_time_arr):
     first_peak = (p[np.argmax([d0, d1, d2, d3])]+2.5) % 625
     # print("First peak: ",first_peak)
     return int(first_peak)
+
+
+
+def plot_shift(party, best_shift):
+    gc0, _ = Shift_Unit(best_shift, party)
+
+    n0, bins0 = np.histogram(gc0, 64)
+    bin_center = (bins0[:-1] + bins0[1:]) / 2
+    n0[1::2] = n0[1::2][::-1]
+
+    amp_guess = (max(n0) - min(n0)) / 2
+    fre_guess = np.pi * 2 * 10 * Fre_Est(bin_center, n0)
+    phase_guess = 0
+    offset_guess = np.mean(n0)
+
+    guess = [amp_guess, fre_guess, phase_guess, offset_guess]
+    bounds = ([0, 1, -np.pi, -np.inf], [200, 3, np.pi, np.inf])
+
+    params, _ = curve_fit(Sine_Function, bin_center / 64, n0, p0=guess, bounds=bounds, maxfev=10000)
+    fit = Sine_Function(bin_center / 64, *params)
+
+    plt.figure()
+    plt.plot(bin_center, n0, 'o', label='data')
+    plt.plot(bin_center, fit, '-', label='fit')
+    plt.legend()
+    plt.title(f"{party.capitalize()} shift (shift {best_shift})")
+    plt.xlabel("Time bin")
+    plt.ylabel("Counts")
+
+    os.makedirs("data/calib_res", exist_ok=True)
+    plt.savefig(f"data/calib_res/{party}_shift.png")
+    plt.close()
 
 
 # Best_Shift('bob')

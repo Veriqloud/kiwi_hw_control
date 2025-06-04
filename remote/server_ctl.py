@@ -111,6 +111,10 @@ while True:
 
 
 
+
+
+
+
             elif command == 'verify_am_bias':
                 print(colored('verify_am_bias', 'cyan'))
                 for i in range(2):
@@ -210,14 +214,13 @@ while True:
                 main.Download_Time(10000, 'verify_gate_double')                
                 t = get_tmp()
                 gate0=t['soft_gate0']
-                print('gate0',gate0)
                 gate1=t['soft_gate1']
-                print('gate0',gate0)
                 width=t['soft_gatew']
                 binstep = 2
                 maxtime = gate1 + width
                 input_file = os.path.join("data", "tdc", "verify_gate_double.txt")
-                status = main.verify_gate_double(input_file, gate0, gate1, width, binstep, maxtime)
+                input_file2 = os.path.join("data", "tdc", "verify_gate_off.txt")
+                status = main.verify_gate_double(input_file,input_file2, gate0, gate1, width, binstep, maxtime)
                 sendc(status)
 
 
@@ -256,6 +259,8 @@ while True:
                     sendc("ok")
                 pm_shift = main.Find_Best_Shift('alice')
                 send_u32(pm_shift)
+
+
 
            
             elif command == 'fd_b':

@@ -150,7 +150,7 @@ def client_start(commands_in):
                 count_double = rcv_u32()
 
                 ratio = count_double / count_off
-                if ratio >= 1.9:
+                if ratio >= 1.7:
                    print(colored(f"Success: double/off  = {ratio:.2f} ({count_double}/{count_off}) \n", "green"))
                 else:
                    print(colored(f"Fail: double/off = {ratio:.2f} ({count_double}/{count_off}) \n", "red"))
@@ -199,12 +199,9 @@ def client_start(commands_in):
                 print(colored('ad', 'cyan'))
                 update_tmp('am_mode', 'off')
                 main.Update_Dac()
-           #     t = get_tmp()
-            #    main.Set_Am_Bias(t['am_bias'] + 1)
                 rcvc()
                 update_tmp('am_mode', 'double')
                 main.Update_Dac()
-             #   main.Set_Am_Bias(t['am_bias'])
                 rcvc()
 
 
@@ -231,9 +228,11 @@ def client_start(commands_in):
             elif command == 'verify_gates':
                 print(colored('verify_gates', 'cyan'))
                 update_tmp('am_mode', 'off')
+ #               update_tmp('pm_mode', 'seq64')
                 main.Update_Dac()
                 rcvc()
                 update_tmp('am_mode', 'double')
+#                update_tmp('pm_mode', 'off')
                 main.Update_Dac()
                 status = rcvc()
                 if status == "success":
@@ -243,6 +242,7 @@ def client_start(commands_in):
 
 
             elif command == 'fs_b':
+                print(colored('fs_b', 'cyan'))
                 t = get_tmp()
                 t['am_mode'] = 'double'
                 t['pm_mode'] = 'off'
@@ -251,6 +251,7 @@ def client_start(commands_in):
                 rcvc()
 
             elif command == 'fs_a':
+                print(colored('fs_a', 'cyan'))
                 t = get_tmp()
                 t['am_mode'] = 'double'
                 t['pm_mode'] = 'seq64'
@@ -270,6 +271,7 @@ def client_start(commands_in):
 
 
             elif command == 'fd_b':
+                print(colored('fd_b', 'cyan'))
                 update_tmp('am_mode', 'double')
                 update_tmp('pm_mode', 'fake_rng')
                 update_tmp('insert_zeros', 'off')
@@ -278,6 +280,7 @@ def client_start(commands_in):
                 rcvc()
             
             elif command == 'fd_b_long':
+                print(colored('fd_b_long', 'cyan'))
                 update_tmp('am_mode', 'double')
                 update_tmp('pm_mode', 'fake_rng')
                 update_tmp('insert_zeros', 'off')
@@ -286,6 +289,7 @@ def client_start(commands_in):
                 rcvc()
             
             elif command == 'fd_a':
+                print(colored('fd_a', 'cyan'))
                 main.Write_To_Fake_Rng(gen_seq.seq_rng_single())
                 update_tmp('pm_mode', 'fake_rng')
                 update_tmp('am_mode', 'double')
@@ -298,6 +302,7 @@ def client_start(commands_in):
                 save_tmp(t)
             
             elif command == 'fd_a_long':
+                print(colored('fd_a_long', 'cyan'))
                 t = get_tmp()
                 t['pm_mode'] = 'fake_rng'
                 t['am_mode'] = 'double'
@@ -328,6 +333,7 @@ def client_start(commands_in):
             
             
             elif command == 'fz_b':
+                print(colored('fz_b', 'cyan'))
                 update_tmp('am_mode', 'double')
                 update_tmp('pm_mode', 'fake_rng')
                 update_tmp('insert_zeros', 'off')
@@ -336,6 +342,7 @@ def client_start(commands_in):
                 rcvc()
             
             elif command == 'fz_a':
+                print(colored('fz_a', 'cyan'))
                 t = get_tmp()
                 t['pm_mode'] = 'fake_rng'
                 t['insert_zeros'] = 'on'

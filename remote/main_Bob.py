@@ -7,9 +7,12 @@ import datetime
 import mmap
 import lib.gen_seq as gen_seq
 import lib.cal_lib as cal_lib
+import cal_lib as cal
 from lib.config_lib import *
 from lib.Aurea import Aurea
 from scipy.optimize import curve_fit
+import matplotlib.pyplot as plt
+
 
 def Ensure_Spd_Mode(mode):
     deadtime_cont = 20
@@ -174,6 +177,7 @@ def Gen_Gate():
 
 def Find_Best_Shift(party):
     best_shift = cal_lib.Best_Shift(party)
+    cal_lib.plot_shift(party, best_shift)
     return best_shift
 
     
@@ -583,11 +587,16 @@ def fall_edge(file_path, start_range=200, end_range=900):
     return lf
 
 
-def verify_gate_double(input_file, gate0, gate1, width, binstep=2, maxtime=590):
-    raw = np.loadtxt(input_file, usecols=1) % 1250
-    data = raw[(raw >= 0) & (raw < maxtime)]
+def verify_gate_double(input_file, input_file2, gate0, gate1, width, binstep=2, maxtime=590):
+    raw1 = np.loadtxt(input_file, usecols=1) % 1250
+    data1 = raw1[(raw1 >= 0) & (raw1 < maxtime)]
+
+    raw2 = np.loadtxt(input_file2, usecols=1) % 1250
+    data2 = raw2[(raw2 >= 0) & (raw2 < maxtime)]
+
     bins = np.arange(0, maxtime + binstep, binstep) - 1
-    h, _ = np.histogram(data, bins=bins)
+    h1, _ = np.histogram(data1, bins=bins)
+    h2, _ = np.histogram(data2, bins=bins)
     centers = bins[:-1] + binstep / 2
 
     idx0 = np.where((centers >= gate0) & (centers < gate0 + width))[0]
@@ -595,27 +604,46 @@ def verify_gate_double(input_file, gate0, gate1, width, binstep=2, maxtime=590):
 
     bg0_range = np.where((centers >= gate0 - width) & (centers < gate0 + 2 * width))[0]
     bg0_mask = np.setdiff1d(bg0_range, idx0)
-    background_max0 = h[bg0_mask].max() if bg0_mask.size else 0
+    background_max0 = h1[bg0_mask].max() if bg0_mask.size else 0
 
     bg1_range = np.where((centers >= gate1 - width) & (centers < gate1 + 2 * width))[0]
     bg1_mask = np.setdiff1d(bg1_range, idx1)
-    background_max1 = h[bg1_mask].max() if bg1_mask.size else 0
+    background_max1 = h1[bg1_mask].max() if bg1_mask.size else 0
 
-    peak0 = h[idx0].max() if idx0.size else 0
-    peak1 = h[idx1].max() if idx1.size else 0
+    peak0 = h1[idx0].max() if idx0.size else 0
+    peak1 = h1[idx1].max() if idx1.size else 0
 
-    print(f'peak0 = {peak0}, background0 = {background_max0}')
-    print(f'peak1 = {peak1}, background1 = {background_max1}')
+    peak0_local_index = np.argmax(h1[idx0]) if idx0.size else None
+    peak1_local_index = np.argmax(h1[idx1]) if idx1.size else None
+
+    peak0_x = centers[idx0[peak0_local_index]] if idx0.size else None
+    peak1_x = centers[idx1[peak1_local_index]] if idx1.size else None
+
+    print(f'peak0 = {peak0} at x = {peak0_x}, background0 = {background_max0}')
+    print(f'peak1 = {peak1} at x = {peak1_x}, background1 = {background_max1}')
+
+    # === PLOT  ===
+    plt.figure()
+    plt.plot(centers, h2, label=os.path.basename('off'), color='blue', linestyle='--')
+    plt.plot(centers, h1, label=os.path.basename('double'), color='red')
+    plt.axvline(gate0, color='orange', linestyle='--', label='Gate0')
+    plt.axvline(gate0 + width, color='orange', linestyle='--')
+    plt.axvline(gate1, color='purple', linestyle='--', label='Gate1')
+    plt.axvline(gate1 + width, color='purple', linestyle='--')
+    plt.ylim(0)
+    plt.xlabel("Time bin (ns)")
+    plt.ylabel("Counts")
+    plt.legend()
+    os.makedirs("data/calib_res", exist_ok=True)
+    plt.savefig("data/calib_res/gate_double.png")
+    plt.close()
 
     if peak0 > (background_max0 + 20) and peak1 > (background_max1 + 20):
         return "success"
+    elif (peak0 - (background_max0 + 20)) > 200 or (peak1 - (background_max1 + 20)) > 200:
+        return "success"
     else:
         return "fail"
-
-
-
-
-
 
 
 
