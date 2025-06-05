@@ -1,79 +1,13 @@
 use memmap::MmapOptions;
-use std::env::var;
 use std::fs::{File, OpenOptions};
 use std::io::prelude::*;
 use std::net::TcpStream;
-use std::path::PathBuf;
 use std::sync::OnceLock;
 use std::{thread, time};
 
 use crate::config::Configuration;
 
 pub static CONFIG: OnceLock<Configuration> = OnceLock::new();
-
-// get value for fiber delay from file
-fn get_fiber_delay() -> u32 {
-    let mut tmpfile = PathBuf::from(var("CONFIGPATH").expect("os variable CONFIGPATH"));
-    tmpfile.push("tmp.txt");
-    let mut file = File::open(tmpfile).expect("opening tmp.txt");
-    let mut contents = String::new();
-    file.read_to_string(&mut contents)
-        .expect("get_fiber_delay: read to string");
-    let mut get_next = false;
-
-    // go through the lines and look for the matching word, then take the integer next to it
-    for line in contents.lines() {
-        for word in line.split("\t") {
-            if get_next {
-                let delay: u32 = word
-                    .parse()
-                    .expect("could not parse string to int reading tmp.txt");
-                return delay;
-            }
-            match word {
-                "fiber_delay" => {
-                    get_next = true;
-                }
-                _ => {
-                    break;
-                }
-            }
-        }
-    }
-    panic!("Did not find fiber_delay in tmp.txt");
-}
-
-// get value for decoy delay from file
-fn get_decoy_delay() -> u32 {
-    let mut tmpfile = PathBuf::from(var("CONFIGPATH").expect("os variable CONFIGPATH"));
-    tmpfile.push("tmp.txt");
-    let mut file = File::open(tmpfile).expect("opening tmp.txt");
-    let mut contents = String::new();
-    file.read_to_string(&mut contents)
-        .expect("get_decoy_delay: read to string");
-    let mut get_next = false;
-
-    // go through the lines and look for the matching word, then take the integer next to it
-    for line in contents.lines() {
-        for word in line.split("\t") {
-            if get_next {
-                let delay: u32 = word
-                    .parse()
-                    .expect("could not parse string to int reading tmp.txt");
-                return delay;
-            }
-            match word {
-                "decoy_delay" => {
-                    get_next = true;
-                }
-                _ => {
-                    break;
-                }
-            }
-        }
-    }
-    panic!("Did not find fiber_delay in tmp.txt");
-}
 
 // write to fpga
 fn xdma_write(addr: usize, value: u32, offset: u64) {
@@ -156,18 +90,17 @@ fn ddr_data_init() {
 
 // reset and start ddr stuff
 pub fn init_ddr(alice: bool) {
-    let fiber_delay = get_fiber_delay();
     let decoy_delay;
     if alice {
-        decoy_delay = get_decoy_delay();
+        decoy_delay = CONFIG.get().unwrap().alice_config().decoy_delay;
         println!("{:?}", decoy_delay);
     } else {
-        decoy_delay = fiber_delay;
+        decoy_delay = CONFIG.get().unwrap().fiber_delay;
     }
     println!("decoy delay: {:?}", decoy_delay);
     // we have to add 64 to the delay due to some latency in the fpga
-    ddr_data_reg(4, fiber_delay, decoy_delay, 50000);
-    ddr_data_reg(3, fiber_delay, decoy_delay, 50000);
+    ddr_data_reg(4, CONFIG.get().unwrap().fiber_delay, decoy_delay, 50000);
+    ddr_data_reg(3, CONFIG.get().unwrap().fiber_delay, decoy_delay, 50000);
     ddr_data_init();
     println!("init ddr done");
 }
