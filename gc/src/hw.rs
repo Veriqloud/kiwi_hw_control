@@ -1,5 +1,5 @@
 use memmap::MmapOptions;
-use std::fs::{File, OpenOptions};
+use std::fs::{File, OpenOptions, read_to_string};
 use std::io::prelude::*;
 use std::net::TcpStream;
 use std::sync::OnceLock;
@@ -8,6 +8,41 @@ use std::{thread, time};
 use crate::config::Configuration;
 
 pub static CONFIG: OnceLock<Configuration> = OnceLock::new();
+
+enum HwCurrentParam {
+    FiberDelay,
+    DecoyDelay,
+}
+
+impl ToString for HwCurrentParam {
+    fn to_string(&self) -> String {
+        match self {
+            HwCurrentParam::FiberDelay => "fiber_delay".to_string(),
+            HwCurrentParam::DecoyDelay => "decoy_delay".to_string(),
+        }
+    }
+}
+
+fn read_hw_current_int_param(param: &str, current_hw_params_file_path: &str) -> u32 {
+    read_to_string(current_hw_params_file_path)
+        .expect("current hardware parameters file could not be opened")
+        .lines()
+        .find_map(|l| {
+            let mut parts = l.trim().split("\t");
+            if parts.next().unwrap_or_default() == param {
+                Some(
+                    parts
+                        .last()
+                        .expect(format!("could not parse value for param: {param}").as_str())
+                        .parse::<u32>()
+                        .unwrap(),
+                )
+            } else {
+                None
+            }
+        })
+        .expect(format!("did not find param: {param}").as_str())
+}
 
 // write to fpga
 fn xdma_write(addr: usize, value: u32, offset: u64) {
@@ -90,17 +125,24 @@ fn ddr_data_init() {
 
 // reset and start ddr stuff
 pub fn init_ddr(alice: bool) {
-    let decoy_delay;
-    if alice {
-        decoy_delay = CONFIG.get().unwrap().alice_config().decoy_delay;
-        println!("{:?}", decoy_delay);
+    let fiber_delay = read_hw_current_int_param(
+        &HwCurrentParam::FiberDelay.to_string(),
+        &CONFIG.get().unwrap().current_hw_parameters_file_path,
+    );
+
+    let decoy_delay = if alice {
+        read_hw_current_int_param(
+            &HwCurrentParam::DecoyDelay.to_string(),
+            &CONFIG.get().unwrap().current_hw_parameters_file_path,
+        )
     } else {
-        decoy_delay = CONFIG.get().unwrap().fiber_delay;
-    }
+        fiber_delay
+    };
+
     println!("decoy delay: {:?}", decoy_delay);
     // we have to add 64 to the delay due to some latency in the fpga
-    ddr_data_reg(4, CONFIG.get().unwrap().fiber_delay, decoy_delay, 50000);
-    ddr_data_reg(3, CONFIG.get().unwrap().fiber_delay, decoy_delay, 50000);
+    ddr_data_reg(4, fiber_delay, decoy_delay, 50000);
+    ddr_data_reg(3, fiber_delay, decoy_delay, 50000);
     ddr_data_init();
     println!("init ddr done");
 }
@@ -200,4 +242,27 @@ pub fn read_gc_from_bob(bob: &mut TcpStream) -> std::io::Result<[u64; BATCHSIZE]
         );
     }
     Ok(gc)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{HwCurrentParam, read_hw_current_int_param};
+
+    #[test]
+    fn read_decoy_delay() {
+        let decoy_delay = read_hw_current_int_param(
+            &HwCurrentParam::DecoyDelay.to_string(),
+            "src/test_data/tmp.txt",
+        );
+        assert_eq!(123, decoy_delay)
+    }
+
+    #[test]
+    fn read_fiber_delay() {
+        let fiber_delay = read_hw_current_int_param(
+            &HwCurrentParam::FiberDelay.to_string(),
+            "src/test_data/tmp.txt",
+        );
+        assert_eq!(34, fiber_delay)
+    }
 }
