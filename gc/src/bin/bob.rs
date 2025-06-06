@@ -1,26 +1,45 @@
+use clap::Parser;
 use gc::comm::{Comm, HwControl};
-use gc::config::ConfigFifoBob;
-use gc::hw::{init_ddr, process_gcr_stream, sync_at_pps, write_gc_to_alice, write_gc_to_fpga};
+use gc::config::Configuration;
+use gc::hw::{
+    CONFIG, init_ddr, process_gcr_stream, sync_at_pps, write_gc_to_alice, write_gc_to_fpga,
+};
 use std::fs::OpenOptions;
 use std::io::prelude::*;
 use std::net::{TcpListener, TcpStream};
+use std::path::PathBuf;
+
+#[derive(Parser)]
+struct Cli {
+    /// Path to the configuration file
+    #[arg(short = 'c', long, default_value_os_t = PathBuf::from("/home/vq-user/qline/config/config.json"))]
+    config_path: PathBuf,
+}
 
 // read the gcr stream, split gcr, write gc to Alice and r to fifo
 fn send_gc(alice: &mut TcpStream) -> std::io::Result<()> {
-    let config_fifos = ConfigFifoBob::from_path("/home/vq-user/qline/config/fifos.json".into());
     let mut file_gcr = OpenOptions::new()
         .read(true)
-        .open(config_fifos.gcr_file_path)
-        .expect("opening /dev/xdma0_c2h_0");
+        .open(&CONFIG.get().unwrap().bob_config().fifo.gcr_file_path)
+        .expect("opening /dev/xdma0_c2h_0\n");
     let mut file_gcw = OpenOptions::new()
         .write(true)
-        .open(config_fifos.gc_file_path)
-        .expect("opening /dev/xdma0_h2c_0");
+        .open(&CONFIG.get().unwrap().bob_config().fifo.gc_file_path)
+        .expect("opening /dev/xdma0_h2c_0\n");
     let mut file_result = OpenOptions::new()
         .write(true)
-        .open(config_fifos.click_result_file_path)
-        .expect("opening result fifo");
+        .open(
+            &CONFIG
+                .get()
+                .unwrap()
+                .bob_config()
+                .fifo
+                .click_result_file_path,
+        )
+        .expect("opening result fifo\n");
+
     let mut i = 0;
+
     loop {
         let (gc, result) = process_gcr_stream(&mut file_gcr)?;
         if (i % 100) == 0 {
@@ -58,6 +77,14 @@ fn handle_alice(alice: &mut TcpStream) -> std::io::Result<()> {
 }
 
 fn main() -> std::io::Result<()> {
+    let cli = Cli::parse();
+
+    let config: Configuration = Configuration::from_pathbuf_bob(&cli.config_path);
+
+    CONFIG
+        .set(config)
+        .expect("failed to set the config global var\n");
+
     // delete and remake fifo file for result values
     std::fs::remove_file("/home/vq-user/qline/result.f").unwrap_or_else(|e| match e.kind() {
         std::io::ErrorKind::NotFound => (),

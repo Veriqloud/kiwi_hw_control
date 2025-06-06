@@ -1,0 +1,13 @@
+{
+      "player": {
+        "Bob": {
+          "fifo": {
+            "angle_file_path": "/dev/xdma0_c2h_3",
+            "gcr_file_path": "/dev/xdma0_c2h_1",
+            "gc_file_path": "/dev/xdma0_h2c_0",
+            "click_result_file_path": "/home/vq-user/qline/result.f"
+          },
+        }
+      },
+      "fiber_delay": 42
+}
