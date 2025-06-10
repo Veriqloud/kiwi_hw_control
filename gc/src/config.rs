@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Configuration {
     pub player: QlinePlayer,
-    pub fiber_delay: u32,
+    pub current_hw_parameters_file_path: String,
 }
 
 impl Configuration {
@@ -171,7 +171,7 @@ mod test {
                 },
                 decoy_delay: 42,
             }),
-            fiber_delay: 420,
+            current_hw_parameters_file_path: "/path/to/dyn/params/file.txt".to_string(),
         };
 
         println!("{}", serde_json::to_string_pretty(&conf).unwrap());
@@ -188,7 +188,7 @@ mod test {
                     click_result_file_path: "click_result_file_path".to_string(),
                 },
             }),
-            fiber_delay: 42,
+            current_hw_parameters_file_path: "/path/to/dyn/params/file.txt".to_string(),
         };
 
         println!("{}", serde_json::to_string_pretty(&conf).unwrap());
@@ -198,7 +198,7 @@ mod test {
     fn print_charlie_config() {
         let conf = Configuration {
             player: super::QlinePlayer::Charlie(CharlieConfig {}),
-            fiber_delay: 42,
+            current_hw_parameters_file_path: "/path/to/dyn/params/file.txt".to_string(),
         };
 
         println!("{}", serde_json::to_string_pretty(&conf).unwrap());
