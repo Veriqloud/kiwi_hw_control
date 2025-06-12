@@ -156,6 +156,8 @@ def init_fda():
 
 def init_sda():
     Config_Sda()
+    for i in range(8):
+     Set_vol(i, 0)
     d = get_default()
     Set_Vca(d['vca'])
     Set_Am_Bias(d['am_bias'])

@@ -75,9 +75,6 @@ while True:
                 rcvc()
                 sendc('Alice and Bob init done')    
                 print(colored('Alice and Bob init done \n', 'cyan'))
-                print(colored('sync_gc \n', 'cyan'))
-                rcvc()
-                Sync_Gc()
 
 
             elif command == 'sync_gc':
@@ -85,7 +82,7 @@ while True:
                 Sync_Gc()
                 print(colored('sync_gc', 'cyan'))
                 
-            elif command == 'find_max_vca':
+            elif command.startswith('find_max_vca'):
                 print(colored('find_max_vca', 'cyan'))
                 main.Ensure_Spd_Mode('continuous')
                 while rcvc() == 'get counts':
@@ -93,24 +90,20 @@ while True:
                     send_u32(count)
 
 
-            elif command == 'find_am_bias':
+            elif command.startswith('find_am_bias'):
                 print(colored('find_am_bias', 'cyan'))
-                for i in range(11):
-                    rcvc()
-                    time.sleep(0.2)
+                while rcvc() == 'get counts':
+                    time.sleep(0.1)
                     count = main.Read_Count()
                     send_u32(count)
 
-            elif command == 'find_am_bias_2':
+            elif command == 'find_am2_bias':
                 print(colored('find_am_bias_2', 'cyan'))
                 for i in range(21):
                     rcvc()
                     time.sleep(0.2)
                     count = main.Read_Count()
                     send_u32(count)
-
-
-
 
 
 
@@ -129,6 +122,8 @@ while True:
                     print(colored('pol_bob', 'cyan'))
                     main.Polarisation_Control()
                     sendc('ok')
+
+
 
             elif command == 'ad':
                 print(colored('ad', 'cyan'))
@@ -246,6 +241,7 @@ while True:
                 else:
                    pm_shift=1000
                 send_u32(pm_shift)
+
            
             elif command == 'fs_a':
                 print(colored('fs_a', 'cyan'))

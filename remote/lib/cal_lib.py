@@ -145,10 +145,6 @@ def Find_First_Peak(ref_time_arr):
 
 
 
-import os
-import matplotlib.pyplot as plt
-from scipy.optimize import curve_fit
-import numpy as np
 
 def plot_shift(party, shift):
     if shift is None:
@@ -161,32 +157,54 @@ def plot_shift(party, shift):
         return
 
     times0, times1 = Shift_Unit(shift, party)
+
     n0, bins0 = np.histogram(times0, 64)
-    bin_center = (bins0[:-1] + bins0[1:]) / 2
+    n1, bins1 = np.histogram(times1, 64)
+
+    bin_center0 = (bins0[:-1] + bins0[1:]) / 2
+    bin_center1 = (bins1[:-1] + bins1[1:]) / 2
 
     n0[1::2] = n0[1::2][::-1]
+    n1[1::2] = n1[1::2][::-1]
 
-    amp_guess = (max(n0) - min(n0)) / 2
-    fre_guess = 2 * np.pi * 10 * Fre_Est(bin_center, n0)
-    phase_guess = 0
-    offset_guess = np.mean(n0)
+    amp_guess0 = (max(n0) - min(n0)) / 2
+    fre_guess0 = 2 * np.pi * 10 * Fre_Est(bin_center0, n0)
+    phase_guess0 = 0
+    offset_guess0 = np.mean(n0)
 
-    guess = [amp_guess, fre_guess, phase_guess, offset_guess]
+    guess0 = [amp_guess0, fre_guess0, phase_guess0, offset_guess0]
     bounds = ([0, 1, -np.pi, -np.inf], [200, 3, np.pi, np.inf])
 
-    for i in range(len(guess)):
-        if guess[i] < bounds[0][i]:
-            guess[i] = bounds[0][i] + 1e-6
-        elif guess[i] > bounds[1][i]:
-            guess[i] = bounds[1][i] - 1e-6
+    amp_guess1 = (max(n1) - min(n1)) / 2
+    fre_guess1 = 2 * np.pi * 10 * Fre_Est(bin_center1, n1)
+    phase_guess1 = 0
+    offset_guess1 = np.mean(n1)
+
+    guess1 = [amp_guess1, fre_guess1, phase_guess1, offset_guess1]
+
+    for i in range(len(guess0)):
+        if guess0[i] < bounds[0][i]:
+            guess0[i] = bounds[0][i] + 1e-6
+        elif guess0[i] > bounds[1][i]:
+            guess0[i] = bounds[1][i] - 1e-6
+        if guess1[i] < bounds[0][i]:
+            guess1[i] = bounds[0][i] + 1e-6
+        elif guess1[i] > bounds[1][i]:
+            guess1[i] = bounds[1][i] - 1e-6
 
     try:
-        params, _ = curve_fit(Sine_Function, bin_center / 64, n0, p0=guess, bounds=bounds, maxfev=10000)
-        fit = Sine_Function(bin_center / 64, *params)
+        params0, _ = curve_fit(Sine_Function, bin_center0 / 64, n0, p0=guess0, bounds=bounds, maxfev=10000)
+        fit0 = Sine_Function(bin_center0 / 64, *params0)
+
+        params1, _ = curve_fit(Sine_Function, bin_center1 / 64, n1, p0=guess1, bounds=bounds, maxfev=10000)
+        fit1 = Sine_Function(bin_center1 / 64, *params1)
 
         plt.figure()
-        plt.plot(bin_center, n0, 'o', label='data')
-        plt.plot(bin_center, fit, '-', label='fit')
+        plt.plot(bin_center0, n0, 'o', label='r=0 data', color='blue')
+        plt.plot(bin_center0, fit0, '-', label='r=0 fit', color='blue')
+        plt.plot(bin_center1, n1, 'o', label='r=1 data', color='orange')
+        plt.plot(bin_center1, fit1, '-', label='r=1 fit', color='orange')
+
         plt.legend()
         plt.title(f"{party.capitalize()} shift histogram (shift {shift})")
         plt.xlabel("Time bin")
@@ -195,5 +213,6 @@ def plot_shift(party, shift):
         plt.close()
     except Exception as e:
         print(f"[Error in plot_shift for {party} shift={shift}]: {e}")
+
 
 # Best_Shift('bob')

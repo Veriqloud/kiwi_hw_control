@@ -38,6 +38,18 @@ def Ensure_Spd_Mode(mode):
         exit("wrong mode")
     save_tmp(t)
 
+
+def plot_and_save_dac1(dac1, filename):
+    plt.figure(figsize=(12,4))
+    plt.plot(dac1, linestyle='-', color='green')
+    plt.title("Seq DAC1")
+    plt.xlabel("Indice")
+    plt.ylabel("Value DAC")
+    plt.grid(True)
+    plt.tight_layout()
+    plt.savefig(filename)
+    plt.close()
+
 def Update_Dac():
     # update from tmp.txt
     # Generate sequences for dac0 and dac1 and write to device.
@@ -63,7 +75,8 @@ def Update_Dac():
         Write_Pm_Mode('true_rng', t['feedback'], t['insert_zeros'])
         Write_Angles(t['angle0'], t['angle1'], t['angle2'], t['angle3'])
         dac1 = gen_seq.dac1_sample(np.zeros(64), 0)
-    
+    h=t['pm_shift']
+#    plot_and_save_dac1(dac1, f"data/calib_res/dac1_seq64_{h}.png")
     Write_To_Dac(dac0, dac1)
     Write_Pm_Shift(t['pm_shift']%10, t['zero_pos'])
     print("Dac", t['pm_mode'], t['pm_shift'], t['feedback'], t['insert_zeros'])
@@ -261,6 +274,9 @@ def Read_Count_InGates():
     ingates_count = dec_click0_count + dec_click1_count
     return ingates_count
 
+
+
+
 def Polarisation_Control():
     voltages = np.arange(1,3.5,0.5)
     bests = []
@@ -268,8 +284,9 @@ def Polarisation_Control():
         c = []
         for v in voltages:
             Set_vol(ch,v)
-            time.sleep(0.2)
-            c.append(Read_Count_InGates())
+            time.sleep(0.1)
+           # c.append(Read_Count_InGates())
+            c.append(Read_Count())
         c = np.array(c)
         print(c)
         best = voltages[c.argmax()]
@@ -281,12 +298,13 @@ def Polarisation_Control():
     t = get_tmp()
     bests2 = []
     for ch in range(4):
-        voltages = np.arange(bests[ch]-0.2,bests[ch]+0.3,0.1)
+        voltages = np.arange(bests[ch]-0.2,bests[ch]+0.2,0.1)
         c = []
         for v in voltages:
             Set_vol(ch,v)
-            time.sleep(0.2)
-            c.append(Read_Count_InGates())
+            time.sleep(0.1)
+            #c.append(Read_Count_InGates())
+            c.append(Read_Count())
         c = np.array(c)
         print(c)
         best = voltages[c.argmax()]
@@ -638,10 +656,10 @@ def verify_gate_double(input_file, input_file2, gate0, gate1, width, binstep=2, 
     plt.savefig("data/calib_res/gate_double.png")
     plt.close()
 
-    if peak0 > (background_max0 + 20) and peak1 > (background_max1 + 20):
+    if peak0 > (background_max0 + 30) and peak1 > (background_max1 + 30):
         return "success"
-    elif (peak0 - (background_max0 + 20)) > 200 or (peak1 - (background_max1 + 20)) > 200:
-        return "success"
+   # elif (peak0 - (background_max0 + 20)) > 200 or (peak1 - (background_max1 + 20)) > 200:
+   #     return "success"
     else:
         return "fail"
 
@@ -741,6 +759,8 @@ def init_fda():
 
 def init_sda():
     Config_Sda()
+    for i in range(8):
+     Set_vol(i, 0)
 
 def init_jic():
     Config_Jic()
@@ -808,7 +828,7 @@ def init_rst_default():
     d['angle1'] = 0.18
     d['angle2'] = -0.18
     d['angle3'] = 0.36
-    d['gate_delay'] = 6000
+    d['gate_delay'] = 3000
     d['soft_gate0'] = 28
     d['soft_gate1'] = 542
     d['soft_gatew'] = 40
