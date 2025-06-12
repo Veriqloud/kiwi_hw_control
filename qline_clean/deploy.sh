@@ -3,13 +3,11 @@
 Alice=$SSH_ALICE
 Bob=$SSH_BOB
 
-rsync -v remote/hw_alice.py $Alice:~/qline_clean/hw_control/
-rsync -v remote/ctl_alice.py $Alice:~/qline_clean/hw_control/
+rsync -v remote/hw_alice.py remote/hws_alice.py remote/ctl_alice.py $Alice:~/qline_clean/hw_control/
 rsync -v remote/lib/*.py $Alice:~/qline_clean/hw_control/lib/
 rsync -v remote/alice_server/*.py $Alice:~/qline_clean/server/
 
-rsync -v remote/hw_bob.py $Bob:~/qline_clean/hw_control/
-rsync -v remote/ctl_bob.py $Bob:~/qline_clean/hw_control/
+rsync -v remote/hw_bob.py remote/ctl_bob.py remote/hws_bob.py $Bob:~/qline_clean/hw_control/
 rsync -v remote/lib/*.py $Bob:~/qline_clean/hw_control/lib/
 rsync -v remote/lib/aurea/* $Bob:~/qline_clean/hw_control/lib/aurea/
 rsync -v remote/bob_server/*.py $Bob:~/qline_clean/server/

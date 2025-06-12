@@ -84,7 +84,7 @@ def Update_Dac():
     
     Write_To_Dac(dac0, dac1)
     Write_Pm_Shift(t['pm_shift']%10, t['zero_pos'])
-    print("Dac", t['am_mode'], t['pm_mode'], t['am_shift'], t['pm_shift'], t['insert_zeros'])
+    #print("Dac", t['am_mode'], t['pm_mode'], t['am_shift'], t['pm_shift'], t['insert_zeros'])
     
 
 def Update_Angles():
@@ -145,6 +145,8 @@ def init_fda():
 
 def init_sda():
     Config_Sda()
+    for i in range(8):
+     Set_vol(i, 0)
     d = get_default()
     Set_Vca(d['vca'])
     Set_Am_Bias(d['am_bias'])
@@ -229,173 +231,3 @@ def init_all():
     init_apply_default()
 
 
-#def main():
-#    def init(args):
-#        if args.ltc:
-#            init_ltc()
-#        elif args.fda:
-#            init_fda()
-#        elif args.sync:
-#            init_sync()
-#        elif args.sda:
-#            init_sda()
-#        elif args.decoy:
-#            decoy_reset()
-#        elif args.all:
-#            init_all()
-#        elif args.rst_default:
-#            init_rst_default()
-#        elif args.rst_tmp:
-#            init_rst_tmp()
-#        elif args.apply_default:
-#            init_apply_default()
-#    def set(args):
-#        if args.vca is not None:
-#            Set_Vca(args.vca)
-#        elif args.am_bias is not None:
-#            Set_Am_Bias(args.am_bias)
-#        elif args.am_bias_2 is not None:
-#            Set_Am_Bias_2(args.am_bias_2)    
-#        elif args.qdistance is not None:
-#            update_tmp('qdistance', args.qdistance)
-#            Update_Dac()
-#        elif args.pm_mode:
-#            update_tmp('pm_mode', args.pm_mode)
-#            Update_Dac()
-#        elif args.fake_rng_seq:
-#            if args.fake_rng_seq == 'single':
-#                Write_To_Fake_Rng(gen_seq.seq_rng_single(args.pos))
-#                Update_Dac()
-#            elif args.fake_rng_seq == 'off':
-#                Write_To_Fake_Rng(gen_seq.seq_rng_zeros())
-#                Update_Dac()
-#            elif args.fake_rng_seq == 'random':
-#                Write_To_Fake_Rng(gen_seq.seq_rng_random())
-#                Update_Dac()
-#            elif args.fake_rng_seq == 'all_one':
-#                Write_To_Fake_Rng(gen_seq.seq_rng_all_one())
-#                Update_Dac()
-#            elif args.fake_rng_seq == 'block1':
-#                Write_To_Fake_Rng(gen_seq.seq_rng_block1())
-#                Update_Dac()
-#        elif args.insert_zeros:
-#            update_tmp('insert_zeros', args.insert_zeros)
-#            Update_Dac()
-#        elif args.pm_shift is not None:
-#            update_tmp('pm_shift', args.pm_shift)
-#            Update_Dac()
-#        elif args.am_shift is not None:
-#            update_tmp('am_shift', args.am_shift)
-#            Update_Dac()
-#        elif args.am_mode:
-#            update_tmp('am_mode', args.am_mode)
-#            Update_Dac()
-#        elif args.am2_mode:
-#            update_tmp('am2_mode', args.am2_mode)
-#            Update_Decoy()
-#        elif args.zero_pos:
-#            update_tmp('zero_pos', args.zero_pos)
-#            Update_Dac()
-#        elif args.angles:
-#            t = get_tmp()
-#            t['angle0'] = args.angles[0]
-#            t['angle1'] = args.angles[1]
-#            t['angle2'] = args.angles[2]
-#            t['angle3'] = args.angles[3]
-#            save_tmp(t)
-#            Update_Angles()
-#    def get(args):
-#        if args.get_gc:
-#            #Ddr_Data_Init()
-#            Get_Current_Gc()
-#        if args.ddr_status:
-#            Ddr_Status()
-##        if args.angles:
-##            Angle()
-#
-#
-#
-#            
-#
-#
-#    #create top_level parser
-#    parser = argparse.ArgumentParser()
-#    subparsers = parser.add_subparsers(required=True)
-#
-#    parser_init = subparsers.add_parser('init')
-#    parser_set = subparsers.add_parser('set')
-#    parser_get = subparsers.add_parser('get')
-#
-#    parser_init.add_argument("--all", action="store_true", 
-#                             help="init all devices and sync")
-#    parser_init.add_argument("--ltc", action="store_true", 
-#                             help="init clock chip ltc")
-#    parser_init.add_argument("--fda", action="store_true", 
-#                             help="init fast dac")
-#    parser_init.add_argument("--sda", action="store_true", 
-#                             help="init slow dac")
-#    parser_init.add_argument("--decoy", action="store_true", 
-#                             help="reset decoy module")
-#    parser_init.add_argument("--sync", action="store_true", 
-#                             help="sync to PPS")
-#    parser_init.add_argument("--rst_default", action="store_true", 
-#                             help="reset default parameters in config/default.txt")
-#    parser_init.add_argument("--rst_tmp", action="store_true", 
-#                             help="reset tmp file in config/default.txt")
-#    parser_init.add_argument("--apply_default", action="store_true", 
-#                             help="apply values from config/default.txt")
-##    parser_init.add_argument("--ddr", action="store_true", 
-##                             help="init ddr data")
-#
-#
-#    parser_set.add_argument("--vca", type=float, metavar=("voltage"), 
-#                            help="voltage controlled attenuator; float [0,5] V")
-#    parser_set.add_argument("--am_bias", type=float, metavar=("voltage"), 
-#                            help="bias of amplitude modulator; float [-10,10] V")
-#    parser_set.add_argument("--am_bias_2", type=float, metavar=("voltage"), 
-#                            help="bias of amplitude modulator; float [0,10] V")
-#    parser_set.add_argument("--am_mode", choices=['off', 'single', 'double', 'single64'],
-#                            help="send single pulse at 40MHz or double pulse at 80MHz or single64 at 80MHz/64")
-#    parser_set.add_argument("--am2_mode", choices=['off', 'single', 'fake_rng', 'true_rng'],
-#                            help="second amplitude modulator for decoy state")
-#    parser_set.add_argument("--am_shift", type=int, metavar=("steps"), 
-#                            help="time shift pulse generation in steps of 1.25ns")
-#    parser_set.add_argument("--pm_shift", type=int, metavar=("steps"), 
-#                            help="time shift signal for phase modulator in steps of 1.25ns")
-#    parser_set.add_argument("--qdistance", type=float, metavar="value", 
-#                            help="fine tune double pulse separation; float [0,0.5]; good value is 0.08")
-#    parser_set.add_argument("--pm_mode", choices=['seq64', 'seq64tight', 'fake_rng', 'true_rng', 'off'],
-#                            help="fixed periodic sequece, fake rng or real rng")
-#    parser_set.add_argument("--angles", nargs=4, type=float,
-#                            help="float [-1,1]")
-#    parser_set.add_argument("--zero_pos", type=int, 
-#                            help="insert zeros at this position for feedback")
-#    parser_set.add_argument("--fake_rng_seq", choices=['off', 'single', 'random', 'all_one', 'block1'],
-#                            help="set fake rng sequence")
-#    parser_set.add_argument("--insert_zeros", choices=['on', 'off'], 
-#                            help="insert zeros into rng sequence for feedback")
-#    parser_set.add_argument("--pos",type=int, default=0, help="peak position for single")
-#
-#    parser_get.add_argument("--get_gc", action="store_true",
-#                            help="get current global counter")
-#    parser_get.add_argument("--ddr_status", action="store_true",
-#                            help="print ddr status")
-##    parser_get.add_argument("--angles", action="store_true",
-##                            help="download the postprocessed angles")
-#    
-#    #parser_alice.add_argument("--init",action="store_true",help="initialize Alice")
-#
-#
-#
-#
-#
-#    parser_init.set_defaults(func=init)
-#    parser_set.set_defaults(func=set)
-#    parser_get.set_defaults(func=get)
-#
-#    args = parser.parse_args()
-#    args.func(args)
-#
-#
-#if __name__ =="__main__":
-#    main()

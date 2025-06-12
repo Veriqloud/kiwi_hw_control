@@ -1,17 +1,8 @@
 #!/bin/python
 
-#import time
-#import os  # For generating random data
-#import struct  # For packing data size
-#import subprocess, sys, argparse
-#from lib.Aurea import Aurea
-#import main_Bob as main
-#from lib.config_lib import get_tmp, save_tmp, update_tmp, Set_t0, update_default, get_default, Angle, Sync_Gc, wait_for_pps_ret
-#import lib.gen_seq as gen_seq
-
 from termcolor import colored
 import socket
-import numpy as np
+#import numpy as np
 import json
 import datetime
 import ctl_bob as ctl
@@ -263,8 +254,6 @@ while True:
             pass  # Ignore if connection is already closed
         conn.close()
         log.close()
-        #server_socket.close()
-        #print("Server has been shut down gracefully.")
 
 
 

@@ -267,8 +267,8 @@ def Polarisation_Control():
         c = []
         for v in voltages:
             Set_vol(ch,v)
-            time.sleep(0.2)
-            c.append(Read_Count_InGates())
+            time.sleep(0.15)
+            c.append(get_counts()[0])
         c = np.array(c)
         print(c)
         best = voltages[c.argmax()]
@@ -280,12 +280,12 @@ def Polarisation_Control():
     t = get_tmp()
     bests2 = []
     for ch in range(4):
-        voltages = np.arange(bests[ch]-0.2,bests[ch]+0.3,0.1)
+        voltages = np.arange(bests[ch]-0.2,bests[ch]+0.2,0.1)
         c = []
         for v in voltages:
             Set_vol(ch,v)
-            time.sleep(0.2)
-            c.append(Read_Count_InGates())
+            time.sleep(0.15)
+            c.append(get_counts()[0])
         c = np.array(c)
         print(c)
         best = voltages[c.argmax()]
@@ -743,6 +743,8 @@ def init_fda():
 
 def init_sda():
     Config_Sda()
+    for i in range(8):
+     Set_vol(i, 0)
 
 def init_jic():
     Config_Jic()
