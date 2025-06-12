@@ -20,7 +20,6 @@ BUFFER_SIZE = 64  # Increased buffer size for receiving data
 # DELAY_BETWEEN_ROUNDS = 2  # Delay between rounds in seconds
 
 
-
 #def rcv_all(bufsize):
 #    # make sure bufsize bytes have been received
 #    mr = client_socket.recv(bufsize)
@@ -35,7 +34,7 @@ def rcv_all(socket, num):
         mr += socket.recv(num-len(mr))
     return mr
 
-def client_start(commands_in):
+def client_start(commands_in, verbose=False):
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     client_socket.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, BUFFER_SIZE)
     client_socket.connect((SERVER_HOST, SERVER_PORT))
@@ -55,7 +54,7 @@ def client_start(commands_in):
     def rcv_u32():
         m = client_socket.recv(4)
         value = int.from_bytes(m, byteorder='little')
-#        print(colored(value, 'green'))
+        print(colored(value, 'green'))
         return value
 
     def rcvc():
@@ -76,10 +75,6 @@ def client_start(commands_in):
                 main.init_all()
                 sendc('Alice init done')
                 rcvc()
-                print(colored('sync_gc \n', 'cyan'))
-                wait_for_pps_ret()
-                sendc('sync gc')
-                Sync_Gc()
 
             if command == 'sync_gc':
                 print(colored('sync_gc \n', 'cyan'))
@@ -87,29 +82,50 @@ def client_start(commands_in):
                 sendc('go')
                 Sync_Gc()
 
-            if command == 'find_max_vca':
+
+
+            if command.startswith('find_max_vca'):
+                parts = command.split('_')
+                if len(parts) == 3:
+                    limit = 3000
+                elif len(parts) == 4:
+                    limit = int(parts[3])
+                else:
+                    limit = 3000
+
                 print(colored('find_max_vca', 'cyan'))
                 update_tmp('am_mode', 'double')
                 main.Update_Dac()
                 d = get_default()
                 vca = d['vca']
                 count = 0
-                while  (count < 3000) and (vca <= 4.8) :
+                while  (count < limit) and (vca <= 4.8) :
                     vca = round(vca + 0.2, 2)
                     main.Set_Vca(round(vca, 2))
-                    time.sleep(0.2)
+                    time.sleep(0.1)
                     sendc('get counts')
                     count = rcv_u32()
 
-                if count >= 3000:
+                if count >= limit:
                    print(colored(f"Success, {vca}V / {count} cts \n", "green"))
                 else:
                    print(colored(f"Fail, {vca}V / {count} cts \n", "red"))
 
                 update_tmp('vca_calib', vca)
+                update_default('vca', vca-1)
                 sendc('done')
 
-            if command == 'find_am_bias':
+
+
+
+            if command.startswith('find_am_bias'):
+                parts = command.split('_')
+                if len(parts) == 3:
+                    range_val = 0.5  
+                elif len(parts) == 4:
+                    range_val = float(parts[3])  
+                else:
+                    range_val = 0.5
                 print(colored('find_am_bias', 'cyan'))
                 update_tmp('am_mode', 'off')
                 main.Update_Dac()
@@ -122,20 +138,35 @@ def client_start(commands_in):
                 main.Update_Dac()
                 counts = []
                 main.Set_Am_Bias_2(0) 
-                time.sleep(0.2)
-                for i in range(11):
-                    main.Set_Am_Bias(bias_default -0.5 + 0.1*i)
+                time.sleep(0.1)
+                num_points = int(2 * range_val / 0.1) + 1
+                prev_count = None
+                increase_count = 0
+                for i in range(num_points):
+                    main.Set_Am_Bias(bias_default - range_val + 0.1*i)
                     sendc('get counts')
-                    counts.append(rcv_u32())
+                    count = rcv_u32()
+                    counts.append(count)
+
+                    if prev_count is not None:
+                        if count > prev_count:
+                            increase_count += 1
+                        else:
+                            increase_count = 0
+                    if increase_count >= 3:
+                        break
+                    prev_count = count
+
                 min_counts = min(counts)
                 min_idx = counts.index(min_counts)
                 print("Min count: ", min_counts , "index: ", min_idx,"\n")
-                am_bias_opt = bias_default -0.5 + 0.1*min_idx
+                am_bias_opt = bias_default - range_val + 0.1*min_idx
                 main.Set_Am_Bias(am_bias_opt)
                 main.Set_Am_Bias_2(bias_default_1)
-
+                sendc('done')
 
             if command == 'verify_am_bias':
+                global tmp_result
                 print(colored('verify_am_bias', 'cyan'))
                 update_tmp('am_mode', 'off')
                 main.Update_Dac()
@@ -150,18 +181,20 @@ def client_start(commands_in):
                 count_double = rcv_u32()
 
                 ratio = count_double / count_off
-                if ratio >= 1.7:
+                if ratio >= 2:
                    print(colored(f"Success: double/off  = {ratio:.2f} ({count_double}/{count_off}) \n", "green"))
+                   tmp_result = True
                 else:
-                   print(colored(f"Fail: double/off = {ratio:.2f} ({count_double}/{count_off}) \n", "red"))
+                   print(colored(f"Fail: double/off = {ratio:.2f} ({count_double}/{count_off}) \n", "yellow"))
+                   tmp_result = False
                 update_tmp('am_mode', 'off')
                 main.Update_Dac()
 
 
 
 
-            if command == 'find_am_bias_2':
-                print(colored('find_am_bias_2', 'cyan'))
+            if command == 'find_am2_bias':
+                print(colored('find_am2_bias', 'cyan'))
                 update_tmp('am_mode', 'double')
                 main.Update_Dac()
                 #t = get_tmp()
@@ -237,9 +270,7 @@ def client_start(commands_in):
                 status = rcvc()
                 if status == "success":
                     print(colored("Success: good gates found \n", "green"))
-                else:
-                    print(colored("Fail: bad gates \n", "red"))
-
+                    tmp_result = True
 
             elif command == 'fs_b':
                 print(colored('fs_b', 'cyan'))
@@ -422,59 +453,80 @@ def client_start(commands_in):
             #response_rcv = client_socket.recv(1024)
             #print("Response from server: ", response_rcv.decode(),"--------------------------------")
 
+#    except KeyboardInterrupt:
+ #       print("Client stopped by keyboard interrupt.")
+ #   finally:
+ #       client_socket.close()
+ #       print("Client has been shut down gracefully.")
     except KeyboardInterrupt:
-        print("Client stopped by keyboard interrupt.")
+            print("Client stopped by keyboard interrupt.")
     finally:
-        client_socket.close()
-        print("Client has been shut down gracefully.")
+        if (verbose == True):
+            client_socket.close()
+            print("Client has been shut down gracefully.")
 
-if __name__ =="__main__":
+
+if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Send command")
-    #parser.add_argument("commands", nargs='+',  choices=['init_all', 'find_gates', 'find_delays', 'verify_gates'])
-    parser.add_argument("commands", nargs='+', help="init_all find_gates find_delays verify_gates")
+    parser.add_argument("commands", nargs='+', help="Commands: init_all, find_gates, find_delays, verify_gates")
     args = parser.parse_args()
-    commands_in = []
 
-    for cmd in args.commands:
-        if cmd not in commands_in:
-            commands_in.append(cmd)
+    global tmp_result
+    tmp_result = False
 
     if 'init_all' in args.commands:
-        commands_in.append('init')
-        commands_in.append('sync_gc')
-        commands_in.append('find_max_vca')
-        commands_in.append('find_am_bias')
-        commands_in.append('verify_am_bias')
-        commands_in.append('find_am_bias_2')
-        commands_in.append('pol_bob')
-        commands_in.append('find_max_vca')
+        client_start(['init', 'sync_gc', 'find_max_vca_3000'], True)
+        for voltage in [0.3, 0.5, 1, 2]:
+            tmp_result = False
+            client_start([
+                f'find_am_bias_{voltage}',
+                'verify_am_bias'
+            ], False)
+
+            if tmp_result:
+                client_start(['find_am2_bias','pol_bob', 'find_max_vca_4000'], False)
+                break
+
+        if tmp_result == False:
+            print(colored('ERROR: AM bias calibration failed', 'red'))
+            sys.exit(1)
+
+    cmd_mapping = {
+        'find_gates': ['ad', 'find_sp', 'ad', 'verify_gates'],
+        'find_delays': [
+            'find_max_vca_4200', 'fs_b', 'fs_a',
+            'fd_b', 'fd_b_long', 'fd_a', 'fd_a_long',
+            'fz_b', 'fz_a'
+        ]
+    }
 
     if 'find_gates' in args.commands:
-        commands_in.append('ad')
-        commands_in.append('find_sp')
-        commands_in.append('ad')
-        commands_in.append('verify_gates')
+        max_global_attempts = 2
+        for global_attempt in range(max_global_attempts):
+            client_start(['ad', 'find_sp', 'ad'])
+
+            max_retries = 1
+            for attempt in range(max_retries):
+                tmp_result = False
+                client_start(['verify_gates'])
+                if tmp_result:
+                    break
+                print(colored(f"verify_gates failed retrying...", "yellow"))
+
+            if tmp_result:
+                break
+
+            print(colored(f"verify_gates failed after {max_retries} retries, restarting find_gate sequence...", "red"))
+
+        if not tmp_result:
+            print(colored("ERROR: verify_gates failed after all retries", "red"))
+            sys.exit(1)
+
     if 'find_delays' in args.commands:
-        commands_in.append('fs_b')
-        commands_in.append('fs_a')
-        commands_in.append('fd_b')
-        commands_in.append('fd_b_long')
-        commands_in.append('fd_a')
-        commands_in.append('fd_a_long')
-        commands_in.append('fz_b')
-        commands_in.append('fz_a')
+        client_start(cmd_mapping['find_delays'])
 
+    known_groups = {'init_all', *cmd_mapping.keys()}
+    individual_cmds = [cmd for cmd in args.commands if cmd not in known_groups]
 
-    if commands_in == []:
-        commands_in = args.commands
-
-    client_start(commands_in)
-
-
-
-
-
-
-
-
-
+    if individual_cmds:
+        client_start(individual_cmds)
