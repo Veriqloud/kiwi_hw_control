@@ -7,7 +7,7 @@ use gc::hw::{
 use std::fs::OpenOptions;
 use std::io::prelude::*;
 use std::net::{TcpListener, TcpStream};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 #[derive(Parser)]
 struct Cli {
@@ -21,11 +21,23 @@ fn send_gc(alice: &mut TcpStream) -> std::io::Result<()> {
     let mut file_gcr = OpenOptions::new()
         .read(true)
         .open(&CONFIG.get().unwrap().bob_config().fifo.gcr_file_path)
-        .expect("opening /dev/xdma0_c2h_0\n");
+        .expect(
+            format!(
+                "opening {}\n",
+                &CONFIG.get().unwrap().bob_config().fifo.gcr_file_path
+            )
+            .as_str(),
+        );
     let mut file_gcw = OpenOptions::new()
         .write(true)
         .open(&CONFIG.get().unwrap().bob_config().fifo.gc_file_path)
-        .expect("opening /dev/xdma0_h2c_0\n");
+        .expect(
+            format!(
+                "opening {}\n",
+                &CONFIG.get().unwrap().bob_config().fifo.gc_file_path
+            )
+            .as_str(),
+        );
     let mut file_result = OpenOptions::new()
         .write(true)
         .open(
@@ -78,7 +90,6 @@ fn handle_alice(alice: &mut TcpStream) -> std::io::Result<()> {
 
 fn main() -> std::io::Result<()> {
     let cli = Cli::parse();
-
     let config: Configuration = Configuration::from_pathbuf_bob(&cli.config_path);
 
     CONFIG
@@ -86,12 +97,28 @@ fn main() -> std::io::Result<()> {
         .expect("failed to set the config global var\n");
 
     // delete and remake fifo file for result values
-    std::fs::remove_file("/home/vq-user/qline/result.f").unwrap_or_else(|e| match e.kind() {
+    std::fs::remove_file(
+        CONFIG
+            .get()
+            .unwrap()
+            .bob_config()
+            .fifo
+            .click_result_file_path,
+    )
+    .unwrap_or_else(|e| match e.kind() {
         std::io::ErrorKind::NotFound => (),
         _ => panic!("{}", e),
     });
     nix::unistd::mkfifo(
-        "/home/vq-user/qline/result.f",
+        Path::new(
+            &CONFIG
+                .get()
+                .unwrap()
+                .bob_config()
+                .fifo
+                .click_result_file_path
+                .as_str(),
+        ),
         nix::sys::stat::Mode::from_bits(0o644).unwrap(),
     )?;
 

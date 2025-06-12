@@ -6,6 +6,7 @@ qber/Cargo.lock
 gc/target/
 gc/Cargo.lock
 gc/.config/*
+gc/justfile
 
 # Ignore build artifacts for the comm crate
 comm/target/

@@ -29,7 +29,13 @@ fn recv_gc(bob: &mut TcpStream, rx: &Receiver<Request>, debug: bool) -> std::io:
     let mut file_gcw = OpenOptions::new()
         .write(true)
         .open(&CONFIG.get().unwrap().alice_config().fifo.gc_file_path)
-        .expect("opening /dev/xdma0_h2c_0\n");
+        .expect(
+            format!(
+                "opening {}\n",
+                &CONFIG.get().unwrap().alice_config().fifo.gc_file_path
+            )
+            .as_str(),
+        );
 
     println!("DEBUG: {:?}", debug);
 
@@ -130,13 +136,28 @@ fn handle_bob(rx: Receiver<Request>, tx: Sender<Response>, ip_bob: &str) {
 
 fn handle_control(tx: Sender<Request>, rx: Receiver<Response>) {
     // remove unix socket if it exists
-    std::fs::remove_file("/home/vq-user/qline/startstop.s").unwrap_or_else(|e| match e.kind() {
+    std::fs::remove_file(
+        CONFIG
+            .get()
+            .unwrap()
+            .alice_config()
+            .fifo
+            .command_socket_path,
+    )
+    .unwrap_or_else(|e| match e.kind() {
         std::io::ErrorKind::NotFound => (),
         _ => panic!("{}", e),
     });
 
-    let listener = UnixListener::bind("/home/vq-user/qline/startstop.s")
-        .expect("UnixListener could not bind to address\n");
+    let listener = UnixListener::bind(
+        CONFIG
+            .get()
+            .unwrap()
+            .alice_config()
+            .fifo
+            .command_socket_path,
+    )
+    .expect("UnixListener could not bind to address\n");
 
     for stream in listener.incoming() {
         match stream {
