@@ -79,7 +79,6 @@ pub enum QlinePlayer {
 pub struct AliceConfig {
     pub fifo: ConfigFifoAlice,
     pub network: ConfigNetworkAlice,
-    pub decoy_delay: u32,
 }
 
 #[derive(Debug, Deserialize, Serialize, Default, Clone)]
@@ -169,7 +168,6 @@ mod test {
                     ip_bob_gc: "ip bob gc".to_string(),
                     ip_bob_qber: "ip bob qber".to_string(),
                 },
-                decoy_delay: 42,
             }),
             current_hw_parameters_file_path: "/path/to/dyn/params/file.txt".to_string(),
         };
