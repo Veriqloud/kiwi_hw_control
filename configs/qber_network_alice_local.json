@@ -1,4 +1,4 @@
 {
-  "ip_bob_gc": "TODO_IP_BOB_GC",
-  "ip_bob_qber": "TODO_IP_BOB_QBER"
+  "ip_bob_gc": "127.0.0.1:5001",
+  "ip_bob_qber": "127.0.0.1:5002"
 }

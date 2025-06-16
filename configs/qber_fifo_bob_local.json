@@ -1,5 +1,5 @@
 {
-  "angle_file_path": "TODO_QBER_BOB_FIFO_ANGLE_PATH",
-  "gc_file_path": "TODO_QBER_BOB_FIFO_GC_PATH",
-  "click_result_file_path": "TODO_QBER_BOB_FIFO_CLICK_RESULT_PATH"
+  "angle_file_path": "/tmp/qber_bob_angle.fifo",
+  "gc_file_path": "/tmp/qber_bob_gc.fifo",
+  "click_result_file_path": "/tmp/qber_bob_clicks.fifo"
 }
