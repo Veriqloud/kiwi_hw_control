@@ -7,7 +7,6 @@ use serde::{Deserialize};
 
 #[derive(Debug, Deserialize)]
 pub struct ConfigNetworkAlice {
-    pub ip_bob_gc: String,
     pub ip_bob_qber: String,
 }
 
@@ -15,14 +14,12 @@ pub struct ConfigNetworkAlice {
 #[derive(Debug, Deserialize)]
 pub struct ConfigFifoAlice {
     pub command_socket_path: String,
-    pub gc_file_path: String,
     pub angle_file_path: String,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct ConfigFifoBob {
     pub angle_file_path: String,
-    pub gc_file_path: String,
     pub click_result_file_path: String,
 }
 
@@ -47,5 +44,3 @@ impl ConfigFifoBob{
         serde_json::from_str(&s).expect("deserializing file")
     }
 }
-
-
