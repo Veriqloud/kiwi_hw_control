@@ -2,15 +2,12 @@
   "current_hw_parameters_file_path": "/var/tmp/local_hw_params.txt",
   "player": {
     "Alice": {
-      "decoy_delay": 0,
       "fifo": {
-        "command_socket_path": "/tmp/xdma0_user",
-        "gc_file_path": "/tmp/gc_alice.fifo",
-        "angle_file_path": "/tmp/angle_alice.fifo"
+        "command_socket_path": "/tmp/gc_command.s",
+        "gc_file_path": "/tmp/gc_alice.fifo"
       },
       "network": {
-        "ip_bob_gc": "127.0.0.1:15403",
-        "ip_bob_qber": "127.0.0.1:15404"
+        "ip_bob_gc": "127.0.0.1:15403"
       }
     }
   }

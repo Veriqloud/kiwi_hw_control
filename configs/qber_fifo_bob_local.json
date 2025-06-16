@@ -1,4 +1,4 @@
 {
   "angle_file_path": "/tmp/angle_bob.fifo",
-  "click_result_file_path": "/tmp/bob_click.fifo"
+  "click_result_file_path": "/tmp/results.fifo"
 }
