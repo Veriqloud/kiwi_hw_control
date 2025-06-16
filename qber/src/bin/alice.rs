@@ -198,8 +198,10 @@ fn main() -> std::io::Result<()> {
         println!("message received {:?}", m);
     }
 
-    let mut stream =
-        UnixStream::connect(&fifos.command_socket_path).expect("could not connect to UnixStream");
+    let mut stream = UnixStream::connect(&fifos.command_socket_path).expect(&format!(
+        "could not connect to UnixStream {:?}",
+        &fifos.command_socket_path
+    ));
     write_message(&mut stream, Request::Start)?;
     let m: Response = read_message(&mut stream)?;
     println!("message received {:?}", m);

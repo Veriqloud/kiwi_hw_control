@@ -1,5 +1,5 @@
 {
-  "current_hw_parameters_file_path": "/var/tmp/local_hw_params.txt",
+  "current_hw_parameters_file_path": "/tmp/tmp.txt",
   "player": {
     "Bob": {
       "fifo": {

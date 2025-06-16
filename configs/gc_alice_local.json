@@ -1,9 +1,10 @@
 {
-  "current_hw_parameters_file_path": "/var/tmp/local_hw_params.txt",
+  "current_hw_parameters_file_path": "./src/test_data/tmp.txt",
+  "fpga_start_socket_path": "/tmp/fpga_alice",
   "player": {
     "Alice": {
       "fifo": {
-        "command_socket_path": "/tmp/gc_command.s",
+        "command_socket_path": "/tmp/alice_startstop.s",
         "gc_file_path": "/tmp/gc_alice.fifo"
       },
       "network": {

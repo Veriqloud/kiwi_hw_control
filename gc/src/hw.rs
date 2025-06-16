@@ -7,6 +7,9 @@ use std::{thread, time};
 
 use crate::config::Configuration;
 
+pub const PPS_ADDRESS: usize = 48;
+pub const PPS_OFFSET: u64 = 0x1000;
+
 pub static CONFIG: OnceLock<Configuration> = OnceLock::new();
 
 enum HwCurrentParam {
@@ -49,6 +52,9 @@ fn xdma_write(addr: usize, value: u32, offset: u64) {
     // we write single values to a memory mapped file
     // addr and offset are with respect to bytes; datatype is u32
     assert!(addr % 4 == 0);
+
+    let config = CONFIG.get().unwrap();
+
     let file = OpenOptions::new()
         .read(true)
         .write(true)
@@ -77,6 +83,7 @@ fn xdma_write(addr: usize, value: u32, offset: u64) {
 // read from fpga
 fn xdma_read(addr: usize, offset: u64) -> u32 {
     assert!(addr % 4 == 0);
+    let config = CONFIG.get().unwrap();
     let file = OpenOptions::new()
         .read(true)
         .open(CONFIG.get().unwrap().fpga_start_socket_path.as_str())
@@ -87,7 +94,6 @@ fn xdma_read(addr: usize, offset: u64) -> u32 {
             )
             .as_str(),
         );
-
     let value = unsafe {
         let mmap = MmapOptions::new()
             .len(0x1000)
@@ -163,7 +169,7 @@ pub fn init_ddr(alice: bool) {
 // wait for the syncronization pulse (pps)
 pub fn wait_for_pps() {
     loop {
-        let pps = xdma_read(48, 0x1000);
+        let pps = xdma_read(PPS_ADDRESS, PPS_OFFSET);
         if pps == 1 {
             return;
         };
