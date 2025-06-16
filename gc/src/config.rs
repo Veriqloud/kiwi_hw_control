@@ -87,8 +87,6 @@ pub struct ConfigFifoAlice {
     pub command_socket_path: String,
     #[serde(default = "ConfigFifoAlice::default_gc_file_path")]
     pub gc_file_path: String,
-    #[serde(default = "ConfigFifoAlice::default_angle_file_path")]
-    pub angle_file_path: String,
 }
 
 impl ConfigFifoAlice {
@@ -99,16 +97,11 @@ impl ConfigFifoAlice {
     fn default_gc_file_path() -> String {
         "/dev/xdma0_h2c_0".to_string()
     }
-
-    fn default_angle_file_path() -> String {
-        "/dev/xdma0_c2h_3".to_string()
-    }
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct ConfigNetworkAlice {
     pub ip_bob_gc: String,
-    pub ip_bob_qber: String,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -118,8 +111,6 @@ pub struct BobConfig {
 
 #[derive(Debug, Deserialize, Serialize, Default, Clone)]
 pub struct ConfigFifoBob {
-    #[serde(default = "ConfigFifoBob::default_angle_file_path")]
-    pub angle_file_path: String,
     #[serde(default = "ConfigFifoBob::default_gcr_file_path")]
     pub gcr_file_path: String,
     #[serde(default = "ConfigFifoBob::default_gc_file_path")]
@@ -129,10 +120,6 @@ pub struct ConfigFifoBob {
 }
 
 impl ConfigFifoBob {
-    fn default_angle_file_path() -> String {
-        "/dev/xdma0_c2h_3".to_string()
-    }
-
     fn default_gcr_file_path() -> String {
         "/dev/xdma0_c2h_1".to_string()
     }
@@ -162,11 +149,9 @@ mod test {
                 fifo: super::ConfigFifoAlice {
                     command_socket_path: "command socket path".to_string(),
                     gc_file_path: "gc file path".to_string(),
-                    angle_file_path: "angle file path".to_string(),
                 },
                 network: super::ConfigNetworkAlice {
                     ip_bob_gc: "ip bob gc".to_string(),
-                    ip_bob_qber: "ip bob qber".to_string(),
                 },
             }),
             current_hw_parameters_file_path: "/path/to/dyn/params/file.txt".to_string(),
@@ -180,7 +165,6 @@ mod test {
         let conf = Configuration {
             player: super::QlinePlayer::Bob(BobConfig {
                 fifo: ConfigFifoBob {
-                    angle_file_path: "angle_file_path".to_string(),
                     gcr_file_path: "gcr_file_path".to_string(),
                     gc_file_path: "gc_file_path".to_string(),
                     click_result_file_path: "click_result_file_path".to_string(),
