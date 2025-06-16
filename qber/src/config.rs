@@ -22,7 +22,6 @@ pub struct ConfigFifoAlice {
 #[derive(Debug, Deserialize)]
 pub struct ConfigFifoBob {
     pub angle_file_path: String,
-    pub gcr_file_path: String,
     pub gc_file_path: String,
     pub click_result_file_path: String,
 }
