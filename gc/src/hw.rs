@@ -52,8 +52,14 @@ fn xdma_write(addr: usize, value: u32, offset: u64) {
     let file = OpenOptions::new()
         .read(true)
         .write(true)
-        .open("/dev/xdma0_user")
-        .expect("opening /dev/xdma0_user");
+        .open(CONFIG.get().unwrap().fpga_start_socket_path.as_str())
+        .expect(
+            format!(
+                "opening {}",
+                CONFIG.get().unwrap().fpga_start_socket_path.as_str()
+            )
+            .as_str(),
+        );
 
     // there is no "safe" way to modify a single value on the FPGA memory file
     unsafe {
@@ -73,8 +79,15 @@ fn xdma_read(addr: usize, offset: u64) -> u32 {
     assert!(addr % 4 == 0);
     let file = OpenOptions::new()
         .read(true)
-        .open("/dev/xdma0_user")
-        .expect("opening /dev/xdma0_user");
+        .open(CONFIG.get().unwrap().fpga_start_socket_path.as_str())
+        .expect(
+            format!(
+                "opening {}",
+                CONFIG.get().unwrap().fpga_start_socket_path.as_str()
+            )
+            .as_str(),
+        );
+
     let value = unsafe {
         let mmap = MmapOptions::new()
             .len(0x1000)

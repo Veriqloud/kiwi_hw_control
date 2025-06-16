@@ -7,6 +7,8 @@ use serde::{Deserialize, Serialize};
 pub struct Configuration {
     pub player: QlinePlayer,
     pub current_hw_parameters_file_path: String,
+    #[serde(default = "Configuration::default_fpga_start_socket_path")]
+    pub fpga_start_socket_path: String,
 }
 
 impl Configuration {
@@ -65,6 +67,10 @@ impl Configuration {
             QlinePlayer::Charlie(charlie_config) => charlie_config.to_owned(),
             QlinePlayer::Alice(_) | QlinePlayer::Bob(_) => unreachable!(),
         }
+    }
+
+    fn default_fpga_start_socket_path() -> String {
+        "/dev/xdma0_user".to_string()
     }
 }
 
