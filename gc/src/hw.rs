@@ -53,8 +53,6 @@ fn xdma_write(addr: usize, value: u32, offset: u64) {
     // addr and offset are with respect to bytes; datatype is u32
     assert!(addr % 4 == 0);
 
-    let config = CONFIG.get().unwrap();
-
     let file = OpenOptions::new()
         .read(true)
         .write(true)
@@ -83,7 +81,7 @@ fn xdma_write(addr: usize, value: u32, offset: u64) {
 // read from fpga
 fn xdma_read(addr: usize, offset: u64) -> u32 {
     assert!(addr % 4 == 0);
-    let config = CONFIG.get().unwrap();
+
     let file = OpenOptions::new()
         .read(true)
         .open(CONFIG.get().unwrap().fpga_start_socket_path.as_str())

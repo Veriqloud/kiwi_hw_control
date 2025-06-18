@@ -144,6 +144,7 @@ pub struct CharlieConfig {}
 
 #[cfg(test)]
 mod test {
+
     use crate::config::{BobConfig, CharlieConfig, ConfigFifoBob};
 
     use super::Configuration;
@@ -161,6 +162,7 @@ mod test {
                 },
             }),
             current_hw_parameters_file_path: "/path/to/dyn/params/file.txt".to_string(),
+            fpga_start_socket_path: Configuration::default_fpga_start_socket_path(),
         };
 
         println!("{}", serde_json::to_string_pretty(&conf).unwrap());
@@ -177,6 +179,7 @@ mod test {
                 },
             }),
             current_hw_parameters_file_path: "/path/to/dyn/params/file.txt".to_string(),
+            fpga_start_socket_path: Configuration::default_fpga_start_socket_path(),
         };
 
         println!("{}", serde_json::to_string_pretty(&conf).unwrap());
@@ -187,6 +190,7 @@ mod test {
         let conf = Configuration {
             player: super::QlinePlayer::Charlie(CharlieConfig {}),
             current_hw_parameters_file_path: "/path/to/dyn/params/file.txt".to_string(),
+            fpga_start_socket_path: Configuration::default_fpga_start_socket_path(),
         };
 
         println!("{}", serde_json::to_string_pretty(&conf).unwrap());

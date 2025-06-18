@@ -2,12 +2,12 @@
       "player": {
         "Bob": {
           "fifo": {
-            "angle_file_path": "/dev/xdma0_c2h_3",
             "gcr_file_path": "/dev/xdma0_c2h_1",
             "gc_file_path": "/dev/xdma0_h2c_0",
             "click_result_file_path": "/home/vq-user/qline/result.f"
-          },
+          }
         }
       },
-      "fiber_delay": 42
+      "current_hw_parameters_file_path": "/path/to/dyn/params/file.txt",
+      "fpga_start_socket_path": "/dev/xdma0_user"
 }

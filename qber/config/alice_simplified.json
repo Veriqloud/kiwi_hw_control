@@ -5,8 +5,8 @@
             "ip_bob_gc": "192.168.1.77:15403", 
             "ip_bob_qber": "192.168.1.77:15404"
           },
-          "decoy_delay": 42
         }
       },
-      "fiber_delay":420
+      "current_hw_parameters_file_path": "/tmp/tmp.txt",
+      "fpga_start_socket_path": "/dev/xdma0_user"
 }
