@@ -12,6 +12,7 @@ from lib.aurea.Aurea import Aurea
 from scipy.optimize import curve_fit
 import matplotlib.pyplot as plt
 
+HW_CONTROL = '/home/vq-user/qline_clean/hw_control/'
 
 def Ensure_Spd_Mode(mode):
     deadtime_cont = 20
@@ -184,11 +185,11 @@ def Find_Best_Shift(party):
 
 def Cont_Det(): 
     num_data = 2000
-    Get_Stream(0x00000000+40,'/dev/xdma0_c2h_2','data/tdc/output_dp.bin',num_data)
-    command ="test_tdc/tdc_bin2txt data/tdc/output_dp.bin data/tdc/histogram_dp.txt"
+    Get_Stream(0x00000000+40,'/dev/xdma0_c2h_2',HW_CONTROL+'data/tdc/output_dp.bin',num_data)
+    command =HW_CONTROL+'lib/test_tdc/tdc_bin2txt data/tdc/output_dp.bin '+HW_CONTROL+'data/tdc/histogram_dp.txt'
     s = subprocess.check_call(command, shell = True)
 
-    time_gc = np.loadtxt("data/tdc/histogram_dp.txt",usecols=(1,2),unpack=True)
+    time_gc = np.loadtxt(HW_CONTROL+"data/tdc/histogram_dp.txt",usecols=(1,2),unpack=True)
     int_time_gc = time_gc.astype(np.int64)
     duration = (max(int_time_gc[1])-min(int_time_gc[1]))*25
     click_rate = np.around(num_data/(duration*0.000000001),decimals=4)
@@ -197,17 +198,17 @@ def Cont_Det():
 
 def Download_Time(num_clicks, fileprefix="time"):
     print("downloading time tags into file", fileprefix+".txt")
-    binfile = 'data/tdc/'+fileprefix+'.bin'
-    txtfile = 'data/tdc/'+fileprefix+'.txt'
+    binfile = HW_CONTROL+'data/tdc/'+fileprefix+'.bin'
+    txtfile = HW_CONTROL+'data/tdc/'+fileprefix+'.txt'
     Get_Stream(0x00000000+40,'/dev/xdma0_c2h_2',binfile, num_clicks)
-    command ="test_tdc/tdc_bin2txt "+binfile+" "+txtfile
+    command =HW_CONTROL+"lib/test_tdc/tdc_bin2txt "+binfile+" "+txtfile
     s = subprocess.check_call(command, shell = True)
 
 
 def Measure_Sp(num_clicks=20000):
     Ensure_Spd_Mode('continuous')
     Download_Time(num_clicks, fileprefix="histogram_sp")
-    ref_time = np.loadtxt("data/tdc/histogram_sp.txt",usecols=1,unpack=True,dtype=np.int32)
+    ref_time = np.loadtxt(HW_CONTROL+"data/tdc/histogram_sp.txt",usecols=1,unpack=True,dtype=np.int32)
     ref_time_arr = ref_time%1250
     #Find first peak of histogram
     first_peak = cal_lib.Find_First_Peak(ref_time_arr)
@@ -226,7 +227,7 @@ def Measure_Sp(num_clicks=20000):
 def Measure_Sp64(num_clicks=20000):
     Ensure_Spd_Mode('gated')
     Download_Time(num_clicks, fileprefix='single64')
-    data = np.loadtxt('data/tdc/single64.txt', usecols=(2,4))
+    data = np.loadtxt(HW_CONTROL+'data/tdc/single64.txt', usecols=(2,4))
     #gc = (data[:,0]%32)*2 + data[:,1]
     gc = (data[:,0]*2 + data[:,1]) % 64
     h, b = np.histogram(gc, bins=np.arange(65))
@@ -248,17 +249,17 @@ def Verify_Gates(num_clicks=20000):
 
 
 
-def Read_Count_InGates():
-    BaseAddr = 0x00000000
-    click0_count = Read(BaseAddr + 60)
-    hex_click0_count = click0_count.decode('utf-8').strip()
-    dec_click0_count = int(hex_click0_count, 16)
-    click1_count = Read(BaseAddr + 56)
-    hex_click1_count = click1_count.decode('utf-8').strip()
-    dec_click1_count = int(hex_click1_count, 16)
-    time.sleep(0.1)
-    ingates_count = dec_click0_count + dec_click1_count
-    return ingates_count
+#def Read_Count_InGates():
+#    BaseAddr = 0x00000000
+#    click0_count = Read(BaseAddr + 60)
+#    hex_click0_count = click0_count.decode('utf-8').strip()
+#    dec_click0_count = int(hex_click0_count, 16)
+#    click1_count = Read(BaseAddr + 56)
+#    hex_click1_count = click1_count.decode('utf-8').strip()
+#    dec_click1_count = int(hex_click1_count, 16)
+#    time.sleep(0.1)
+#    ingates_count = dec_click0_count + dec_click1_count
+#    return ingates_count
 
 def Polarisation_Control():
     voltages = np.arange(1,3.5,0.5)
@@ -267,7 +268,7 @@ def Polarisation_Control():
         c = []
         for v in voltages:
             Set_vol(ch,v)
-            time.sleep(0.15)
+            time.sleep(0.2)
             c.append(get_counts()[0])
         c = np.array(c)
         print(c)
@@ -284,7 +285,7 @@ def Polarisation_Control():
         c = []
         for v in voltages:
             Set_vol(ch,v)
-            time.sleep(0.15)
+            time.sleep(0.2)
             c.append(get_counts()[0])
         c = np.array(c)
         print(c)
@@ -303,8 +304,8 @@ def Polarisation_Control():
 def Gated_Det():
     print("-----------------------------GATE INPUT----------------------")
     #Command_gate_aply set in Time_Calib_Reg
-    Get_Stream(0x00000000+40,'/dev/xdma0_c2h_2','data/tdc/output_gated.bin',100000)
-    command ="test_tdc/tdc_bin2txt data/tdc/output_gated.bin data/tdc/histogram_gated.txt"
+    Get_Stream(0x00000000+40,'/dev/xdma0_c2h_2',HW_CONTROL+'data/tdc/output_gated.bin',100000)
+    command =HW_CONTROL+'test_tdc/tdc_bin2txt data/tdc/output_gated.bin '+HW_CONTROL+'data/tdc/histogram_gated.txt'
     s = subprocess.check_call(command, shell = True)
 
 #Sweep the phase and the shift parameter, 4 phase*10shift -> value of shift
@@ -320,12 +321,12 @@ def Phase_Shift_Calib():
     for j in range(4):
         for i in range(10):
             Write_Dac1_Shift(2,0.125+j*0.125,-0.125+j*0.125,0 ,0,i)
-            Get_Stream(0x00000000+40,'/dev/xdma0_c2h_2','data/tdc/clickout_'+str(10*j+i+1)+'.bin',5000) 
+            Get_Stream(0x00000000+40,'/dev/xdma0_c2h_2',HW_CONTROL+'data/tdc/clickout_'+str(10*j+i+1)+'.bin',5000) 
         Write_Dac1_Shift(2,0.125+j*0.125,-0.125+ j*0.125,0,0,0)
 
     for j in range(4):
         for i in range(10):
-            command ="test_tdc/tdc_bin2txt data/tdc/clickout_"+str(10*j+i+1)+".bin data/tdc/click_data_"+str(10*j+i+1)+".txt"
+            command =HW_CONTROL+'test_tdc/tdc_bin2txt '+HW_CONTROL+'data/tdc/clickout_'+str(10*j+i+1)+".bin data/tdc/click_data_"+str(10*j+i+1)+".txt"
             s = subprocess.check_call(command, shell = True)
 
 
@@ -342,7 +343,7 @@ def Find_Opt_Delay_B():
     Update_Dac()
 
     Download_Time(50000, 'fd_b_single')
-    data = np.loadtxt("data/tdc/fd_b_single.txt",usecols=(2,3,4), dtype=np.int64)
+    data = np.loadtxt(HW_CONTROL+"data/tdc/fd_b_single.txt",usecols=(2,3,4), dtype=np.int64)
     gc = data[:,0] 
     r = data[:,1]
     q_pos = data[:,2]
@@ -376,7 +377,7 @@ def Find_Opt_Delay_B_long():
     Update_Dac()
 
     Download_Time(200000, 'fd_b_single_long')
-    data = np.loadtxt("data/tdc/fd_b_single_long.txt",usecols=(2,3,4), dtype=np.int64)
+    data = np.loadtxt(HW_CONTROL+"data/tdc/fd_b_single_long.txt",usecols=(2,3,4), dtype=np.int64)
     gc = data[:,0] 
     r = data[:,1]
     q_pos = data[:,2]
@@ -416,7 +417,7 @@ def Find_Zero_Pos_B():
         return 0
     
     Download_Time(50000, 'fz_b')
-    data = np.loadtxt("data/tdc/fz_b.txt",usecols=(2,3,4), dtype=np.int64)
+    data = np.loadtxt(HW_CONTROL+"data/tdc/fz_b.txt",usecols=(2,3,4), dtype=np.int64)
 
     gc = data[:,0] 
     r = data[:,1]
@@ -450,7 +451,7 @@ def Find_Zero_Pos_A(fiber_delay_mod):
         return 0
     
     Download_Time(50000, 'fz_a')
-    data = np.loadtxt("data/tdc/fz_a.txt",usecols=(2,3,4), dtype=np.int64)
+    data = np.loadtxt(HW_CONTROL+"data/tdc/fz_a.txt",usecols=(2,3,4), dtype=np.int64)
 
     gc = data[:,0] 
     r = data[:,1]
@@ -499,7 +500,7 @@ def Find_Opt_Delay_A():
     Download_Time(50000, 'fd_a_single')
     #Process to get delay val
 
-    data = np.loadtxt("data/tdc/fd_a_single.txt",usecols=(2,3,4), dtype=np.int64)
+    data = np.loadtxt(HW_CONTROL+"data/tdc/fd_a_single.txt",usecols=(2,3,4), dtype=np.int64)
     gc = data[:,0] 
     r = data[:,1]
     q_pos = data[:,2]
@@ -533,7 +534,7 @@ def Find_Opt_Delay_A_long(fiber_delay_mod):
     Write_To_Fake_Rng(gen_seq.seq_rng_zeros())
 
     Download_Time(200000, 'fd_a_single_long')
-    data = np.loadtxt("data/tdc/fd_a_single_long.txt",usecols=(2,3,4), dtype=np.int64)
+    data = np.loadtxt(HW_CONTROL+"data/tdc/fd_a_single_long.txt",usecols=(2,3,4), dtype=np.int64)
     gc = data[:,0] 
     r = data[:,1]
     q_pos = data[:,2]
@@ -559,7 +560,7 @@ def Test_delay():
     Base_Addr = 0x00030000
     Write(Base_Addr + 28, 0x4e20) #for 0.5ms distance
     Base_seq0 = 0x00030000 + 0x2000  #Addr_axil_sequencer +   addr_dpram
-    file0 = open('data/fda/seqrng_gen/SeqRng.txt','r') #Use this file for 0.5ms distance
+    file0 = open(HW_CONTROL+'data/fda/seqrng_gen/SeqRng.txt','r') #Use this file for 0.5ms distance
     counter = 0
     for l in file0.readlines():
         counter += 1
@@ -633,8 +634,8 @@ def verify_gate_double(input_file, input_file2, gate0, gate1, width, binstep=2, 
     plt.xlabel("Time bin (ns)")
     plt.ylabel("Counts")
     plt.legend()
-    os.makedirs("data/calib_res", exist_ok=True)
-    plt.savefig("data/calib_res/gate_double.png")
+    os.makedirs(HW_CONTROL+"data/calib_res", exist_ok=True)
+    plt.savefig(HW_CONTROL+"data/calib_res/gate_double.png", dpi=300)
     plt.close()
 
     if peak0 > (background_max0 + 20) and peak1 > (background_max1 + 20):
@@ -669,6 +670,9 @@ def verify_gate_double(input_file, input_file2, gate0, gate1, width, binstep=2, 
 #            total += ret[2]
 #            time.sleep(0.1)
 #        print(f"Total: {total}, Click0: {click0}, Click1: {click1}              ",flush=True)
+
+def counts_single():
+    return(request_counts())
 
 def counts_fast():
     return(get_counts())

@@ -25,12 +25,12 @@ bob.connect((host, port))
 # send command
 def sendc(c):
     b = c.encode()
-    m = len(c).to_bytes(1, 'little')+b
+    m = len(c).to_bytes(2, 'little')+b
     bob.sendall(m)
 
 # receive command
 def rcvc():
-    l = int.from_bytes(bob.recv(1), 'little')
+    l = int.from_bytes(bob.recv(2), 'little')
     mr = bob.recv(l)
     while len(mr)<l:
         mr += bob.recv(l-len(mr))
@@ -140,6 +140,9 @@ def set(args):
         sendc('set_optimize_pol')
 
 def get(args):
+    if args.info:
+        sendc('get_info')
+        print(rcvc())
     if args.gc:
         sendc('get_gc')
         gc = rcv_q()
@@ -150,6 +153,11 @@ def get(args):
         print(rcvc())
     elif args.counts:
         while 1:
+            #sendc('get_counts3')
+            #total = rcv_i()
+            #click0 = rcv_i()
+            #click1 = rcv_i()
+            #print(f"Total: {total}, Click0: {click0}, Click1: {click1}              ",flush=True)
             sendc('get_counts')
             total = rcv_i()
             click0 = rcv_i()
@@ -241,6 +249,8 @@ parser_set.add_argument("--optimize_pol", action="store_true", help="find best s
 
 
 ######### get  ###########
+parser_get.add_argument("--info", action="store_true",
+                        help="print hardware info")
 parser_get.add_argument("--counts", action="store_true", 
                         help="get SPD counts")
 parser_get.add_argument("--counts2", action="store_true", 

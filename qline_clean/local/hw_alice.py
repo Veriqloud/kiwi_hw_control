@@ -24,12 +24,12 @@ alice.connect((host, port))
 # send command
 def sendc(c):
     b = c.encode()
-    m = len(c).to_bytes(1, 'little')+b
+    m = len(c).to_bytes(2, 'little')+b
     alice.sendall(m)
 
 # receive command
 def rcvc():
-    l = int.from_bytes(alice.recv(1), 'little')
+    l = int.from_bytes(alice.recv(2), 'little')
     mr = alice.recv(l)
     while len(mr)<l:
         mr += alice.recv(l-len(mr))
@@ -129,6 +129,9 @@ def set(args):
             send_d(args.angles[i])
 
 def get(args):
+    if args.info:
+        sendc('get_info')
+        print(rcvc())
     if args.gc:
         sendc('get_gc')
         #Ddr_Data_Init()
@@ -203,14 +206,14 @@ parser_set.add_argument("--insert_zeros", choices=['on', 'off'],
                         help="insert zeros into rng sequence for feedback")
 parser_set.add_argument("--pos",type=int, default=0, help="peak position for single")
 
+
+
+parser_get.add_argument("--info", action="store_true",
+                        help="print hardware info")
 parser_get.add_argument("--gc", action="store_true",
                         help="get current global counter")
 parser_get.add_argument("--ddr_status", action="store_true",
                         help="print ddr status")
-#    parser_get.add_argument("--angles", action="store_true",
-#                            help="download the postprocessed angles")
-
-#parser_alice.add_argument("--init",action="store_true",help="initialize Alice")
 
 
 

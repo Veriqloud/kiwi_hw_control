@@ -83,8 +83,27 @@ parser.add_argument("--command", type=str, nargs="*",
 
 args = parser.parse_args()
 
+if args.full_init:
+    sendc('init')
+    sendc('sync_gc')
+    sendc('find_vca')
+    sendc('find_am_bias')
+    sendc('verify_am_bias')
+    sendc('find_am2_bias')
+    sendc('pol_bob')
+    sendc('ad')
+    sendc('find_sp')
+    sendc('verify_gates')
+    sendc('fs_b')
+    sendc('fs_a')
+    sendc('fd_b')
+    sendc('fd_b_long')
+    sendc('fd_a')
+    sendc('fd_a_long')
+    sendc('fz_a')
+    sendc('fz_b')
 
-if args.command is not None:
+elif args.command is not None:
     sendc(args.command[0])
 
 

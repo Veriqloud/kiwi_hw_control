@@ -10,6 +10,8 @@ import struct
 from lib.fpga import update_tmp, save_tmp, get_tmp
 import lib.gen_seq as gen_seq
 
+HW_CONTROL = '/home/vq-user/qline_clean/hw_control/'
+
 #qlinepath = '/home/vq-user/qline_clean/'
 qlinepath = '../'
 
@@ -50,12 +52,12 @@ while True:
     def sendc(c):
         log.write(colored(c, 'blue')+'\n')
         b = c.encode()
-        m = len(c).to_bytes(1, 'little')+b
+        m = len(c).to_bytes(2, 'little')+b
         conn.sendall(m)
 
     # receive command
     def rcvc():
-        l = int.from_bytes(conn.recv(1), 'little')
+        l = int.from_bytes(conn.recv(2), 'little')
         mr = conn.recv(l)
         while len(mr)<l:
             mr += conn.recv(l-len(mr))
@@ -187,6 +189,10 @@ while True:
                 save_tmp(t)
                 ctl.Update_Angles()
             
+            elif command == 'get_info':
+                with open(HW_CONTROL+'config/tmp.txt') as f:
+                    s = f.read()
+                    sendc(s)
             elif command == 'get_gc':
                 gc = ctl.Get_Current_Gc()
                 send_q(gc)

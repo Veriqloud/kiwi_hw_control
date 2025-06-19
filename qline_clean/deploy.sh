@@ -9,6 +9,7 @@ rsync -v remote/alice_server/*.py $Alice:~/qline_clean/server/
 
 rsync -v remote/hw_bob.py remote/ctl_bob.py remote/hws_bob.py $Bob:~/qline_clean/hw_control/
 rsync -v remote/lib/*.py $Bob:~/qline_clean/hw_control/lib/
+rsync -v remote/lib/test_tdc/dma_from_device remote/lib/test_tdc/tdc_bin2txt $Bob:~/qline_clean/hw_control/lib/test_tdc
 rsync -v remote/lib/aurea/* $Bob:~/qline_clean/hw_control/lib/aurea/
 rsync -v remote/bob_server/*.py $Bob:~/qline_clean/server/
 
@@ -19,6 +20,9 @@ if [[ $# > 0 ]]; then
     if [[ $1 == "with_config" ]]; then
         rsync -v config/network.json $Alice:~/qline_clean/config/
         rsync -v config/network.json $Bob:~/qline_clean/config/
+        
+        rsync -v -r config/registers $Alice:~/qline_clean/config/
+        rsync -v -r config/registers $Bob:~/qline_clean/config/
     else 
         echo "wrong argument"
     fi

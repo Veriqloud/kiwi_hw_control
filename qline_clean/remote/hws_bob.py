@@ -8,6 +8,7 @@ from lib.fpga import get_tmp, save_tmp, update_tmp, Set_t0, get_default, Sync_Gc
 from termcolor import colored
 
 
+HW_CONTROL = '/home/vq-user/qline_clean/hw_control/'
 
 
 #qlinepath = '/home/vq-user/qline_clean/'
@@ -116,19 +117,19 @@ while True:
                 Sync_Gc()
                 print(colored('sync_gc', 'cyan'))
                 
-            elif command.startswith('find_max_vca'):
-                print(colored('find_max_vca', 'cyan'))
+            elif command == 'find_vca':
+                print(colored('find_vca', 'cyan'))
                 ctl.Ensure_Spd_Mode('continuous')
                 while rcvc() == 'get counts':
-                    count = ctl.Read_Count()
+                    count = ctl.counts_fast()[0]
                     send_i(count)
 
 
-            elif command.startswith('find_am_bias'):
+            elif command == 'find_am_bias':
                 print(colored('find_am_bias', 'cyan'))
                 while rcvc() == 'get counts':
-                    time.sleep(0.1)
-                    count = ctl.Read_Count()
+                    time.sleep(0.2)
+                    count = ctl.counts_fast()[0]
                     send_i(count)
 
             elif command == 'find_am2_bias':
@@ -136,7 +137,7 @@ while True:
                 for i in range(21):
                     rcvc()
                     time.sleep(0.2)
-                    count = ctl.Read_Count()
+                    count = ctl.counts_fast()[0]
                     send_i(count)
 
 
@@ -147,7 +148,7 @@ while True:
                 for i in range(2):
                     rcvc()
                     time.sleep(0.2)
-                    count = ctl.Read_Count()
+                    count = ctl.counts_fast()[0]
                     send_i(count)
 
 
@@ -165,7 +166,7 @@ while True:
                 ctl.Update_Softgate()
                 ctl.Ensure_Spd_Mode('gated')
                 ctl.Download_Time(10000, 'verify_gate_ad_0')
-                file_off = "~/qline/hw_control/data/tdc/verify_gate_ad_0.txt"
+                file_off = HW_CONTROL+"data/tdc/verify_gate_ad_0.txt"
 
                 max_iter = 2
                 iter_count = 0
@@ -195,7 +196,7 @@ while True:
                     ctl.Gen_Gate()
                     iter_count += 1
                     ctl.Download_Time(10000, 'verify_gate_ad_'+str(iter_count))
-                    file_off = "~/qline/hw_control/data/tdc/verify_gate_ad_"+str(iter_count)+".txt"
+                    file_off = HW_CONTROL+"data/tdc/verify_gate_ad_"+str(iter_count)+".txt"
                 sendc('done')
                 ctl.Ensure_Spd_Mode('continuous')
                 sendc('ok')
@@ -246,8 +247,8 @@ while True:
                 width=t['soft_gatew']
                 binstep = 2
                 maxtime = gate1 + width
-                input_file = os.path.join("data", "tdc", "verify_gate_double.txt")
-                input_file2 = os.path.join("data", "tdc", "verify_gate_off.txt")
+                input_file = HW_CONTROL+'data/tdc/verify_gate_double.txt'
+                input_file2 = HW_CONTROL+'data/tdc/verify_gate_off.txt'
                 status = ctl.verify_gate_double(input_file,input_file2, gate0, gate1, width, binstep, maxtime)
                 sendc(status)
 
@@ -330,7 +331,7 @@ while True:
             elif command == 'fd_a_long':
                 print(colored('fd_a_long', 'cyan'))
                 ctl.Ensure_Spd_Mode('gated')
-                fiber_delay_mod = rcv_u32()
+                fiber_delay_mod = rcv_i()
                 fiber_delay = ctl.Find_Opt_Delay_A_long(fiber_delay_mod)
                 send_i(fiber_delay)
             
@@ -346,7 +347,7 @@ while True:
                 print(colored('fz_a', 'cyan'))
                 ctl.Ensure_Spd_Mode('gated')
                 print("received command fz_a")
-                fiber_delay_mod = rcv_u32()
+                fiber_delay_mod = rcv_i()
                 zero_pos = ctl.Find_Zero_Pos_A(fiber_delay_mod)
                 update_tmp('insert_zeros', 'on')
                 ctl.Update_Dac()

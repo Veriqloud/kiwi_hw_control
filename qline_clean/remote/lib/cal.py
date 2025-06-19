@@ -2,16 +2,18 @@
 import time
 import numpy as np
 from scipy.optimize import curve_fit
+import matplotlib.pyplot as plt
 
+HW_CONTROL = '/home/vq-user/qline_clean/hw_control/'
 
 def Shift_Unit(j,party):
     #times_ref_click0=[]
     #times_ref_click1=[]
     if party == 'alice':
-        data = np.loadtxt("data/tdc/pm_a_shift_"+str(j)+".txt",usecols=(2,3,4), dtype=np.int64)
+        data = np.loadtxt(HW_CONTROL+"data/tdc/pm_a_shift_"+str(j)+".txt",usecols=(2,3,4), dtype=np.int64)
         gc_compensation=59
     elif party == 'bob':
-        data = np.loadtxt("data/tdc/pm_b_shift_"+str(j)+".txt",usecols=(2,3,4), dtype=np.int64)
+        data = np.loadtxt(HW_CONTROL+"data/tdc/pm_b_shift_"+str(j)+".txt",usecols=(2,3,4), dtype=np.int64)
         gc_compensation=61
 
     gc = data[:,0] 
@@ -203,7 +205,7 @@ def plot_shift(party, shift):
         plt.title(f"{party.capitalize()} shift histogram (shift {shift})")
         plt.xlabel("Time bin")
         plt.ylabel("Counts")
-        plt.savefig(f"data/calib_res/{party}_shift.png")
+        plt.savefig(f"{HW_CONTROL}data/calib_res/{party}_shift.png", dpi=300)
         plt.close()
     except Exception as e:
         print(f"[Error in plot_shift for {party} shift={shift}]: {e}")

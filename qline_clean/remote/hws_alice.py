@@ -89,6 +89,7 @@ server_socket.listen()
 print(f"Server listening on {host}:{port}")
 
 
+
 ####### config functions ###########
 
 def init():
@@ -106,44 +107,46 @@ def sync_gc():
 def find_vca(limit=3000):
     sendc(bob, 'find_vca')
     update_tmp('am_mode', 'double')
-    main.Update_Dac()
+    ctl.Update_Dac()
     d = get_default()
     vca = d['vca']
     count = 0
     while  (count < limit) and (vca <= 4.8) :
         vca = round(vca + 0.2, 2)
-        main.Set_Vca(round(vca, 2))
-        time.sleep(0.1)
+        ctl.Set_Vca(round(vca, 2))
+        time.sleep(0.2)
         sendc(bob, 'get counts')
         count = rcv_i(bob)
+        print(count)
 
     if count >= limit:
        print(colored(f"Success, {vca}V / {count} cts \n", "green"))
     else:
        print(colored(f"Fail, {vca}V / {count} cts \n", "red"))
     update_tmp('vca_calib', vca)
-    update_default('vca', vca-1)
+    update_default('vca', max(vca-1, 0))
     sendc(bob, 'done')
 
 
 def find_am_bias(range_val=0.5):
+    sendc(bob, 'find_am_bias')
     update_tmp('am_mode', 'off')
-    main.Update_Dac()
+    ctl.Update_Dac()
     t = get_tmp()
     d = get_default()
     bias_default = d['am_bias']
     bias_default_1 = t['am_bias_2']
     t['am_mode'] = 'off'
     save_tmp(t)
-    main.Update_Dac()
+    ctl.Update_Dac()
     counts = []
-    main.Set_Am_Bias_2(0) 
-    time.sleep(0.1)
+    ctl.Set_Am_Bias_2(0) 
+    #time.sleep(0.1)
     num_points = int(2 * range_val / 0.1) + 1
     prev_count = None
     increase_count = 0
     for i in range(num_points):
-        main.Set_Am_Bias(bias_default - range_val + 0.1*i)
+        ctl.Set_Am_Bias(bias_default - range_val + 0.1*i)
         sendc(bob, 'get counts')
         count = rcv_i(bob)
         counts.append(count)
@@ -161,17 +164,17 @@ def find_am_bias(range_val=0.5):
     min_idx = counts.index(min_counts)
     print("Min count: ", min_counts , "index: ", min_idx,"\n")
     am_bias_opt = bias_default - range_val + 0.1*min_idx
-    main.Set_Am_Bias(am_bias_opt)
-    main.Set_Am_Bias_2(bias_default_1)
+    ctl.Set_Am_Bias(am_bias_opt)
+    ctl.Set_Am_Bias_2(bias_default_1)
     sendc(bob, 'done')
 
 
-
 def verify_am_bias():
+    sendc(bob, 'verify_am_bias')
     update_tmp('am_mode', 'off')
     ctl.Update_Dac()
     sendc(bob, 'get counts')
-    count_off = rcv_u32()
+    count_off = rcv_i(bob)
 
     update_tmp('am_mode', 'double')
     ctl.Update_Dac()
@@ -193,8 +196,9 @@ def verify_am_bias():
 
 
 def find_am2_bias():
+    sendc(bob, 'find_am2_bias')
     update_tmp('am_mode', 'double')
-    main.Update_Dac()
+    ctl.Update_Dac()
     #t = get_tmp()
     d = get_default()
     bias_default = d['am_bias_2']
@@ -203,27 +207,29 @@ def find_am2_bias():
     #save_tmp(t)
     ctl.Update_Dac()
     counts = []
-    #main.Set_Am_Bias(0) 
+    #ctl.Set_Am_Bias(0) 
     time.sleep(0.2)
     for i in range(21):
         value = bias_default - 3 + 0.1 * i
         if value < 0:
            value = 0
-        main.Set_Am_Bias_2(value)
-       # main.Set_Am_Bias_2(bias_default -3 + 0.1*i)
-        sendc('get counts')
-        counts.append(rcv_u32())
+        ctl.Set_Am_Bias_2(value)
+       # ctl.Set_Am_Bias_2(bias_default -3 + 0.1*i)
+        sendc(bob, 'get counts')
+        counts.append(rcv_i(bob))
     min_counts = min(counts)
     min_idx = counts.index(min_counts)
     print("Min count: ", min_counts , "index: ", min_idx)
     am_bias_opt = bias_default -3 + 0.1*min_idx
     ctl.Set_Am_Bias_2(max(0, round(am_bias_opt + 2, 2))) 
-    #main.Set_Am_Bias(bias_default_1)
+    #ctl.Set_Am_Bias(bias_default_1)
 
 def pol_bob():
+    sendc(bob, 'pol_bob')
     rcvc(bob)
 
 def ad():
+    sendc(bob, 'ad')
     update_tmp('am_mode', 'off')
     ctl.Update_Dac()
     rcvc(bob)
@@ -232,6 +238,7 @@ def ad():
     rcvc(bob)
 
 def find_sp():
+    sendc(bob, 'find_sp')
     #1.Send single pulse, am_shift 0
     update_tmp('am_shift', 0)
     update_tmp('am_mode', 'single')
@@ -250,6 +257,7 @@ def find_sp():
 
 
 def verify_gates():
+    sendc(bob, 'verify_gates')
     print(colored('verify_gates', 'cyan'))
     update_tmp('am_mode', 'off')
     ctl.Update_Dac()
@@ -261,11 +269,13 @@ def verify_gates():
         print(colored("Success: good gates found \n", "green"))
         result = True
     else:
+        print(colored("Fail: bad gates \n", "red"))
         result = False
     return result
 
 
 def fs_b():
+    sendc(bob, 'fs_b')
     t = get_tmp()
     t['am_mode'] = 'double'
     t['pm_mode'] = 'off'
@@ -279,6 +289,7 @@ def fs_b():
 
 
 def fs_a():
+    sendc(bob, 'fs_a')
     t = get_tmp()
     t['am_mode'] = 'double'
     t['pm_mode'] = 'seq64'
@@ -302,6 +313,7 @@ def fs_a():
 
 
 def fd_b():
+    sendc(bob, 'fd_b')
     update_tmp('am_mode', 'double')
     update_tmp('pm_mode', 'fake_rng')
     update_tmp('insert_zeros', 'off')
@@ -310,6 +322,7 @@ def fd_b():
     rcvc(bob)
 
 def fd_b_long():
+    sendc(bob, 'fd_b_long')
     update_tmp('am_mode', 'double')
     update_tmp('pm_mode', 'fake_rng')
     update_tmp('insert_zeros', 'off')
@@ -318,6 +331,7 @@ def fd_b_long():
     rcvc(bob)
 
 def fd_a():
+    sendc(bob, 'fd_a')
     ctl.Write_To_Fake_Rng(gen_seq.seq_rng_single())
     update_tmp('pm_mode', 'fake_rng')
     update_tmp('am_mode', 'double')
@@ -330,6 +344,7 @@ def fd_a():
     save_tmp(t)
 
 def fd_a_long():
+    sendc(bob, 'fd_a_long')
     t = get_tmp()
     t['pm_mode'] = 'fake_rng'
     t['am_mode'] = 'double'
@@ -337,8 +352,8 @@ def fd_a_long():
     save_tmp(t)
     ctl.Write_To_Fake_Rng(gen_seq.seq_rng_block1())
     ctl.Update_Dac()
-    send_i(t['fiber_delay_mod'])
-    fiber_delay_long = rcv_i()
+    send_i(bob, t['fiber_delay_mod'])
+    fiber_delay_long = rcv_i(bob)
     t = get_tmp()
     t['fiber_delay_long'] = fiber_delay_long
     t['fiber_delay'] = t['fiber_delay_mod'] + fiber_delay_long*80 
@@ -347,6 +362,7 @@ def fd_a_long():
 
 
 def fz_b():
+    sendc(bob, 'fz_b')
     update_tmp('am_mode', 'double')
     update_tmp('pm_mode', 'fake_rng')
     update_tmp('insert_zeros', 'off')
@@ -355,6 +371,7 @@ def fz_b():
     rcvc(bob)
 
 def fz_a():
+    sendc(bob, 'fz_a')
     t = get_tmp()
     t['pm_mode'] = 'fake_rng'
     t['insert_zeros'] = 'on'
@@ -362,7 +379,7 @@ def fz_a():
     save_tmp(t)
     ctl.Write_To_Fake_Rng(gen_seq.seq_rng_all_one())
     ctl.Update_Dac()
-    send_i(t['fiber_delay_mod'])
+    send_i(bob, t['fiber_delay_mod'])
     zero_pos = rcv_i(bob)
     update_tmp('zero_pos', zero_pos)
     ctl.Update_Dac()
@@ -376,6 +393,9 @@ functionmap['find_vca'] = find_vca
 functionmap['find_am_bias'] = find_am_bias
 functionmap['verify_am_bias'] = verify_am_bias
 functionmap['find_am2_bias'] = find_am2_bias
+functionmap['pol_bob'] = pol_bob
+functionmap['ad'] = ad
+functionmap['find_sp'] = find_sp
 functionmap['verify_gates'] = verify_gates
 functionmap['fs_b'] = fs_b
 functionmap['fs_a'] = fs_a
@@ -408,7 +428,9 @@ while True:
             if command=='':
                 break
 
+            print(colored(command+' ...\n', 'blue'))
             functionmap[command]()
+            print(colored('... '+command+' done \n', 'blue'))
 
 
     except KeyboardInterrupt:
