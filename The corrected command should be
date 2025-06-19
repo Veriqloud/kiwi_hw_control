@@ -1,0 +1,1 @@
+cargo run --bin bob -- -f ../config/local_sim_qber_bob.json

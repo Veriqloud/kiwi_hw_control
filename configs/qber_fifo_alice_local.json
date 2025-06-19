@@ -1,4 +1,0 @@
-{
-  "command_socket_path": "/tmp/alice_startstop.s",
-  "angle_file_path": "/tmp/gc_alice_angle.fifo"
-}

@@ -1,0 +1,4 @@
+{
+  "command_socket_path": "/tmp/gc_alice_command.socket",
+  "angle_file_path": "/tmp/gc_alice_angle.fifo"
+}
