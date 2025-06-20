@@ -9,16 +9,22 @@ import struct
 networkfile = '../config/network.json'
 
 
-# get ip from config/network.json
-with open(networkfile, 'r') as f:
-    network = json.load(f)
 
-# Server configuration
-host = network['ip']['alice']
-port = int(network['port']['hw'])
+def connect_to_alice(use_localhost=False):
+    with open(networkfile, 'r') as f:
+        network = json.load(f)
 
-alice = socket.socket()
-alice.connect((host, port))
+    host = network['ip']['alice']
+    port = int(network['port']['hw'])
+
+    global alice
+    alice = socket.socket()
+
+    if use_localhost:
+        alice.connect(('localhost', port))
+    else:
+        alice.connect((host, port))
+
 
 
 # send command
@@ -156,6 +162,9 @@ parser_init = subparsers.add_parser('init')
 parser_set = subparsers.add_parser('set')
 parser_get = subparsers.add_parser('get')
 
+parser.add_argument("--use_localhost", action="store_true", 
+                    help="connect to localhost instead of ip from network.json; e.g. when port forwarding")
+
 parser_init.add_argument("--all", action="store_true", 
                          help="init all devices and sync")
 parser_init.add_argument("--ltc", action="store_true", 
@@ -223,7 +232,11 @@ parser_init.set_defaults(func=init)
 parser_set.set_defaults(func=set)
 parser_get.set_defaults(func=get)
 
+
 args = parser.parse_args()
+
+connect_to_alice(args.use_localhost)
+
 args.func(args)
 
 
