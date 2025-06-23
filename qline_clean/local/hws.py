@@ -6,19 +6,26 @@ import argparse
 #from termcolor import colored
 import struct
 
-networkfile = '../config/network.json'
 
+network_file = '../config/network.json'
+ports_for_localhost_file = '../config/ports_for_localhost.json'
 
-# get ip from config/network.json
-with open(networkfile, 'r') as f:
-    network = json.load(f)
+def connect_to_alice(use_localhost=False):
+    if use_localhost:
+        with open(ports_for_localhost_file, 'r') as f:
+            ports_for_localhost = json.load(f)
+        host = 'localhost'
+        port = ports_for_localhost['hws']
+    else:
+        with open(network_file, 'r') as f:
+            network = json.load(f)
+        host = network['ip']['alice']
+        port = network['port']['hws']
+    
+    global alice
+    alice = socket.socket()
+    alice.connect((host, port))
 
-# Server configuration
-host = network['ip']['alice']
-port = int(network['port']['hws'])
-
-alice = socket.socket()
-alice.connect((host, port))
 
 
 # send command
@@ -73,6 +80,8 @@ def rcv_d():
 #create top_level parser
 parser = argparse.ArgumentParser()
 
+parser.add_argument("--use_localhost", action="store_true", 
+                    help="connect to localhost instead of ip from network.json; e.g. when port forwarding")
 
 parser.add_argument("--full_init", action="store_true", 
                          help="reset and calibrate")
@@ -82,6 +91,8 @@ parser.add_argument("--command", type=str, nargs="*",
 
 
 args = parser.parse_args()
+
+connect_to_alice(args.use_localhost)
 
 if args.full_init:
     sendc('init')

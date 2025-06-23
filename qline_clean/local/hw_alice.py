@@ -6,24 +6,28 @@ import argparse
 #from termcolor import colored
 import struct
 
-networkfile = '../config/network.json'
+network_file = '../config/network.json'
+ports_for_localhost_file = '../config/ports_for_localhost.json'
 
 
 
 def connect_to_alice(use_localhost=False):
-    with open(networkfile, 'r') as f:
-        network = json.load(f)
-
-    host = network['ip']['alice']
-    port = int(network['port']['hw'])
-
+    if use_localhost:
+        with open(ports_for_localhost_file, 'r') as f:
+            ports_for_localhost = json.load(f)
+        host = 'localhost'
+        port = ports_for_localhost['hw_alice']
+    else:
+        with open(network_file, 'r') as f:
+            network = json.load(f)
+        host = network['ip']['alice']
+        port = network['port']['hw']
+    
     global alice
     alice = socket.socket()
+    alice.connect((host, port))
+    
 
-    if use_localhost:
-        alice.connect(('localhost', port))
-    else:
-        alice.connect((host, port))
 
 
 

@@ -7,19 +7,27 @@ import argparse
 import struct
 import time
 
-networkfile = '../config/network.json'
+network_file = '../config/network.json'
+ports_for_localhost_file = '../config/ports_for_localhost.json'
 
 
-# get ip from config/network.json
-with open(networkfile, 'r') as f:
-    network = json.load(f)
+def connect_to_bob(use_localhost=False):
+    if use_localhost:
+        with open(ports_for_localhost_file, 'r') as f:
+            ports_for_localhost = json.load(f)
+        port = ports_for_localhost['hw_bob']
+        host = 'localhost'
+    else:
+        with open(network_file, 'r') as f:
+            network = json.load(f)
+        host = network['ip']['bob']
+        port = network['port']['hw']
+        
+    global bob 
+    bob = socket.socket()
+    bob.connect((host, port))
 
-# Server configuration
-host = network['ip']['bob']
-port = int(network['port']['hw'])
 
-bob = socket.socket()
-bob.connect((host, port))
 
 
 # send command
@@ -186,6 +194,9 @@ parser_set = subparsers.add_parser('set')
 parser_get = subparsers.add_parser('get')
 parser_debug = subparsers.add_parser('debug')
 
+parser.add_argument("--use_localhost", action="store_true", 
+                    help="connect to localhost instead of ip from network.json; e.g. when port forwarding")
+
 ######### init ###########
 parser_init.add_argument("--all", action="store_true", 
                          help="init all devices and sync")
@@ -277,4 +288,12 @@ parser_set.set_defaults(func=set)
 parser_get.set_defaults(func=get)
 
 args = parser.parse_args()
+
+connect_to_bob(args.use_localhost)
+
 args.func(args)
+
+
+
+
+
