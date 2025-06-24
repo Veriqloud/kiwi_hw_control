@@ -46,6 +46,11 @@ while True:
     log = open(hardware_logfile, 'a')
     log.write(f"\n{datetime.datetime.now()}\t{addr}\n")
 
+    def recv_exact(l):
+        m = bytes(0)
+        while len(m)<l:
+            m += conn.recv(l - len(m))
+        return m
 
     # send command
     def sendc(c):
@@ -57,9 +62,7 @@ while True:
     # receive command
     def rcvc():
         l = int.from_bytes(conn.recv(1), 'little')
-        mr = conn.recv(l)
-        while len(mr)<l:
-            mr += conn.recv(l-len(mr))
+        mr = recv_exact(l)
         command = mr.decode().strip()
         log.write(colored(command, 'cyan')+'\n')
         return command
@@ -78,7 +81,7 @@ while True:
 
     # receive integer
     def rcv_i():
-        m = conn.recv(4)
+        m = recv_exact(4)
         value = struct.unpack('i', m)[0]
         log.write(colored(value, 'cyan')+'\n')
         return value
@@ -91,10 +94,18 @@ while True:
 
     # receive double
     def rcv_d():
-        m = conn.recv(8)
+        m = recv_exact(8)
         value = struct.unpack('d', m)[0]
         log.write(colored(value, 'cyan')+'\n')
         return value
+    
+    # send binary data
+    def send_data(data):
+        log.write(colored('sending data', 'blue')+'\n')
+        l = len(data)
+        print(l)
+        m = struct.pack('i', l) + data 
+        conn.sendall(m)
 
     try:
         while True:
@@ -250,6 +261,10 @@ while True:
                 input_file = HW_CONTROL+'data/tdc/verify_gate_double.txt'
                 input_file2 = HW_CONTROL+'data/tdc/verify_gate_off.txt'
                 status = ctl.verify_gate_double(input_file,input_file2, gate0, gate1, width, binstep, maxtime)
+                pic = HW_CONTROL+"data/calib_res/gate_double.png"
+                with open(pic, 'rb') as f:
+                    data = f.read()
+                send_data(data)
                 sendc(status)
 
 

@@ -10,6 +10,13 @@ from termcolor import colored
 
 ####### convenient send and receive commands ########
 
+def recv_exact(socket, l):
+    m = bytes(0)
+    while len(m)<l:
+        m += socket.recv(l - len(m))
+    return m
+    
+
 # send command
 def sendc(socket, command):
     b = command.encode()
@@ -19,9 +26,7 @@ def sendc(socket, command):
 # receive command
 def rcvc(socket):
     l = int.from_bytes(socket.recv(1), 'little')
-    mr = socket.recv(l)
-    while len(mr)<l:
-        mr += socket.recv(l-len(mr))
+    mr = recv_exact(socket, l)
     command = mr.decode().strip()
     return command
 
@@ -32,13 +37,13 @@ def send_i(socket, value):
 
 # receive integer
 def rcv_i(socket):
-    m = socket.recv(4)
+    m = recv_exact(socket, 4)
     value = struct.unpack('i', m)[0]
     return value
 
 # receive long integer
 def rcv_q(socket):
-    m = socket.recv(8)
+    m = recv_exact(socket, 8)
     value = struct.unpack('q', m)[0]
     return value
 
@@ -49,9 +54,28 @@ def send_d(socket, value):
 
 # receive double
 def rcv_d(socket):
-    m = socket.recv(8)
+    m = recv_exact(socket, 8)
     value = struct.unpack('d', m)[0]
     return value
+
+# send binary data
+def send_data(socket, data):
+    log.write(colored('sending data', 'blue')+'\n')
+    l = len(data)
+    print('sending', l)
+    m = struct.pack('i', l) + data
+    socket.sendall(m)
+
+def rcv_data(socket):
+    m = recv_exact(socket, 4)
+    l = struct.unpack('i', m)[0]
+    print('receiving', l)
+    m = bytes(0)
+    while len(m)<l:
+        m += socket.recv(l - len(m))
+    return m
+
+
 
 
 
@@ -92,19 +116,21 @@ print(f"Server listening on {host}:{port}")
 
 ####### config functions ###########
 
-def init():
+def init(conn):
     sendc(bob, 'init')
     ctl.init_all()
     sendc(bob, 'Alice init done')
     rcvc(bob)
+    sendc(conn, 'init done')
             
-def sync_gc():
+def sync_gc(conn):
     sendc(bob, 'sync_gc')
     wait_for_pps_ret()
     sendc(bob, 'go')
     Sync_Gc()
+    sendc(conn, 'sync_gc done')
 
-def find_vca(limit=3000):
+def find_vca(conn, limit=3000):
     sendc(bob, 'find_vca')
     update_tmp('am_mode', 'double')
     ctl.Update_Dac()
@@ -120,15 +146,19 @@ def find_vca(limit=3000):
         print(count)
 
     if count >= limit:
-       print(colored(f"Success, {vca}V / {count} cts \n", "green"))
+        m = colored(f"success, {vca}V / {count} cts \n", "green")
+        print(m)
+
     else:
-       print(colored(f"Fail, {vca}V / {count} cts \n", "red"))
+        m = colored(f"fail, {vca}V / {count} cts \n", "red")
+        print(m)
     update_tmp('vca_calib', vca)
     update_default('vca', max(vca-1, 0))
     sendc(bob, 'done')
+    sendc(conn, 'find_vca '+m)
 
 
-def find_am_bias(range_val=0.5):
+def find_am_bias(conn, range_val=0.5):
     sendc(bob, 'find_am_bias')
     update_tmp('am_mode', 'off')
     ctl.Update_Dac()
@@ -167,9 +197,10 @@ def find_am_bias(range_val=0.5):
     ctl.Set_Am_Bias(am_bias_opt)
     ctl.Set_Am_Bias_2(bias_default_1)
     sendc(bob, 'done')
+    sendc(conn, 'find_am_bias done')
 
 
-def verify_am_bias():
+def verify_am_bias(conn):
     sendc(bob, 'verify_am_bias')
     update_tmp('am_mode', 'off')
     ctl.Update_Dac()
@@ -185,17 +216,20 @@ def verify_am_bias():
 
     ratio = count_double / count_off
     if ratio >= 2:
-       print(colored(f"Success: double/off  = {ratio:.2f} ({count_double}/{count_off}) \n", "green"))
-       result = True
+        m = colored(f"success: double/off  = {ratio:.2f} ({count_double}/{count_off}) \n", "green")
+        print(m)
+        result = True
     else:
-       print(colored(f"Fail: double/off = {ratio:.2f} ({count_double}/{count_off}) \n", "yellow"))
-       result = False
+        m = colored(f"fail: double/off = {ratio:.2f} ({count_double}/{count_off}) \n", "yellow")
+        print(m)
+        result = False
     update_tmp('am_mode', 'off')
     ctl.Update_Dac()
+    sendc(conn, 'verify_am_bias '+m)
     return result
 
 
-def find_am2_bias():
+def find_am2_bias(conn):
     sendc(bob, 'find_am2_bias')
     update_tmp('am_mode', 'double')
     ctl.Update_Dac()
@@ -223,12 +257,14 @@ def find_am2_bias():
     am_bias_opt = bias_default -3 + 0.1*min_idx
     ctl.Set_Am_Bias_2(max(0, round(am_bias_opt + 2, 2))) 
     #ctl.Set_Am_Bias(bias_default_1)
+    sendc(conn, 'find_am_bias done. '+f"min count: {min_counts}, index: {min_idx}")
 
-def pol_bob():
+def pol_bob(conn):
     sendc(bob, 'pol_bob')
     rcvc(bob)
+    sendc(conn, 'pol_bob done')
 
-def ad():
+def ad(conn):
     sendc(bob, 'ad')
     update_tmp('am_mode', 'off')
     ctl.Update_Dac()
@@ -236,8 +272,9 @@ def ad():
     update_tmp('am_mode', 'double')
     ctl.Update_Dac()
     rcvc(bob)
+    sendc(conn, 'ad done')
 
-def find_sp():
+def find_sp(conn):
     sendc(bob, 'find_sp')
     #1.Send single pulse, am_shift 0
     update_tmp('am_shift', 0)
@@ -254,9 +291,10 @@ def find_sp():
     print("updating am_shift to", am_shift)
     update_tmp('am_shift', am_shift)
     ctl.Update_Dac()
+    sendc(conn, 'find_sp done')
 
 
-def verify_gates():
+def verify_gates(conn):
     sendc(bob, 'verify_gates')
     print(colored('verify_gates', 'cyan'))
     update_tmp('am_mode', 'off')
@@ -264,17 +302,22 @@ def verify_gates():
     rcvc(bob)
     update_tmp('am_mode', 'double')
     ctl.Update_Dac()
+    pic = rcv_data(bob)
+    send_data(conn, pic)
     status = rcvc(bob)
     if status == "success":
-        print(colored("Success: good gates found \n", "green"))
+        m = colored("success: good gates found \n", "green")
+        print(m)
         result = True
     else:
-        print(colored("Fail: bad gates \n", "red"))
+        m = colored("fail: bad gates \n", "red")
+        print(m)
         result = False
+    sendc(conn, 'verify_gates '+m)
     return result
 
 
-def fs_b():
+def fs_b(conn):
     sendc(bob, 'fs_b')
     t = get_tmp()
     t['am_mode'] = 'double'
@@ -283,12 +326,15 @@ def fs_b():
     ctl.Update_Dac()
     pm_shift = rcv_i(bob)
     if pm_shift != 1000:
-            print(colored("Success: Shift_Bob found\n", "green"))
+        m = colored("Success: Shift_Bob found\n", "green")
+        print(m)
     else:
-            print(colored("Fail: pm_shift_Bob is None\n", "red"))
+        m = colored("Fail: pm_shift_Bob is None\n", "red")
+        print(m)
+    sendc(conn, 'fs_b '+m)
 
 
-def fs_a():
+def fs_a(conn):
     sendc(bob, 'fs_a')
     t = get_tmp()
     t['am_mode'] = 'double'
@@ -307,12 +353,15 @@ def fs_a():
     if pm_shift != 1000:
         update_tmp('pm_shift', pm_shift_coarse + pm_shift)
         ctl.Update_Dac()
-        print(colored("Success: Shift_Alice found\n", "green"))
+        m = colored("success: Shift_Alice found\n", "green")
+        print(m)
     else:
-        print(colored("Fail: pm_shift_Alice is None\n", "red"))
+        m = colored("fail: pm_shift_Alice is None\n", "red")
+        print(m)
+    sendc(conn, 'fs_a '+m)
 
 
-def fd_b():
+def fd_b(conn):
     sendc(bob, 'fd_b')
     update_tmp('am_mode', 'double')
     update_tmp('pm_mode', 'fake_rng')
@@ -320,8 +369,9 @@ def fd_b():
     ctl.Write_To_Fake_Rng(gen_seq.seq_rng_zeros())
     ctl.Update_Dac()
     rcvc(bob)
+    sendc(conn, 'fd_b done')
 
-def fd_b_long():
+def fd_b_long(conn):
     sendc(bob, 'fd_b_long')
     update_tmp('am_mode', 'double')
     update_tmp('pm_mode', 'fake_rng')
@@ -329,8 +379,9 @@ def fd_b_long():
     ctl.Write_To_Fake_Rng(gen_seq.seq_rng_zeros())
     ctl.Update_Dac()
     rcvc(bob)
+    sendc(conn, 'fd_b_long done')
 
-def fd_a():
+def fd_a(conn):
     sendc(bob, 'fd_a')
     ctl.Write_To_Fake_Rng(gen_seq.seq_rng_single())
     update_tmp('pm_mode', 'fake_rng')
@@ -342,8 +393,9 @@ def fd_a():
     t['fiber_delay_mod'] = fiber_delay
     t['fiber_delay'] = (fiber_delay-1)%80 + t['fiber_delay_long']
     save_tmp(t)
+    sendc(conn, 'fd_a done')
 
-def fd_a_long():
+def fd_a_long(conn):
     sendc(bob, 'fd_a_long')
     t = get_tmp()
     t['pm_mode'] = 'fake_rng'
@@ -359,9 +411,10 @@ def fd_a_long():
     t['fiber_delay'] = t['fiber_delay_mod'] + fiber_delay_long*80 
     t['decoy_delay'] = t['fiber_delay'] 
     save_tmp(t)
+    sendc(conn, 'fd_a_long done')
 
 
-def fz_b():
+def fz_b(conn):
     sendc(bob, 'fz_b')
     update_tmp('am_mode', 'double')
     update_tmp('pm_mode', 'fake_rng')
@@ -369,8 +422,9 @@ def fz_b():
     ctl.Write_To_Fake_Rng(gen_seq.seq_rng_zeros())
     ctl.Update_Dac()
     rcvc(bob)
+    sendc(conn, 'fz_b done')
 
-def fz_a():
+def fz_a(conn):
     sendc(bob, 'fz_a')
     t = get_tmp()
     t['pm_mode'] = 'fake_rng'
@@ -383,6 +437,7 @@ def fz_a():
     zero_pos = rcv_i(bob)
     update_tmp('zero_pos', zero_pos)
     ctl.Update_Dac()
+    sendc(conn, 'fz_a done')
 
 
 # for convencience
@@ -429,7 +484,7 @@ while True:
                 break
 
             print(colored(command+' ...\n', 'blue'))
-            functionmap[command]()
+            functionmap[command](conn)
             print(colored('... '+command+' done \n', 'blue'))
 
 

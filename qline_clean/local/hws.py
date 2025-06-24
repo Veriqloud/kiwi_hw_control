@@ -27,6 +27,11 @@ def connect_to_alice(use_localhost=False):
     alice.connect((host, port))
 
 
+def recv_exact(l):
+    m = bytes(0)
+    while len(m)<l:
+        m += alice.recv(l - len(m))
+    return m
 
 # send command
 def sendc(c):
@@ -37,7 +42,7 @@ def sendc(c):
 # receive command
 def rcvc():
     l = int.from_bytes(alice.recv(1), 'little')
-    mr = alice.recv(l)
+    mr = recv_exact(l)
     while len(mr)<l:
         mr += alice.recv(l-len(mr))
     command = mr.decode().strip()
@@ -50,13 +55,13 @@ def send_i(value):
 
 # receive integer
 def rcv_i():
-    m = alice.recv(4)
+    m = recv_exact(4)
     value = struct.unpack('i', m)[0]
     return value
 
 # receive long integer
 def rcv_q():
-    m = alice.recv(8)
+    m = recv_exact(8)
     value = struct.unpack('q', m)[0]
     return value
 
@@ -67,10 +72,15 @@ def send_d(value):
 
 # receive double
 def rcv_d():
-    m = alice.recv(8)
+    m = recv_exact(8)
     value = struct.unpack('d', m)[0]
     return value
 
+def rcv_data():
+    m = recv_exact(4)
+    l = struct.unpack('i', m)[0]
+    m = recv_exact(l)
+    return m
 
 
 
@@ -94,28 +104,41 @@ args = parser.parse_args()
 
 connect_to_alice(args.use_localhost)
 
+
+def interact(command):
+    sendc(command)
+    if command == 'verify_gates':
+        pic = rcv_data()
+        with open('pics/verify_gates.png', 'wb') as f:
+            f.write(pic)
+    m = rcvc()
+    print(m)
+    if 'fail' in m:
+        exit()
+
+
 if args.full_init:
-    sendc('init')
-    sendc('sync_gc')
-    sendc('find_vca')
-    sendc('find_am_bias')
-    sendc('verify_am_bias')
-    sendc('find_am2_bias')
-    sendc('pol_bob')
-    sendc('ad')
-    sendc('find_sp')
-    sendc('verify_gates')
-    sendc('fs_b')
-    sendc('fs_a')
-    sendc('fd_b')
-    sendc('fd_b_long')
-    sendc('fd_a')
-    sendc('fd_a_long')
-    sendc('fz_a')
-    sendc('fz_b')
+    interact('init')
+    interact('sync_gc')
+    interact('find_vca')
+    interact('find_am_bias')
+    interact('verify_am_bias')
+    interact('find_am2_bias')
+    interact('pol_bob')
+    interact('ad')
+    interact('find_sp')
+    interact('verify_gates')
+    interact('fs_b')
+    interact('fs_a')
+    interact('fd_b')
+    interact('fd_b_long')
+    interact('fd_a')
+    interact('fd_a_long')
+    interact('fz_a')
+    interact('fz_b')
 
 elif args.command is not None:
-    sendc(args.command[0])
+    interact(args.command[0])
 
 
 
