@@ -136,6 +136,7 @@ fn ddr_data_init() {
     // reset module
     xdma_write(0, 0, 0x1000);
     xdma_write(16, 0, 0x12000);
+    thread::sleep(time::Duration::from_millis(100));
     xdma_write(16, 1, 0x12000);
     thread::sleep(time::Duration::from_millis(100));
 }

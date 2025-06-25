@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use std::io::prelude::*;
 use std::net::TcpStream;
 use std::os::unix::net::UnixStream;
@@ -40,31 +41,34 @@ impl ToByte for HwControl {
 
 // custom send and recv for single byte messages
 pub trait Comm {
-    fn send<T: ToByte + From<u8>>(&mut self, message: T) -> std::io::Result<()>;
-    fn recv<T: ToByte + From<u8>>(&mut self) -> std::io::Result<T>;
+    fn send<T: ToByte + From<u8> + Debug>(&mut self, message: T) -> std::io::Result<()>;
+    fn recv<T: ToByte + From<u8> + Debug>(&mut self) -> std::io::Result<T>;
 }
 
 impl Comm for UnixStream {
-    fn send<T: ToByte + From<u8>>(&mut self, message: T) -> std::io::Result<()> {
+    fn send<T: ToByte + From<u8> + Debug>(&mut self, message: T) -> std::io::Result<()> {
+        println!("[gc-comm] UNIX SEND: {:?}", message);
         let m_b = message.tobyte();
         self.write(&[m_b])?;
         Ok(())
     }
-    fn recv<T: ToByte + From<u8>>(&mut self) -> std::io::Result<T> {
+    fn recv<T: ToByte + From<u8> + Debug>(&mut self) -> std::io::Result<T> {
         let mut m_b: [u8; 1] = [0];
         self.read(&mut m_b)?;
         let message = T::from(m_b[0]);
+        println!("[gc-comm] UNIX RECV: {:?}", message);
         Ok(message)
     }
 }
 
 impl Comm for TcpStream {
-    fn send<T: ToByte + From<u8>>(&mut self, message: T) -> std::io::Result<()> {
+    fn send<T: ToByte + From<u8> + Debug>(&mut self, message: T) -> std::io::Result<()> {
+        println!("[gc-comm] TCP SEND: {:?}", message);
         let m_b = message.tobyte();
         self.write(&[m_b])?;
         Ok(())
     }
-    fn recv<T: ToByte + From<u8>>(&mut self) -> std::io::Result<T> {
+    fn recv<T: ToByte + From<u8> + Debug>(&mut self) -> std::io::Result<T> {
         let mut m_b: [u8; 1] = [0];
         let l = self.read(&mut m_b)?;
         // if you hit ctrl-c on Alice, read returns without error and length 0; we make an error
@@ -74,6 +78,7 @@ impl Comm for TcpStream {
             return Err(myerror);
         }
         let message = T::from(m_b[0]);
+        println!("[gc-comm] TCP RECV: {:?}", message);
         Ok(message)
     }
 }

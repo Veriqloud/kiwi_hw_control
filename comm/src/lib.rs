@@ -33,11 +33,13 @@ pub mod qber_comms {
     }
 }
 
-use serde::{Serialize, de::DeserializeOwned};
+use serde::{de::DeserializeOwned, Serialize};
+use std::fmt::Debug;
 use std::io::{Read, Write};
 
-pub fn write_message<T: Serialize, W: Write>(stream: &mut W, message: T) -> std::io::Result<()> {
-    let serialized_message = bincode::serde::encode_to_vec(message, bincode::config::standard())
+pub fn write_message<T: Serialize + Debug, W: Write>(stream: &mut W, message: T) -> std::io::Result<()> {
+    println!("[qber-comm] WRITE: {:?}", message);
+    let serialized_message = bincode::serde::encode_to_vec(&message, bincode::config::standard())
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
 
     let len = serialized_message.len() as u32;
@@ -48,7 +50,7 @@ pub fn write_message<T: Serialize, W: Write>(stream: &mut W, message: T) -> std:
     Ok(())
 }
 
-pub fn read_message<T: DeserializeOwned, R: Read>(stream: &mut R) -> std::io::Result<T> {
+pub fn read_message<T: DeserializeOwned + Debug, R: Read>(stream: &mut R) -> std::io::Result<T> {
     let mut len_bytes = [0u8; 4]; // u32 is 4 bytes
     stream.read_exact(&mut len_bytes)?;
 
@@ -61,5 +63,6 @@ pub fn read_message<T: DeserializeOwned, R: Read>(stream: &mut R) -> std::io::Re
         bincode::serde::decode_from_slice(&buffer, bincode::config::standard())
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
 
+    println!("[qber-comm] READ: {:?}", message);
     Ok(message)
 }

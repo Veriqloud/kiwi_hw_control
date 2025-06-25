@@ -79,10 +79,13 @@ fn recv_angles(
     // reuse file descriptors if already opened earlier
     let mut file_angles = match file_angles {
         Some(fd) => fd,
-        None => OpenOptions::new()
-            .read(true)
-            .open(&fifos.angle_file_path)
-            .expect("opening angle file"),
+        None => {
+            println!("[qber-alice] Opening Angle FIFO for reading: {}", &fifos.angle_file_path);
+            OpenOptions::new()
+                .read(true)
+                .open(&fifos.angle_file_path)
+                .expect("opening angle file")
+        }
     };
     // 4x4 matrix for statistics
     let mut m0: [[u32; 4]; 4] = [[0; 4]; 4];
@@ -98,12 +101,14 @@ fn recv_angles(
     // save vector for debug: angle_alice, angle_bob, result
     let mut vdebug: Vec<[u8; 3]> = Vec::new();
 
+    println!("[qber-alice] Telling qber-bob we want {} clicks.", num);
     bob.write_all(&num.to_le_bytes())?;
 
     for _ in 0..num / 32 {
         file_angles.read_exact(&mut aa)?;
         bob.read_exact(&mut ab)?;
         bob.read_exact(&mut r)?;
+        println!("[qber-alice] Received and processed a batch of 32 angles/results.");
 
         // expand angles to array
         let mut aa_expanded: [u8; 32] = [0; 32];
@@ -174,13 +179,15 @@ fn recv_angles(
 
 fn main() -> std::io::Result<()> {
     let cli = Cli::parse();
-
+    println!("[qber-alice] Loading network config from: {}", &cli.network_path);
     let network = ConfigNetworkAlice::from_path(cli.network_path);
+    println!("[qber-alice] Loading FIFO config from: {}", &cli.fifo_path);
     let fifos = ConfigFifoAlice::from_path(cli.fifo_path);
 
+    println!("[qber-alice] Attempting to connect to qber-bob at {}...", network.ip_bob_qber);
     let mut bob =
-        TcpStream::connect(network.ip_bob_qber).expect("connecting to Bob_qber via TcpStream\n");
-    println!("connected to Bob_qber");
+        TcpStream::connect(&network.ip_bob_qber).expect("connecting to Bob_qber via TcpStream\n");
+    println!("[qber-alice] Connected to Bob_qber at {}", bob.peer_addr()?);
 
     let mut debug = false;
     if cli.debug {
@@ -191,23 +198,26 @@ fn main() -> std::io::Result<()> {
             _ => panic!("{}", e),
         });
 
+        println!("[qber-alice] Sending DebugOn request to gc-alice via UNIX socket: {}", &fifos.command_socket_path);
         let mut stream = UnixStream::connect(&fifos.command_socket_path)
             .expect("could not connect to UnixStream");
         write_message(&mut stream, Request::DebugOn)?;
         let m: Response = read_message(&mut stream)?;
-        println!("message received {:?}", m);
+        println!("[qber-alice] Received response from gc-alice: {:?}", m);
     }
 
+    println!("[qber-alice] Sending Start request to gc-alice via UNIX socket: {}", &fifos.command_socket_path);
     let mut stream = UnixStream::connect(&fifos.command_socket_path).expect(&format!(
         "could not connect to UnixStream {:?}",
         &fifos.command_socket_path
     ));
     write_message(&mut stream, Request::Start)?;
     let m: Response = read_message(&mut stream)?;
-    println!("message received {:?}", m);
+    println!("[qber-alice] Received response from gc-alice: {:?}", m);
 
     let mut file_angles: Option<File> = None;
     loop {
+        println!("[qber-alice] Requesting angles from qber-bob...");
         write_message(&mut bob, &Qber::SendAngles)?;
         file_angles = recv_angles(&mut bob, &fifos, cli.num, file_angles, debug)?;
     }

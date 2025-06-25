@@ -2,8 +2,10 @@ use clap::Parser;
 use gc::comm::{Comm, HwControl};
 use gc::config::Configuration;
 use gc::hw::{
-    CONFIG, init_ddr, process_gcr_stream, sync_at_pps, write_gc_to_alice, write_gc_to_fpga,
+    init_ddr, process_gcr_stream, sync_at_pps, write_gc_to_alice, write_gc_to_fpga,
+    CONFIG,
 };
+use serde_json::Value;
 use std::fs::OpenOptions;
 use std::io::prelude::*;
 use std::net::{TcpListener, TcpStream};
@@ -18,36 +20,38 @@ struct Cli {
 
 // read the gcr stream, split gcr, write gc to Alice and r to fifo
 fn send_gc(alice: &mut TcpStream) -> std::io::Result<()> {
+    let gcr_path = &CONFIG.get().unwrap().bob_config().fifo.gcr_file_path;
+    let gcw_path = &CONFIG.get().unwrap().bob_config().fifo.gc_file_path;
+    let result_path = &CONFIG.get().unwrap().bob_config().fifo.click_result_file_path;
+
+    println!("[gc-bob] Opening GCR FIFO for reading: {}", gcr_path);
     let mut file_gcr = OpenOptions::new()
         .read(true)
-        .open(&CONFIG.get().unwrap().bob_config().fifo.gcr_file_path)
+        .open(gcr_path)
         .expect(
             format!(
                 "opening {}\n",
-                &CONFIG.get().unwrap().bob_config().fifo.gcr_file_path
+                gcr_path
             )
             .as_str(),
         );
+
+    println!("[gc-bob] Opening GC FIFO for writing: {}", gcw_path);
     let mut file_gcw = OpenOptions::new()
         .write(true)
-        .open(&CONFIG.get().unwrap().bob_config().fifo.gc_file_path)
+        .open(gcw_path)
         .expect(
             format!(
                 "opening {}\n",
-                &CONFIG.get().unwrap().bob_config().fifo.gc_file_path
+                gcw_path
             )
             .as_str(),
         );
+
+    println!("[gc-bob] Opening Click Result FIFO for writing: {}", result_path);
     let mut file_result = OpenOptions::new()
         .write(true)
-        .open(
-            &CONFIG
-                .get()
-                .unwrap()
-                .bob_config()
-                .fifo
-                .click_result_file_path,
-        )
+        .open(result_path)
         .expect("opening result fifo\n");
 
     let mut i = 0;
@@ -55,7 +59,7 @@ fn send_gc(alice: &mut TcpStream) -> std::io::Result<()> {
     loop {
         let (gc, result) = process_gcr_stream(&mut file_gcr)?;
         if (i % 100) == 0 {
-            println!("{:?}\t{:?}\t{:?}", gc[0], gc[0] as f64 / 80e6, result[0]);
+            println!("[gc-bob] GC stream [{}]: gc[0]={}, result[0]={}", i, gc[0], result[0]);
         };
         write_gc_to_alice(gc, alice)?;
         write_gc_to_fpga(gc, &mut file_gcw)?;
@@ -65,16 +69,22 @@ fn send_gc(alice: &mut TcpStream) -> std::io::Result<()> {
 }
 
 fn handle_alice(alice: &mut TcpStream) -> std::io::Result<()> {
+    println!("[gc-bob] Handling connection from: {}", alice.peer_addr()?);
     loop {
         match alice.recv::<HwControl>() {
             Ok(message) => {
+                // The message is already printed by the comm layer
                 match message {
                     HwControl::InitDdr => {
+                        println!("[gc-bob] Initializing DDR...");
                         init_ddr(false);
+                        println!("[gc-bob] DDR initialized.");
                     }
                     HwControl::SyncAtPps => {
+                        println!("[gc-bob] Syncing at PPS and starting GC stream...");
                         sync_at_pps();
                         send_gc(alice)?;
+                        println!("[gc-bob] Finished sending GC stream.");
                     } //HwControl::SendGc => {
                       //}
                       //_ => {println!("WARNING: this message should not have been received {:?}", message)}
@@ -90,46 +100,59 @@ fn handle_alice(alice: &mut TcpStream) -> std::io::Result<()> {
 
 fn main() -> std::io::Result<()> {
     let cli = Cli::parse();
-    let config: Configuration = Configuration::from_pathbuf_bob(&cli.config_path);
+    println!("[gc-bob] Loading configuration from: {:?}", &cli.config_path);
+
+    // Read the config file into a string. We will parse it twice:
+    // 1. Into the official `Configuration` struct for the parts of the code that use it.
+    // 2. Into a generic `serde_json::Value` to reliably extract the network address,
+    //    bypassing the incorrect internal struct definitions.
+    let config_string =
+        std::fs::read_to_string(&cli.config_path).expect("Failed to read config file to string");
+
+    let config: Configuration =
+        serde_json::from_str(&config_string).expect("Failed to deserialize into Configuration struct");
 
     CONFIG
         .set(config)
         .expect("failed to set the config global var\n");
 
+    let click_result_path = &CONFIG
+        .get()
+        .unwrap()
+        .bob_config()
+        .fifo
+        .click_result_file_path;
+
     // delete and remake fifo file for result values
-    std::fs::remove_file(
-        CONFIG
-            .get()
-            .unwrap()
-            .bob_config()
-            .fifo
-            .click_result_file_path,
-    )
+    println!("[gc-bob] Ensuring Click Result FIFO exists at: {}", click_result_path);
+    std::fs::remove_file(click_result_path)
     .unwrap_or_else(|e| match e.kind() {
         std::io::ErrorKind::NotFound => (),
         _ => panic!("{}", e),
     });
     nix::unistd::mkfifo(
-        Path::new(
-            &CONFIG
-                .get()
-                .unwrap()
-                .bob_config()
-                .fifo
-                .click_result_file_path
-                .as_str(),
-        ),
+        Path::new(click_result_path.as_str()),
         nix::sys::stat::Mode::from_bits(0o644).unwrap(),
     )?;
 
+    // Extract the listen address directly from the JSON value, ignoring the faulty struct.
+    let json_value: Value = serde_json::from_str(&config_string)
+        .expect("Failed to parse config string into JSON Value");
+    let listen_addr = json_value["player"]["Bob"]["network"]["ip_listen_gc"]
+        .as_str()
+        .expect("ip_listen_gc not found or not a string in config JSON")
+        .to_string();
+
+    println!("[gc-bob] Attempting to bind to TCP listener at: {}", listen_addr);
     let listener =
-        TcpListener::bind("0.0.0.0:15403").expect("TcpListener could not bind to address\n");
+        TcpListener::bind(&listen_addr).expect("TcpListener could not bind to address\n");
+    println!("[gc-bob] Successfully bound to {}", listener.local_addr().unwrap());
 
     loop {
         for stream in listener.incoming() {
             match stream {
                 Ok(mut alice) => {
-                    println!("connected to Alice");
+                    println!("[gc-bob] Accepted connection from: {}", alice.peer_addr()?);
                     handle_alice(&mut alice).unwrap_or_else(|e| match e.kind() {
                         std::io::ErrorKind::BrokenPipe => println!(
                             "Broken Pipe; we are probably fine because this is how we stop"
