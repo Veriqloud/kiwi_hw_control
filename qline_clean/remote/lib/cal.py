@@ -4,7 +4,7 @@ import numpy as np
 from scipy.optimize import curve_fit
 import matplotlib.pyplot as plt
 
-HW_CONTROL = '/home/vq-user/qline_clean/hw_control/'
+HW_CONTROL = '/home/vq-user/qline/hw_control/'
 
 def Shift_Unit(j,party):
     #times_ref_click0=[]

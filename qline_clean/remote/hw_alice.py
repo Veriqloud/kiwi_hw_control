@@ -10,9 +10,9 @@ import struct
 from lib.fpga import update_tmp, save_tmp, get_tmp
 import lib.gen_seq as gen_seq
 
-HW_CONTROL = '/home/vq-user/qline_clean/hw_control/'
+HW_CONTROL = '/home/vq-user/qline/hw_control/'
 
-#qlinepath = '/home/vq-user/qline_clean/'
+#qlinepath = '/home/vq-user/qline/'
 qlinepath = '../'
 
 networkfile = qlinepath+'config/network.json'

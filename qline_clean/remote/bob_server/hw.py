@@ -2,7 +2,7 @@
 
 import sys
 
-sys.path.insert(0, '/home/vq-user/qline_clean/hw_control')
+sys.path.insert(0, '/home/vq-user/qline/hw_control')
 
 import hw_bob
 

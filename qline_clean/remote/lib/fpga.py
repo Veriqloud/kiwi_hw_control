@@ -1,9 +1,9 @@
 import subprocess, time, mmap, numpy as np
 
-import qline_clean.hw_control.lib.gen_seq as gen_seq
+import qline.hw_control.lib.gen_seq as gen_seq
 
-HW_CONTROL = '/home/vq-user/qline_clean/hw_control/'
-HW_CONFIG = '/home/vq-user/qline_clean/config/'
+HW_CONTROL = '/home/vq-user/qline/hw_control/'
+HW_CONFIG = '/home/vq-user/qline/config/'
 
 def save_default(data):
     """
@@ -108,6 +108,46 @@ def read_from_dev(fd, offset, addr, length):
     mm.close()
     return array_of_u32
 
+def write(offset, addr, value):
+    """
+    offset : must be multiple of PAGESIZE, which we assume is 4096
+    addr   : int or array of ints; with respect to offset; counting bytes
+    value  : int or array of ints
+    """
+    if (np.array(addr)>4092).any():
+        exit("addr cannot be larger than 4092")
+    if (type(addr) == int) and (type(value)==int):
+        with open("/dev/xdma0_user", 'r+b', buffering=0) as fd:
+            with mmap.mmap(fd.fileno(), 4096, offset=offset) as mm:
+                mm[addr:addr+4] = value.to_bytes(4, 'little')
+    else:
+        if len(addr) != len(value):
+            exit("length of addr and value do not match")
+        with open("/dev/xdma0_user", 'r+b', buffering=0) as fd:
+            with mmap.mmap(fd.fileno(), 4096, offset=offset) as mm:
+                for a,v in zip(addr, value):
+                    mm[a:a+4] = v.to_bytes(4, 'little')
+
+def read(offset, addr):
+    """
+    offset : must be multiple of PAGESIZE, which we assume is 4096
+    addr   : int or array of ints; with respect to offset; counting bytes
+    """
+    if (np.array(addr)>4092).any():
+        exit("addr cannot be larger than 4092")
+    if type(addr) == int:
+        with open("/dev/xdma0_user", 'r+b', buffering=0) as fd:
+            with mmap.mmap(fd.fileno(), 4096, offset=offset) as mm:
+                return int.from_bytes(mm[addr:addr+4], 'little') 
+    else:
+        value = []
+        with open("/dev/xdma0_user", 'r+b', buffering=0) as fd:
+            with mmap.mmap(fd.fileno(), 4096, offset=offset) as mm:
+                for a in addr:
+                    value.append(int.from_bytes(mm[addr:addr+4], 'little'))
+        return value
+                    
+
 def get_counts():
     addr = 56
     with open("/dev/xdma0_user", 'r+b', buffering=0) as fd:
@@ -134,21 +174,6 @@ def request_counts():
 
 
 
-def Write(base_add, value):
-    str_base = str(base_add)
-    str_value = str(value)
-    # command ="../../tools/reg_rw /dev/xdma0_user "+ str_base + " w "+ str_value 
-    command ="/home/vq-user/qline/dma_ip_drivers/XDMA/linux-kernel/tools/reg_rw /dev/xdma0_user "+ str_base + " w "+ str_value 
-    #print(command)
-    s = subprocess.check_call(command, shell = True)
-
-def Read(base_add):
-    str_base = str(base_add)
-    # command ="../../tools/reg_rw /dev/xdma0_user "+ str_base + " w "+ "| grep  \"Read.*:\" | sed 's/Read.*: 0x\([a-z0-9]*\)/\\1/'" 
-    command ="/home/vq-user/qline/dma_ip_drivers/XDMA/linux-kernel/tools/reg_rw /dev/xdma0_user "+ str_base + " w "+ "| grep  \"Read.*:\" | sed 's/Read.*: 0x\([a-z0-9]*\)/\\1/'" 
-    #print(command)
-    s = subprocess.check_output(command, shell = True)
-    return s
 
 def Write_stream(device,file, size, count):
     str_device = device
@@ -183,64 +208,6 @@ DGIER=0x1C
 IPISR=0x20
 IPIER=0x28
 
-def Init_spi(base_add, offset, spi_mode):
-    Add_SRR = base_add + offset + SRR #reset AXI QUAD SPI
-    Write(Add_SRR, 0x0A)
-    Add_CR = base_add + offset + SPICR #set AXI QUAD SPI Control register
-    DATA_SPICR = 0x186 | spi_mode<<3 
-    Write(Add_CR, DATA_SPICR) 
-    Add_DGIER = base_add + offset + DGIER #Device Global Interrupt Enable Register
-    Write(Add_DGIER, 0x80000000)
-    Add_IPIER = base_add + offset + IPIER # IP Interrupt Enable Register
-    Write(Add_IPIER, 0x04)
-
-
-def Set_reg(spi_bus,device,*args):
-    if (spi_bus == 1):
-        BaseAdd = 0x00013000
-        OffsetAdd = 0x00000000
-        DATA_CS_DIS = 0x03
-        if (device == 'tdc'):
-            spi_mode = 0x02
-            DATA_CS_EN = 0x02
-        elif (device == 'jic'):
-            spi_mode = 0x03
-            DATA_CS_EN = 0x01
-        else :
-            exit("Wrong name of device on spi_bus1")
-    elif (spi_bus == 2):
-        BaseAdd = 0x00020000
-        OffsetAdd = 0x00000000
-        DATA_CS_DIS = 0x07
-        if (device == 'ltc'):
-            spi_mode = 0
-            DATA_CS_EN = 0x03
-        elif (device == 'fda'):
-            spi_mode = 3
-            DATA_CS_EN = 0x06
-        elif (device == 'sda'):
-            spi_mode = 1
-            DATA_CS_EN = 0x05
-        else:
-            exit ("Wrong name of device on spi_bus2")
-    else:
-        exit("Wrong spi_bus")
-
-    Add_Write = BaseAdd + OffsetAdd + SPI_DTR #Address of data transmit register
-    Add_CS = BaseAdd + OffsetAdd + SPISSR #Chip select address
-    Add_CR = BaseAdd + OffsetAdd + SPICR #Enable transer address
-    Add_DRR = BaseAdd + OffsetAdd + SPI_DRR #Data receive on SPI
-    Add_SR = BaseAdd + OffsetAdd + SPISR #Status register on SPI
-
-    Init_spi(BaseAdd, OffsetAdd, spi_mode) #Init AXI Quad SPI
-    
-    for byte in args: 
-        Write(Add_Write,byte) ## data
-
-    Write(Add_CS, DATA_CS_EN) # Select slave
-    Write(Add_CR, 0x86 | spi_mode<<3 ) # Enable transfer 
-    Write(Add_CS, DATA_CS_DIS) #Reset chip select value
-    Write(Add_CR, 0x1C6 | spi_mode<<3) #Disable transfer and fifo reset
 
 def Get_reg_new(spi_bus,device,*args):
     if (spi_bus == 1):
@@ -306,77 +273,7 @@ def Get_reg_new(spi_bus,device,*args):
     
 
 
-def Get_reg(spi_bus,device,expect,*args):
-    if (spi_bus == 1):
-        BaseAdd = 0x00013000
-        OffsetAdd = 0x00000000
-        DATA_CS_DIS = 0x03
-        if (device == 'tdc'):
-            spi_mode = 0x02
-            DATA_CS_EN = 0x02
-        elif (device == 'jic'):
-            spi_mode = 0x03
-            DATA_CS_EN = 0x01
-        else :
-            exit("Wrong name of device on spi_bus1")
-    elif (spi_bus == 2):
-        BaseAdd = 0x00020000
-        OffsetAdd = 0x00000000
-        DATA_CS_DIS = 0x07
-        if (device == 'ltc'):
-            spi_mode = 0
-            DATA_CS_EN = 0x03
-        elif (device == 'fda'):
-            spi_mode = 3
-            DATA_CS_EN = 0x06
-        elif (device == 'sda'):
-            spi_mode = 1
-            DATA_CS_EN = 0x05
-        else:
-            exit ("Wrong name of device on spi_bus2")
-    else:
-        exit("Wrong spi_bus")
 
-    
-    Add_Write = BaseAdd + OffsetAdd + SPI_DTR
-    Add_CS = BaseAdd + OffsetAdd + SPISSR #Chip select address
-    Add_CR = BaseAdd + OffsetAdd + SPICR #Enable transer address
-    Add_DRR = BaseAdd + OffsetAdd + SPI_DRR #Data receive on SPI
-    Add_SR = BaseAdd + OffsetAdd + SPISR #Status register on SPI
-
-    Init_spi(BaseAdd, OffsetAdd, spi_mode) #Init AXI Quad SPI
-    for byte in args:
-        Write(Add_Write, byte)
-
-    Write(Add_CS, DATA_CS_EN) # Select slave
-    Write(Add_CR, 0x86 | spi_mode<<3) # Enable transfer
-    Write(Add_CS, DATA_CS_DIS) #Reset chip select value
-    Write(Add_CR, 0x186 | spi_mode<<3) #Disable transfer 
-    str_base_drr = str(Add_DRR)
-    str_base_sr = str(Add_SR)
-    
-    y_num = 25
-    x_num = 0
-    while (x_num != y_num):
-        out_drr = Read(str_base_drr)
-        out_sr = Read(str_base_sr)
-        x_num = int(out_sr)
-    readout_hex = format(int(out_drr.decode(),16),'#04x')
-    if (readout_hex != expect):
-        check = 'F'
-    else:
-        check = 'T'
-    return (readout_hex, expect, check)
-
-#-------------CLOCK CHIP FUNCTIONS----------------------------------------------
-#def Set_Ltc():
-#    reg_file = open('registers/ltc/Ltc6951Regs.txt','r')
-#    for l in reg_file.readlines():
-#        add, val = l.split(',')
-#        add_shifted = "0x{:02x}".format((int(add, base=16)<<1))
-#        Set_reg(2,'ltc', add_shifted, val)
-#    print("Set ltc configuration registers finished")
-#    reg_file.close()
 
 def Set_Ltc():
     reg_file = open(HW_CONFIG+'registers/ltc/Ltc6951Regs.txt','r')
@@ -388,11 +285,9 @@ def Set_Ltc():
     reg_file.close()
 
 def Sync_Ltc():
-    Write(0x00012000, 0x0)
-    Write(0x00012000, 0x1)
-    #time.sleep(1)
+    write(0x12000, [0, 0], [0, 1])
     time.sleep(1.2)
-    Write(0x00012000, 0x0)
+    write(0x12000, 0, 0)
     print("Output clocks are aligned")
 
 def Get_Ltc_info():
@@ -423,30 +318,6 @@ def Config_Ltc():
     Get_Id()
     Get_Ltc_info()
 
-###-------------DAC81408 FUNCTIONS----------------------------------
-
-def Get_Sda_Id_old():
-    id_add = '0x01'
-    add_shifted = str(hex(1<<7 | int(id_add, base=16))) 
-    id_val_pre = Get_reg(2,'sda','0x60',add_shifted,'0','0')
-    rev_val_pre= Get_reg(2,'sda','0x0a','0','0')
-    id_val = Get_reg(2,'sda','0x60',add_shifted,'0','0')
-    rev_val = Get_reg(2,'sda','0x0a','0','0')
-    print("Id and revision of sda:","id_addr:",id_add,"sda_id:",id_val,"sda_rev:",rev_val)
-
-#def Get_Sda_Id():
-#    nop = Get_reg(2,'sda',0, 0, 0, 0)
-#    nop = Get_reg(2,'sda',0, 0, 0, 0)
-#    add = (1<<7) | 1
-#    id_val_pre = Get_reg(2,'sda','0x60', add, 0, 0)
-#    id_val_pre = Get_reg(2,'sda','0x60', add, 0, 0)
-#    id_val = Get_reg(2,'sda','0x60', 0, 0, 0)
-#
-#    #id_val = Get_reg(2,'sda','0x60',id_add,'0','0')
-#    #id_val = Get_reg(2,'sda','0x60',add_shifted,'0','0')
-#    #rev_val_pre= Get_reg(2,'sda','0x0a','0','0')
-#    #rev_val = Get_reg(2,'sda','0x0a','0','0')
-#    #print("Id and revision of sda:","id_addr:",id_add,"sda_id:",id_val,"sda_rev:",rev_val)
 
 def Get_Sda_Id():
     add = (1<<7) | 1
@@ -458,34 +329,19 @@ def Get_Sda_Id():
     print(hex(retadd), hex(deviceid))
 
 def Soft_Reset_Sda():
-    trigger_reg_add = '0x0E'
+    trigger_reg_add = 0x0E
     reserved_code = 0xA
-    Set_reg(2,'sda',trigger_reg_add, '0x00',reserved_code)
+    Get_reg_new(2,'sda',trigger_reg_add, 0,reserved_code)
     print('Soft reset sda finished')
     
 def Set_Sda_Config():
     file = open(HW_CONFIG+'registers/sda/Dac81408_setting.txt','r')
     for l in file.readlines():
         addb, val1, val2 = l.split(',')
-        Set_reg(2,'sda', addb, val1, val2) #Set all registers
+        Get_reg_new(2,'sda', int(addb, 16), int(val1, 16), int(val2, 16)) #Set all registers
     print("Set sda configuration registers finished")
     file.close()
 
-#def Get_Sda_Config():
-#    file = open('registers/sda/Dac81408_setting.txt','r')
-#    print("Monitoring sda readback configuration registers")
-#    for l in file.readlines():
-#        addb, val1, val2 = l.split(',')
-#        add_shifted = str(hex(1<<7 | int(addb, base=16))) #Start to readback value for monitoring
-#        val2_pre = Get_reg(2,'sda',val2,add_shifted,'0','0')
-#        val1_pre = Get_reg(2,'sda',val1,'0','0')
-#        val2 = Get_reg(2,'sda',val2.strip(),add_shifted,'0','0')
-#        val1 = Get_reg(2,'sda',val1,'0','0')
-#        print("reg_add",addb)
-#        print("reg_val2:",val2)
-#        print("reg_val1:",val1)
-#    print("Monitoring sda finished")
-#    file.close()
 
 def Get_Sda_Config():
     file = open(HW_CONFIG+'registers/sda/Dac81408_setting.txt','r')
@@ -522,27 +378,15 @@ def Set_vol(channel, voltage):
     reg = [(20+channel, data_vol),]
     addb = 20 + channel
     val = data_vol
-    addr_shift =format((addb&0xff),'#04x')
-    val1 =format(((val>>8)&0xff),'#04x')
-    val2 =format((val&0xff),'#04x')
+    addr_shift =addb&0xff
+    val1 =(val>>8)&0xff
+    val2 =val&0xff
     # print(addr_shift)
     # print(val1)
     # print(val2)
-    Set_reg(2,'sda', addr_shift, val1, val2) #Set data register
+    Get_reg_new(2,'sda', addr_shift, val1, val2) #Set data register
     print("Channel",channel,"is set to", round(voltage,2), "V")
 
-###-------------AD9152 FUNCTIONS -------------------------------------
-### This function, write config for JESD to the FPGA registers
-#def WriteFPGA():
-#    #file = open("registers/fda/FastdacFPGA.txt","r")
-#    file = open("registers/fda/FastdacFPGA_204b.txt","r")
-#    for l in file.readlines():
-#        addr, val = l.split(',')
-#        ad_fpga_addr = str(hex((int(addr,base=16) + 0x10000)))
-#        Write(ad_fpga_addr, val)
-#        #print(ad_fpga_addr)
-#    print("Set JESD configuration for FPGA finished")
-#    file.close()
 
 def WriteFPGA():
     #file = open("registers/fda/FastdacFPGA.txt","r")
@@ -561,7 +405,7 @@ def WriteFPGA():
 ## write seq listst to dac for dpram operation
 def Write_To_Dac(seqlist_dac0, seqlist_dac1):
     Base_Addr = 0x00030000
-    Write(Base_Addr + 16, 0x0000a0a0) #sequence64
+    write(Base_Addr, 16, 0x0000a0a0) #sequence64
     #Write data to dpram_dac0 and dpram_dac1
     Base_seq0 = Base_Addr + 0x1000  #Addr_axi_sequencer + addr_dpram
     seqlist = seqlist_dac1*2**16 + seqlist_dac0
@@ -577,54 +421,12 @@ def Write_To_Fake_Rng(seqlist):
     Base_Addr = 0x00030000
     Base_seq0 = 0x00030000 + 0x2000  #Addr_axil_sequencer +   addr_dpram
     dpram_max_addr = len(seqlist)*8     # memory is for 4 bit values 
-    Write(Base_Addr + 28, hex(dpram_max_addr)) 
+    write(Base_Addr, 28, dpram_max_addr) 
     fd = open("/dev/xdma0_user", 'r+b', buffering=0)
     write_to_dev(fd, Base_seq0, 0, seqlist.tolist())
     fd.close()
 
 
-#Write parameter of amplitude and delay for signal on DAC1 (QDAC, signal for PM)
-#2's compliment in dac
-#shift only apllies for mode 2|mode 3
-#in mode 0, data comes from dpram_sequence, move samples in file -> shift (run test_sig.py ) 
-#def Write_Dac1_Shift(rng_mode, amp0, amp1, amp2, amp3, shift):
-#    Base_Addr = 0x00030000
-#    amp_list = [amp0,amp1,amp2,amp3]
-#    amp_out_list = []
-#    for amp in amp_list:
-#        if (amp >= 0):
-#            amp_hex = round(32767*amp)
-#        elif (amp < 0):
-#            amp_hex = 32768+32768+round(32767*amp)
-#        amp_out_list.append(amp_hex)
-#    shift_hex = hex(shift)
-#    up_offset = 0x4000
-#    shift_hex_up_offset = (int(up_offset)<<16 | shift)
-#    division_sp = hex(1000)
-#    fastdac_amp1_hex = (amp_out_list[1]<<16 | amp_out_list[0])
-#    fastdac_amp2_hex = (amp_out_list[3]<<16 | amp_out_list[2])
-#    Write(Base_Addr + 8, fastdac_amp1_hex)
-#    Write(Base_Addr + 24, fastdac_amp2_hex)
-#    Write(Base_Addr + 4, shift_hex_up_offset)
-#    Write(Base_Addr + 32, division_sp)
-#
-#    #Write bit0 of slv_reg5 to choose RNG mode
-#    #1: Real rng from usb | 0: rng read from dpram
-#    #Write bit1 of slv_reg5 to choose dac1_sequence mode
-#    #1: random amplitude mode | 0: fix sequence mode
-#    #Write bit2 of slv_reg5 to choose feedback mode
-#    #1: feedback on | 0: feedback off
-#    #----------------------------------------------
-#    #Write slv_reg5:
-#    #0x0: Fix sequence for dac1, input to dpram
-#    #0x02: Random amplitude, with fake rng
-#    #0x03: Random amplitude, with true rng
-#    #0x06: Random amplitude, with fake rng, feedback on
-#    #0x07: Random amplitude, with true rng, feedback on
-#    Write(Base_Addr + 20, hex(rng_mode))
-#    #Trigger for switching domain
-#    Write(Base_Addr + 12,0x1)
-#    Write(Base_Addr + 12,0x0)
 
 def Write_Pm_Mode(mode='seq64', feedback='off', insert_zeros='off'):
     Base_Addr = 0x00030000
@@ -637,17 +439,16 @@ def Write_Pm_Mode(mode='seq64', feedback='off', insert_zeros='off'):
     else:
         iz = 8
     if mode=='seq64':
-        Write(Base_Addr + 20, hex(0))
+        write(Base_Addr, 20, 0)
     elif mode=='fake_rng':
-        Write(Base_Addr + 20, hex(2+fb+iz))
+        write(Base_Addr, 20, 2+fb+iz)
     elif mode=='true_rng':
-        Write(Base_Addr + 20, hex(3+fb+iz))
+        write(Base_Addr, 20, 3+fb+iz)
     else:
         print("wrong sequence argument")
         exit()
     #Trigger for switching domain
-    Write(Base_Addr + 12,0x1)
-    Write(Base_Addr + 12,0x0)
+    write(Base_Addr, [12, 12],[0x1, 0x0])
     #update_tmp('pm_mode', mode)
 
 def Write_Pm_Shift(shift, zero_pos):
@@ -655,13 +456,11 @@ def Write_Pm_Shift(shift, zero_pos):
     lim = 18000
     up_offset = round(0.8*lim)
     shift_hex_up_offset = (up_offset<<16 | zero_pos<<4 | shift)
-    division_sp = hex(1000)
-    Write(Base_Addr + 4, shift_hex_up_offset)
-    Write(Base_Addr + 32, division_sp)
-    #Trigger for switching domain
-    Write(Base_Addr + 12,0x1)
-    Write(Base_Addr + 12,0x0)
-    #print("pm_shift written: ", shift)
+    division_sp = 1000
+    # last two are the trigger for switching domain
+    addr = [4, 32, 12, 12]
+    value = [shift_hex_up_offset, division_sp, 1, 0]
+    write(Base_Addr, addr, value)
 
 
 def Write_Angles(a0, a1, a2, a3):
@@ -678,20 +477,20 @@ def Write_Angles(a0, a1, a2, a3):
         amp_out_list.append(amp_hex)
     fastdac_amp1_hex = (amp_out_list[1]<<16 | amp_out_list[0])
     fastdac_amp2_hex = (amp_out_list[3]<<16 | amp_out_list[2])
-    Write(Base_Addr + 8, fastdac_amp1_hex)
-    Write(Base_Addr + 24, fastdac_amp2_hex)
-    #Trigger for switching domain
-    Write(Base_Addr + 12,0x1)
-    Write(Base_Addr + 12,0x0)
-    #print("angles written: ", a0, a1, a2, a3)
+    addr = [8, 24, 12, 12]
+    value = [fastdac_amp1_hex, fastdac_amp2_hex, 1, 0]
+    #last two are the trigger for switching domain
+    write(Base_Addr, addr, value)
 
 #Read back the FGPA registers configured for JESD
 def ReadFPGA():
     file = open(HW_CONFIG+"registers/fda/FastdacFPGAstats.txt","r")
     for l in file.readlines():
         addr, val = l.split(',')
-        ad_fpga_addr = str(hex((int(addr,base=16) + 0x10000)))
-        readout = Read(ad_fpga_addr)
+        ad_fpga_addr = (int(addr,base=16) + 0x10000)
+        offset = ad_fpga_addr // 0x1000
+        a = ad_fpga_addr % 0x1000
+        readout = read(offset, a)
         print(readout)
     file.close()
 
@@ -755,24 +554,9 @@ def Relink_Fda():
     file = open(HW_CONFIG+'registers/fda/hop_regs/reg_relink.txt','r')
     for l in file.readlines():
         addb1, addb2, val = l.split(',')
-        Set_reg(2,'fda', addb1, addb2, val)
+        Get_reg_new(2,'fda', int(addb1), int(addb2), int(val))
     file.close()
 
-# Read back some registers of AD9152 to monitoring jesd status and latency
-#def Get_reg_monitor():
-#    array = []
-#    file = open('registers/fda/hop_regs/reg_monitor.txt','r')
-#    print("Monitoring pll locked, dyn_link_latency, and jesd link ")
-#    ret_arr = []
-#    for l in file.readlines():
-#        addb1, addb2, val = l.split(',')
-#        instr = str(hex(int(addb1, base=16)|0x80))     
-#        tup = Get_reg(2,'fda', val.strip(), instr, addb2, '0x00')
-#        ret_arr.append(tup)
-#        print(addb1,addb2,tup)
-#    print("Monitoring finished. If dyn_link_latency != 0x00 then run sda_init again")
-#    file.close()
-#    return ret_arr
 
 def Get_reg_monitor():
     array = []
@@ -792,13 +576,6 @@ def Get_reg_monitor():
     file.close()
     return check
 
-##Readback ID of AD9152 for debug
-#def Get_Id_Fda():
-#    chip_type = Get_reg(2,'fda','0x04','0x80','0x03','0x00')
-#    id1 = Get_reg(2,'fda','0x52','0x80','0x04','0x00')
-#    id2 = Get_reg(2,'fda','0x91','0x80','0x05','0x00'   )
-#    revision = Get_reg(2,'fda','0x08','0x80','0x06','0x00')
-#    print("type: ",chip_type,"id: ", id1,id2,"revision: ", revision)
 
 def Get_Id_Fda():
     val_name = ['chip', 'id1', 'id2', 'rev']
@@ -820,10 +597,9 @@ def Get_Id_Fda():
 #-------------------------PULSE GATE APD-------------------------------
 #Reset the ttl_gate module
 def ttl_reset():
-    Write(0x0001200c,0x01)
-    Write(0x0001200c,0x00)
+    write(0x12000, [0xc, 0xc], [1, 0])
     time.sleep(0.2)
-    #print("Reset TTL gate module")
+
 #Generate the pulse for APD gate
 #Input parameter: duty cycle, tune delay, fine delay, increase/decrease fine delay step
 #Default: duty = 2, tune = 1, fine = 1000, inc = 1
@@ -832,52 +608,44 @@ def ttl_reset():
 def calculate_delay(duty, tune, fine, inc):
     fine_clock_num = fine*16
     transfer = duty<<19|tune<<15|fine_clock_num<<1|inc
-    transfer_bin = bin(transfer)
-    transfer_hex = hex(transfer)
+    #transfer_bin = bin(transfer)
+    #transfer_hex = hex(transfer)
     #print(transfer_bin)
     #print(transfer_hex)
-    return transfer_hex
+    return transfer
 
 def write_delay_master(duty, tune, fine, inc):
-    Base_Add = 0x00015004 
+    Base_Add = 0x00015000 
     transfer = calculate_delay(duty, tune, fine, inc)
-    Write(Base_Add,transfer)
+    write(Base_Add, 4, transfer)
     # print('delay 0,52ns = 125 taps')
     #result = Read(Base_Add)  #Read to check AXI
     #print(result)
 
 def write_delay_slaves(fine1, inc1, fine2, inc2):
-    Base_Add = 0x0001500c
+    Base_Add = 0x00015000
     transfer = (fine2*16)<<17|inc2<<16|(fine1*16)<<1|inc1
-    Write(Base_Add, hex(transfer))
+    write(Base_Add, 0xc, transfer)
 
 def params_en():
-    Base_Add = 0x0015008
-    Write(Base_Add,0x00)
-    Write(Base_Add,0x01)
+    write(0x15000, [0x8, 0x8], [0,1])
 
 def trigger_fine_master():
-    Base_Add = 0x00015000
-    Write(Base_Add, 0x0)
-    Write(Base_Add, 0x1)
+    write(0x15000, [0, 0], [0,1])
     time.sleep(0.02)
-    Write(Base_Add, 0x0)
+    write(0x15000, 0, 0)
     #print("Trigger master done")
 
 def trigger_fine_slv1():
-    Base_Add = 0x00015000
-    Write(Base_Add + 16, 0x0)
-    Write(Base_Add + 16, 0x1)
+    write(0x15000, [16, 16], [0,1])
     time.sleep(0.02)
-    Write(Base_Add + 16, 0x0)
+    write(0x15000, 16, 0)
     #print("Trigger slave1 done")
 
 def trigger_fine_slv2():
-    Base_Add = 0x00015000
-    Write(Base_Add + 20, 0x0)
-    Write(Base_Add + 20, 0x1)
+    write(0x15000, [20, 20], [0,1])
     time.sleep(0.02)
-    Write(Base_Add + 20, 0x0)
+    write(0x15000, 20, 0)
     #print("Trigger slave2 done")
 
 
@@ -885,14 +653,14 @@ def trigger_fine_slv2():
 #--------------------------decoy state---------------------------------
 
 def decoy_reset():
-    Write(0x00012000 + 20,0x01)
+    write(0x12000, 20, 1)
     time.sleep(0.1)
-    Write(0x00012000 + 20,0x00)
+    write(0x12000, 20, 0)
 
 #input fake rng
 def decoy_state(mode):
     #dpram_rng_max_addr
-    Write(0x00016000 + 28, 0x40)
+    write(0x16000, 28, 0x40)
     #Write data to rng_dpram
     Base_seq0 = 0x00016000 + 1024
     if mode=='single':
@@ -903,13 +671,10 @@ def decoy_state(mode):
         rngseq1 = 0x00000000
     else:
         exit("wrong decoy state string")
-    Write(Base_seq0, rngseq0)
-    Write(Base_seq0+4, rngseq1)
+    write(Base_seq0, [0,4], [rngseq0, rngseq1])
     #Write rng mode
-    Write(0x00016000 + 12, 0x0)
-    #enable regs values
-    Write(0x00016000 , 0x0)
-    Write(0x00016000 , 0x1)
+    write(0x16000, [12, 0, 0], [0, 0, 1])
+    #last two are for enable regs values
 
 
 #-------------------------TDC AND JITTER CLEANER-----------------------
@@ -992,41 +757,35 @@ def Get_Id_AS6501():
 def Reg_Mngt_Tdc():
     #lrst active high, reset module process tdc frame and sdi
     #slv_reg[1] pull high to low in clk_rst_mngt
-    Write(0x00012004,0x2)
-    Write(0x00012004,0x0)
-    BaseAddr = 0x00000000 # BaseAddr of TDC AXI-Slave
-    #Disable TDC module
-    Write(BaseAddr,0x00)
-    #Write TDC module register
-    Write(BaseAddr + 4,0x0e04) #14 stop_wise: 14bit, index_wise: 4bit
-    Write(BaseAddr + 36,0x0) #reg_enable =0
-    Write(BaseAddr + 36,0x1) #reg_enable = 1
+    write(0x12000, [4,4], [2,0])
+    BaseAddr = 0x0 # BaseAddr of TDC AXI-Slave
+    #Disable TDC module and
+    #Write TDC module register and
     #Enable TDC module
-    Write(BaseAddr,0x01)
+    write(BaseAddr, [0, 4, 36, 36, 0], [0, 0x0e04, 0, 1, 1])
     
 
 def Get_TDC_Data(transferSize, transferCount, output_file):
     device_c2h = '/dev/xdma0_c2h_2'
     #Send command_histogram
-    BaseAddr = 0x00000000
-    Write(BaseAddr + 40,0x0)
-    Write(BaseAddr + 40,0x1)
+    BaseAddr = 0
+    write(BaseAddr, [40, 40], [0, 1])
     #Read from stream
     Read_stream(device_c2h, output_file, transferSize, transferCount)
 
 def Get_Stream(base_addr,device_c2h,output_file,count):
     #print(command)
     #Send command to fpga to reset fifo
-    Write(base_addr,0x0)
-    Write(base_addr,0x1)
+    offset = (base_addr//0x1000)<<12
+    addr = base_addr % 0x1000
+    write(offset, [addr, addr], [0, 1])
     #time.sleep(1)
     #Read from stream
     command = HW_CONTROL+"lib/test_tdc/dma_from_device "+"-d "+ device_c2h +" -f "+ output_file+ " -c " + str(count) 
     s = subprocess.check_call(command, shell = True)
 
 def Reset_Tdc():
-    Write(0x00012004,0x01)
-    Write(0x00012004,0x00)
+    write(0x12000, [4, 4],[1,0])
     time.sleep(1.2)
     print("Reset TDC clock")
 
@@ -1034,7 +793,7 @@ def Config_Tdc():
     Reg_Mngt_Tdc() #Setting fpga control registers for SM under lclk 
     Reset_Tdc() #Could be before or after Reg_Mngt_Tdc()
     Set_AS6501() #Setting registers of TDC chip
-    Set_reg(1,'tdc', 0x18) #Start the tdc, setting register of TDC chip
+    Get_reg_new(1,'tdc', 0x18) #Start the tdc, setting register of TDC chip
     Get_AS6501() #Reading registers of TDC chip
 
 def Stop_sim(fre_divider,start):
@@ -1042,23 +801,24 @@ def Stop_sim(fre_divider,start):
     stop_pulse_sim = hex(int(pulse_stop<<16 | start<<8 | fre_divider))
     print(stop_pulse_sim)
     #Write Stop_sim limit parameter
-    BaseAddr = 0x00000000
-    Write(BaseAddr + 12,stop_pulse_sim) #from 10 to 26 period of 5ns 
-    Write(BaseAddr + 36,0x0) #
-    Write(BaseAddr + 36,0x4) #enable 
+    BaseAddr = 0
+    write(BaseAddr, [12, 36, 36], [stop_pulse_sim, 0, 4]) #from 10 to 26 period of 5ns 
 
 
 #---------------------------TDC CALIBRATION-----------------------------------------------
 #Set fpga registers for state machine under 200MHz
 def Time_Calib_Reg(command,t0, gc_back, gate0, width0, gate1, width1):
-    BaseAddr = 0x00000000
-    Write(BaseAddr + 16,hex(int(width0<<24 | gate0))) #gate0
-    Write(BaseAddr + 20,hex(int(width1<<24 | gate1))) #gate1
-    Write(BaseAddr + 24,hex(int(t0))) #shift tdc time = 0
-    Write(BaseAddr + 28,hex(int(gc_back))) #shift gc back = 0
-    Write(BaseAddr + 32,hex(int(command))) #command = 1: raw | =2: with gate
-    Write(BaseAddr + 36,0x0)
-    Write(BaseAddr + 36,0x2)# turn bit[1] to high to enable register setting
+    BaseAddr = 0
+    addr = [16, 20, 24, 28, 32, 36, 36]
+    value = [
+            width0<<24 | gate0, 
+            width1<<24 | gate1,
+            t0,
+            gc_back,
+            command,
+            0,
+            2]
+    write(BaseAddr, addr, value) #gate0
 
 def Soft_Gate_Filter(state):
     if state=="on":
@@ -1067,71 +827,58 @@ def Soft_Gate_Filter(state):
         command = 1
     else:
         exit("wrong argument to Soft_Gate_Finter()")
-    BaseAddr = 0x00000000
-    Write(BaseAddr + 32,hex(int(command))) #command = 1: raw | =2: with gate
-    Write(BaseAddr + 36,0x0)
-    Write(BaseAddr + 36,0x2)# turn bit[1] to high to enable register setting
+    BaseAddr = 0
+    write(BaseAddr, [32, 36, 36], [command, 0, 2]) #command = 1: raw | =2: with gate
 
 def Set_t0(t0):
-    BaseAddr = 0x00000000
-    Write(BaseAddr + 24,hex(int(t0))) #shift tdc time = 0
-    Write(BaseAddr + 36,0x0)
-    Write(BaseAddr + 36,0x2)# turn bit[1] to high to enable register setting
+    BaseAddr = 0
+    # turn bit[1] to high to enable register setting
+    write(BaseAddr, [24, 36, 36], [t0, 0, 2]) #shift tdc time = 0
 
 def Write_Soft_Gates(gate0, width0, gate1, width1):
-    BaseAddr = 0x00000000
-    Write(BaseAddr + 16,hex(int(width0<<24 | gate0))) #gate0
-    Write(BaseAddr + 20,hex(int(width1<<24 | gate1))) #gate1
-    Write(BaseAddr + 36,0x0)
-    Write(BaseAddr + 36,0x2)# turn bit[1] to high to enable register setting
+    BaseAddr = 0
+    write(BaseAddr, [16, 20, 36, 36], width0<<24 | gate0, width1<<24 | gate1, 0, 2) #gate0
 
 #-------------------------GLOBAL COUNTER-------------------------------------------
 def wait_for_pps_ret():
     # wait for pps return 
     while True:
-        pps_ret = Read(0x00001000+48)
-        pps_ret_int = int(pps_ret.decode('utf-8').strip(),16)
+        pps_ret = read(0x00001000, 48)
+        time.sleep(0.05)
+        #pps_ret_int = int(pps_ret.decode('utf-8').strip(),16)
 
         #print(pps_ret_int)
-        if (pps_ret_int == 1):
+        if (pps_ret == 1):
             break
     return 0
 
 def sync():
     #Start to write 
-    Write(0x00001000, 0x00) 
-    Write(0x00001000, 0x01) 
+    write(0x1000, [0, 0], [0, 1]) 
 
     #Command_enable -> Reset the fifo_gc_out
-    Write(0x00001000+28,0x0)
-    Write(0x00001000+28,0x1)
+    write(0x1000, [28, 28], [0, 1])
     
     #Command enable to save alpha
-    Write(0x00001000+24,0x0)
-    Write(0x00001000+24,0x1)
+    write(0x1000, [24, 24], [0, 1])
 
 
 def Reset_gc():
-    Write(0x00000008,0x00) #Start_gc = 0
-    Write(0x00012008,0x01)
-    Write(0x00012008,0x00)
+    write(0, 8, 0) #Start_gc = 0
+    write(0x12000, [8, 8], [1, 0])
     time.sleep(1.2)
     print("Reset global counter......")
 
 def Start_gc():
-    BaseAddr = 0x00000000
-    Write(BaseAddr + 8, 0x00000000)
-    Write(BaseAddr + 8, 0x00000001)
+    BaseAddr = 0
+    write(BaseAddr, [8, 8], [0, 1])
     time.sleep(1.2)
     print("Global counter starts counting up from some pps")
 
 def Sync_Gc():
-    Write(0x00000008,0x00) #Start_gc = 0
-    Write(0x00012008,0x01)
-    Write(0x00012008,0x00)
-    
-    Write(8, 0x00000000)
-    Write(8, 0x00000001)
+    write(0, 8, 0) #Start_gc = 0
+    write(0x12000, [8, 8], [1, 0])
+    write(0, [8, 8], [0, 1])
     time.sleep(1.2)
 
 def Time_Calib_Init():
@@ -1139,17 +886,6 @@ def Time_Calib_Init():
     Reset_gc() #Reset global counter
     Start_gc() #Global counter start counting at the next PPS
 
-#def Write_Seqlist_old(seqlist):
-#    Base_Addr = 0x00030000
-#    Write(Base_Addr + 16, 0x0000a0a0) #sequence64
-#    #Write data to dpram_dac0 and dpram_dac1
-#    Base_seq0 = Base_Addr + 0x1000  #Addr_axi_sequencer + addr_dpram
-#    vals = []
-#    for ele in seq_list:
-#        vals.append(int(ele,0))
-#    fd = open("/dev/xdma0_user", 'r+b', buffering=0)
-#    write_to_dev(fd, Base_seq0, 0, vals)
-#    fd.close()
 
 
 

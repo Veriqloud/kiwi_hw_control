@@ -83,7 +83,7 @@ def rcv_data(socket):
 
 ######### config files ###############
 
-#qlinepath = '/home/vq-user/qline_clean/'
+#qlinepath = '/home/vq-user/qline/'
 qlinepath = '../'
 
 networkfile = qlinepath+'config/network.json'

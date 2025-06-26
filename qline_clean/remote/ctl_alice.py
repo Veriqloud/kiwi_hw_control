@@ -6,7 +6,7 @@ import numpy as np
 #import datetime 
 #import mmap
 import lib.gen_seq as gen_seq
-#import qline_clean.hw_control.lib.cal as cal_lib
+#import qline.hw_control.lib.cal as cal_lib
 from lib.fpga import *
 
 
