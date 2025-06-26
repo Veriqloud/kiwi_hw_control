@@ -107,7 +107,7 @@ connect_to_alice(args.use_localhost)
 
 def interact(command):
     sendc(command)
-    if command == 'verify_gates':
+    if (command == 'verify_gates') or (command == 'loop_find_gates'):
         pic = rcv_data()
         with open('pics/verify_gates.png', 'wb') as f:
             f.write(pic)
@@ -121,13 +121,11 @@ if args.full_init:
     interact('init')
     interact('sync_gc')
     interact('find_vca')
-    interact('find_am_bias')
-    interact('verify_am_bias')
+    interact('loop_find_am_bias')
     interact('find_am2_bias')
     interact('pol_bob')
-    interact('ad')
-    interact('find_sp')
-    interact('verify_gates')
+    interact('find_vca_4000')
+    interact('loop_find_gates')
     interact('fs_b')
     interact('fs_a')
     interact('fd_b')

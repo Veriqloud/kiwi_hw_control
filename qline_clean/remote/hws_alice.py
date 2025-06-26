@@ -158,7 +158,7 @@ def find_vca(conn, limit=3000):
     sendc(conn, 'find_vca '+m)
 
 
-def find_am_bias(conn, range_val=0.5):
+def find_am_bias(conn, range_val=0.5, sendresult=True):
     sendc(bob, 'find_am_bias')
     update_tmp('am_mode', 'off')
     ctl.Update_Dac()
@@ -197,13 +197,15 @@ def find_am_bias(conn, range_val=0.5):
     ctl.Set_Am_Bias(am_bias_opt)
     ctl.Set_Am_Bias_2(bias_default_1)
     sendc(bob, 'done')
-    sendc(conn, 'find_am_bias done')
+    if sendresult:
+        sendc(conn, 'find_am_bias done')
 
 
-def verify_am_bias(conn):
+def verify_am_bias(conn, sendresult=True):
     sendc(bob, 'verify_am_bias')
     update_tmp('am_mode', 'off')
     ctl.Update_Dac()
+    time.sleep(0.2)
     sendc(bob, 'get counts')
     count_off = rcv_i(bob)
 
@@ -220,13 +222,50 @@ def verify_am_bias(conn):
         print(m)
         result = True
     else:
-        m = colored(f"fail: double/off = {ratio:.2f} ({count_double}/{count_off}) \n", "yellow")
+        m = colored(f"fail double/off = {ratio:.2f} ({count_double}/{count_off}) \n", "yellow")
         print(m)
         result = False
     update_tmp('am_mode', 'off')
     ctl.Update_Dac()
-    sendc(conn, 'verify_am_bias '+m)
-    return result
+    if sendresult:
+        sendc(conn, 'verify_am_bias '+m)
+    return result, count_double, count_off
+
+def loop_find_am_bias(conn):
+    for voltage in [0.3, 0.5, 1, 2]:
+        find_am_bias(conn, voltage, sendresult=False)
+        result, count_double, count_off = verify_am_bias(conn, sendresult=False)
+        if result:
+            break
+    ratio = count_double / count_off
+    if result == False:
+        m = colored(f"fail double/off = {ratio:.2f} ({count_double}/{count_off}) \n", "yellow")
+    else:
+        m = colored(f"success: double/off  = {ratio:.2f} ({count_double}/{count_off}) \n", "green")
+    print(m)
+    sendc(conn, 'loop_find_am_bias '+m)
+
+def loop_find_gates(conn):
+    for global_attempt in range(2):
+        ad(conn, sendresult=False)
+        find_sp(conn, sendresult=False)
+        ad(conn, sendresult=False)
+
+        max_retries = 1
+        for attempt in range(max_retries):
+            result, pic = verify_gates(conn, sendresult=False)
+            if result:
+                send_data(conn, pic)
+                m = colored("success: good gates found \n", "green")
+                sendc(conn, 'loop_find_gates '+m)
+                return 
+            print(colored(f"verify_gates failed retrying...", "yellow"))
+
+        print(colored(f"verify_gates failed after {max_retries} retries, restarting find_gate sequence...", "red"))
+
+    send_data(conn, pic)
+    m = colored(f"verify_gates failed", "red")
+    sendc(conn, 'loop_find_gates '+m)
 
 
 def find_am2_bias(conn):
@@ -264,7 +303,7 @@ def pol_bob(conn):
     rcvc(bob)
     sendc(conn, 'pol_bob done')
 
-def ad(conn):
+def ad(conn, sendresult=True):
     sendc(bob, 'ad')
     update_tmp('am_mode', 'off')
     ctl.Update_Dac()
@@ -272,9 +311,10 @@ def ad(conn):
     update_tmp('am_mode', 'double')
     ctl.Update_Dac()
     rcvc(bob)
-    sendc(conn, 'ad done')
+    if sendresult:
+        sendc(conn, 'ad done')
 
-def find_sp(conn):
+def find_sp(conn, sendresult=True):
     sendc(bob, 'find_sp')
     #1.Send single pulse, am_shift 0
     update_tmp('am_shift', 0)
@@ -291,10 +331,11 @@ def find_sp(conn):
     print("updating am_shift to", am_shift)
     update_tmp('am_shift', am_shift)
     ctl.Update_Dac()
-    sendc(conn, 'find_sp done')
+    if sendresult:
+        sendc(conn, 'find_sp done')
 
 
-def verify_gates(conn):
+def verify_gates(conn, sendresult=True):
     sendc(bob, 'verify_gates')
     print(colored('verify_gates', 'cyan'))
     update_tmp('am_mode', 'off')
@@ -303,7 +344,6 @@ def verify_gates(conn):
     update_tmp('am_mode', 'double')
     ctl.Update_Dac()
     pic = rcv_data(bob)
-    send_data(conn, pic)
     status = rcvc(bob)
     if status == "success":
         m = colored("success: good gates found \n", "green")
@@ -313,8 +353,10 @@ def verify_gates(conn):
         m = colored("fail: bad gates \n", "red")
         print(m)
         result = False
-    sendc(conn, 'verify_gates '+m)
-    return result
+    if sendresult:
+        send_data(conn, pic)
+        sendc(conn, 'verify_gates '+m)
+    return result, pic
 
 
 def fs_b(conn):
@@ -447,6 +489,8 @@ functionmap['sync_gc'] = sync_gc
 functionmap['find_vca'] = find_vca
 functionmap['find_am_bias'] = find_am_bias
 functionmap['verify_am_bias'] = verify_am_bias
+functionmap['loop_find_am_bias'] = loop_find_am_bias
+functionmap['loop_find_gates'] = loop_find_gates
 functionmap['find_am2_bias'] = find_am2_bias
 functionmap['pol_bob'] = pol_bob
 functionmap['ad'] = ad
@@ -484,7 +528,12 @@ while True:
                 break
 
             print(colored(command+' ...\n', 'blue'))
-            functionmap[command](conn)
+            if command.startswith('find_vca_'):
+                limit = int(command.split('_')[-1])
+                print('command: ', command)
+                functionmap['find_vca'](conn, limit)
+            else:
+                functionmap[command](conn)
             print(colored('... '+command+' done \n', 'blue'))
 
 
@@ -499,67 +548,3 @@ while True:
         log.close()
 
 
-#if __name__ == "__main__":
-#    parser = argparse.ArgumentParser(description="Send command")
-#    parser.add_argument("commands", nargs='+', help="Commands: init_all, find_gates, find_delays, verify_gates")
-#    args = parser.parse_args()
-#
-#    global tmp_result
-#    tmp_result = False
-#
-#    if 'init_all' in args.commands:
-#        client_start(['init', 'sync_gc', 'find_max_vca_3000'], True)
-#        for voltage in [0.3, 0.5, 1, 2]:
-#            tmp_result = False
-#            client_start([
-#                f'find_am_bias_{voltage}',
-#                'verify_am_bias'
-#            ], False)
-#
-#            if tmp_result:
-#                client_start(['find_am2_bias','pol_bob', 'find_max_vca_4000'], False)
-#                break
-#
-#        if tmp_result == False:
-#            print(colored('ERROR: AM bias calibration failed', 'red'))
-#            sys.exit(1)
-#
-#    cmd_mapping = {
-#        'find_gates': ['ad', 'find_sp', 'ad', 'verify_gates'],
-#        'find_delays': [
-#            'find_max_vca_4200', 'fs_b', 'fs_a',
-#            'fd_b', 'fd_b_long', 'fd_a', 'fd_a_long',
-#            'fz_b', 'fz_a'
-#        ]
-#    }
-#
-#    if 'find_gates' in args.commands:
-#        max_global_attempts = 2
-#        for global_attempt in range(max_global_attempts):
-#            client_start(['ad', 'find_sp', 'ad'])
-#
-#            max_retries = 1
-#            for attempt in range(max_retries):
-#                tmp_result = False
-#                client_start(['verify_gates'])
-#                if tmp_result:
-#                    break
-#                print(colored(f"verify_gates failed retrying...", "yellow"))
-#
-#            if tmp_result:
-#                break
-#
-#            print(colored(f"verify_gates failed after {max_retries} retries, restarting find_gate sequence...", "red"))
-#
-#        if not tmp_result:
-#            print(colored("ERROR: verify_gates failed after all retries", "red"))
-#            sys.exit(1)
-#
-#    if 'find_delays' in args.commands:
-#        client_start(cmd_mapping['find_delays'])
-#
-#    known_groups = {'init_all', *cmd_mapping.keys()}
-#    individual_cmds = [cmd for cmd in args.commands if cmd not in known_groups]
-#
-#    if individual_cmds:
-#        client_start(individual_cmds)

@@ -368,49 +368,6 @@ while True:
                 ctl.Update_Dac()
                 send_i(zero_pos)
             
-            #elif command == 'czp':
-            #    main.Ensure_Spd_Mode('gated')
-            #    main.Check_Zeros_Pos()
-            #    response = 'Find zero position bob done'
-                
-            #elif command == 'ra':
-            #    main.Ensure_Spd_Mode('gated')
-            #    print("received command ra")
-            #    m = conn.recv(4)
-            #    num = int.from_bytes(m, byteorder='big')
-            #    print(num)
-            #    angles = Angle(num, save=True)
-            #
-            #elif command == 'qber_a':
-            #    main.Write_To_Fake_Rng(gen_seq.seq_rng_zeros())
-            #    main.Ensure_Spd_Mode('gated')
-            #    print("received command ra")
-            #    m = conn.recv(4)
-            #    num = int.from_bytes(m, byteorder='big')
-            #    print(num)
-            #    fr = open("result", "rb")
-            #    while True:
-            #        angles = Angle(num)
-            #        rb = fr.read(num)
-            #        conn.sendall(rb)
-
-            #elif command == 'ver_sync':
-            #    current_gc = main.Get_Current_Gc()
-            #    print('Bob current_gc: ',current_gc)
-            #    #send current gc to Alice
-            #    conn.sendall(current_gc.tobytes())
-            #    #receive sync result from Alice
-            #    cmd = conn.recv(BUFFER_SIZE).decode().strip()
-            #    if (cmd == 'sync'):
-            #        print('SYNC')
-            #    elif (cmd == 'no_sync'):
-            #        print('NOT SYNC')
-
-                
-            #elif command == 'shutdown':
-            #    response = "Shutdown done"
-            #    print("Received 'shutdown' command from client. Closing connection...")
-            #    break  # Exit loop to close server properly
 
             elif not command:
                 print("Client disconnected.")
@@ -426,6 +383,5 @@ while True:
             pass  # Ignore if connection is already closed
         conn.close()
         log.close()
-
 
 
