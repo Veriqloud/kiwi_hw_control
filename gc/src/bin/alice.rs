@@ -192,7 +192,7 @@ fn main() -> std::io::Result<()> {
             handle_bob(
                 c1_rx,
                 c2_tx,
-                &CONFIG.get().unwrap().alice_config().network.ip_bob_gc,
+                &CONFIG.get().unwrap().alice_config().network.ip_gc,
             )
         });
 

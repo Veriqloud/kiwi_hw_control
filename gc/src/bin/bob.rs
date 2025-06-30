@@ -5,7 +5,6 @@ use gc::hw::{
     init_ddr, process_gcr_stream, sync_at_pps, write_gc_to_alice, write_gc_to_fpga,
     CONFIG,
 };
-use serde_json::Value;
 use std::fs::OpenOptions;
 use std::io::prelude::*;
 use std::net::{TcpListener, TcpStream};
@@ -102,26 +101,14 @@ fn main() -> std::io::Result<()> {
     let cli = Cli::parse();
     println!("[gc-bob] Loading configuration from: {:?}", &cli.config_path);
 
-    // Read the config file into a string. We will parse it twice:
-    // 1. Into the official `Configuration` struct for the parts of the code that use it.
-    // 2. Into a generic `serde_json::Value` to reliably extract the network address,
-    //    bypassing the incorrect internal struct definitions.
-    let config_string =
-        std::fs::read_to_string(&cli.config_path).expect("Failed to read config file to string");
-
-    let config: Configuration =
-        serde_json::from_str(&config_string).expect("Failed to deserialize into Configuration struct");
+    let config: Configuration = Configuration::from_pathbuf_bob(&cli.config_path);
 
     CONFIG
         .set(config)
         .expect("failed to set the config global var\n");
 
-    let click_result_path = &CONFIG
-        .get()
-        .unwrap()
-        .bob_config()
-        .fifo
-        .click_result_file_path;
+    let bob_config = CONFIG.get().unwrap().bob_config();
+    let click_result_path = &bob_config.fifo.click_result_file_path;
 
     // delete and remake fifo file for result values
     println!("[gc-bob] Ensuring Click Result FIFO exists at: {}", click_result_path);
@@ -135,17 +122,11 @@ fn main() -> std::io::Result<()> {
         nix::sys::stat::Mode::from_bits(0o644).unwrap(),
     )?;
 
-    // Extract the listen address directly from the JSON value, ignoring the faulty struct.
-    let json_value: Value = serde_json::from_str(&config_string)
-        .expect("Failed to parse config string into JSON Value");
-    let listen_addr = json_value["player"]["Bob"]["network"]["ip_listen_gc"]
-        .as_str()
-        .expect("ip_listen_gc not found or not a string in config JSON")
-        .to_string();
+    let listen_addr = &bob_config.network.ip_gc;
 
     println!("[gc-bob] Attempting to bind to TCP listener at: {}", listen_addr);
     let listener =
-        TcpListener::bind(&listen_addr).expect("TcpListener could not bind to address\n");
+        TcpListener::bind(listen_addr).expect("TcpListener could not bind to address\n");
     println!("[gc-bob] Successfully bound to {}", listener.local_addr().unwrap());
 
     loop {

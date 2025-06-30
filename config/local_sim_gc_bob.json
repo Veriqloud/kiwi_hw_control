@@ -2,7 +2,7 @@
   "player": {
     "Bob": {
       "network": {
-        "ip_listen_gc": "127.0.0.1:50051"
+        "ip_gc": "localhost:50051"
       },
       "fifo": {
         "gcr_file_path": "/tmp/gc_bob_gcr.fifo",

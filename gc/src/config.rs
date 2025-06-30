@@ -84,7 +84,7 @@ pub enum QlinePlayer {
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct AliceConfig {
     pub fifo: ConfigFifoAlice,
-    pub network: ConfigNetworkAlice,
+    pub network: ConfigNetwork,
 }
 
 #[derive(Debug, Deserialize, Serialize, Default, Clone)]
@@ -106,13 +106,14 @@ impl ConfigFifoAlice {
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct ConfigNetworkAlice {
-    pub ip_bob_gc: String,
+pub struct ConfigNetwork {
+    pub ip_gc: String,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct BobConfig {
     pub fifo: ConfigFifoBob,
+    pub network: ConfigNetwork,
 }
 
 #[derive(Debug, Deserialize, Serialize, Default, Clone)]
@@ -145,43 +146,21 @@ pub struct CharlieConfig {}
 #[cfg(test)]
 mod test {
 
-    use crate::config::{BobConfig, CharlieConfig, ConfigFifoBob};
+    use crate::config::CharlieConfig;
 
     use super::Configuration;
 
     #[test]
     fn print_alice_config() {
-        let conf = Configuration {
-            player: super::QlinePlayer::Alice(super::AliceConfig {
-                fifo: super::ConfigFifoAlice {
-                    command_socket_path: "command socket path".to_string(),
-                    gc_file_path: "gc file path".to_string(),
-                },
-                network: super::ConfigNetworkAlice {
-                    ip_bob_gc: "ip bob gc".to_string(),
-                },
-            }),
-            current_hw_parameters_file_path: "/path/to/dyn/params/file.txt".to_string(),
-            fpga_start_socket_path: Configuration::default_fpga_start_socket_path(),
-        };
-
+        let path = std::path::PathBuf::from("../config/local_sim_gc_alice.json");
+        let conf = Configuration::from_pathbuf_alice(&path);
         println!("{}", serde_json::to_string_pretty(&conf).unwrap());
     }
 
     #[test]
     fn print_bob_config() {
-        let conf = Configuration {
-            player: super::QlinePlayer::Bob(BobConfig {
-                fifo: ConfigFifoBob {
-                    gcr_file_path: "gcr_file_path".to_string(),
-                    gc_file_path: "gc_file_path".to_string(),
-                    click_result_file_path: "click_result_file_path".to_string(),
-                },
-            }),
-            current_hw_parameters_file_path: "/path/to/dyn/params/file.txt".to_string(),
-            fpga_start_socket_path: Configuration::default_fpga_start_socket_path(),
-        };
-
+        let path = std::path::PathBuf::from("../config/local_sim_gc_bob.json");
+        let conf = Configuration::from_pathbuf_bob(&path);
         println!("{}", serde_json::to_string_pretty(&conf).unwrap());
     }
 
