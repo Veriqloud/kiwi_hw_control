@@ -1,6 +1,9 @@
 use clap::Parser;
 use gc::comm::{Comm, HwControl};
 use gc::config::Configuration;
+use std::str::FromStr;
+use tracing_subscriber::fmt::writer::MakeWriterExt;
+use uuid::Uuid;
 use gc::hw::{
     init_ddr, process_gcr_stream, sync_at_pps, write_gc_to_alice, write_gc_to_fpga,
     CONFIG,
@@ -15,6 +18,9 @@ struct Cli {
     /// Path to the configuration file
     #[arg(short = 'c', long, default_value_os_t = PathBuf::from("/home/vq-user/qline/config/config.json"))]
     config_path: PathBuf,
+    /// Path to the log files
+    #[arg(long, default_value_t = String::from("/tmp/qline_gc_logs"))]
+    logs_location: String,
 }
 
 // read the gcr stream, split gcr, write gc to Alice and r to fifo
@@ -23,7 +29,7 @@ fn send_gc(alice: &mut TcpStream) -> std::io::Result<()> {
     let gcw_path = &CONFIG.get().unwrap().bob_config().fifo.gc_file_path;
     let result_path = &CONFIG.get().unwrap().bob_config().fifo.click_result_file_path;
 
-    println!("[gc-bob] Opening GCR FIFO for reading: {}", gcr_path);
+    tracing::info!("[gc-bob] Opening GCR FIFO for reading: {}", gcr_path);
     let mut file_gcr = OpenOptions::new()
         .read(true)
         .open(gcr_path)
@@ -35,7 +41,7 @@ fn send_gc(alice: &mut TcpStream) -> std::io::Result<()> {
             .as_str(),
         );
 
-    println!("[gc-bob] Opening GC FIFO for writing: {}", gcw_path);
+    tracing::info!("[gc-bob] Opening GC FIFO for writing: {}", gcw_path);
     let mut file_gcw = OpenOptions::new()
         .write(true)
         .open(gcw_path)
@@ -47,7 +53,7 @@ fn send_gc(alice: &mut TcpStream) -> std::io::Result<()> {
             .as_str(),
         );
 
-    println!("[gc-bob] Opening Click Result FIFO for writing: {}", result_path);
+    tracing::info!("[gc-bob] Opening Click Result FIFO for writing: {}", result_path);
     let mut file_result = OpenOptions::new()
         .write(true)
         .open(result_path)
@@ -58,7 +64,7 @@ fn send_gc(alice: &mut TcpStream) -> std::io::Result<()> {
     loop {
         let (gc, result) = process_gcr_stream(&mut file_gcr)?;
         if (i % 100) == 0 {
-            println!("[gc-bob] GC stream [{}]: gc[0]={}, result[0]={}", i, gc[0], result[0]);
+            tracing::debug!("[gc-bob] GC stream [{}]: gc[0]={}, result[0]={}", i, gc[0], result[0]);
         };
         write_gc_to_alice(gc, alice)?;
         write_gc_to_fpga(gc, &mut file_gcw)?;
@@ -68,29 +74,29 @@ fn send_gc(alice: &mut TcpStream) -> std::io::Result<()> {
 }
 
 fn handle_alice(alice: &mut TcpStream) -> std::io::Result<()> {
-    println!("[gc-bob] Handling connection from: {}", alice.peer_addr()?);
+    tracing::info!("[gc-bob] Handling connection from: {}", alice.peer_addr()?);
     loop {
         match alice.recv::<HwControl>() {
             Ok(message) => {
                 // The message is already printed by the comm layer
                 match message {
                     HwControl::InitDdr => {
-                        println!("[gc-bob] Initializing DDR...");
+                        tracing::info!("[gc-bob] Initializing DDR...");
                         init_ddr(false);
-                        println!("[gc-bob] DDR initialized.");
+                        tracing::info!("[gc-bob] DDR initialized.");
                     }
                     HwControl::SyncAtPps => {
-                        println!("[gc-bob] Syncing at PPS and starting GC stream...");
+                        tracing::info!("[gc-bob] Syncing at PPS and starting GC stream...");
                         sync_at_pps();
                         send_gc(alice)?;
-                        println!("[gc-bob] Finished sending GC stream.");
+                        tracing::info!("[gc-bob] Finished sending GC stream.");
                     } //HwControl::SendGc => {
                       //}
                       //_ => {println!("WARNING: this message should not have been received {:?}", message)}
                 }
             }
             Err(err) => {
-                println!("no message received");
+                tracing::warn!("no message received");
                 return Err(err);
             }
         }
@@ -99,7 +105,6 @@ fn handle_alice(alice: &mut TcpStream) -> std::io::Result<()> {
 
 fn main() -> std::io::Result<()> {
     let cli = Cli::parse();
-    println!("[gc-bob] Loading configuration from: {:?}", &cli.config_path);
 
     let config: Configuration = Configuration::from_pathbuf_bob(&cli.config_path);
 
@@ -107,11 +112,40 @@ fn main() -> std::io::Result<()> {
         .set(config)
         .expect("failed to set the config global var\n");
 
+    let log_level_filter =
+        tracing_subscriber::filter::LevelFilter::from_str(&CONFIG.get().unwrap().log_level)
+            .unwrap_or(tracing_subscriber::filter::LevelFilter::INFO);
+
+    let log_id = Uuid::new_v4();
+    let logfile_name = format!("gc_bob_{log_id}.log");
+    let logfile_appender = tracing_appender::rolling::daily(&cli.logs_location, &logfile_name);
+    let stdout_level = log_level_filter
+        .into_level()
+        .unwrap_or(tracing::Level::INFO);
+    let stdout_writer = std::io::stdout.with_max_level(stdout_level);
+
+    tracing_subscriber::fmt()
+        .with_max_level(log_level_filter)
+        .with_writer(stdout_writer.and(logfile_appender))
+        .init();
+
+    tracing::info!(
+        "Logging initialized with level {:?} to stdout and file {}",
+        stdout_level,
+        format!("{}/{}", &cli.logs_location, &logfile_name)
+    );
+    tracing::info!("[gc-bob] Loading configuration from: {:?}", &cli.config_path);
+    tracing::debug!(
+        "Running with configuration: {}",
+        serde_json::to_string_pretty(&CONFIG.get().unwrap())
+            .unwrap_or_else(|e| format!("Failed to serialize config for logging: {}", e))
+    );
+
     let bob_config = CONFIG.get().unwrap().bob_config();
     let click_result_path = &bob_config.fifo.click_result_file_path;
 
     // delete and remake fifo file for result values
-    println!("[gc-bob] Ensuring Click Result FIFO exists at: {}", click_result_path);
+    tracing::info!("[gc-bob] Ensuring Click Result FIFO exists at: {}", click_result_path);
     std::fs::remove_file(click_result_path)
     .unwrap_or_else(|e| match e.kind() {
         std::io::ErrorKind::NotFound => (),
@@ -124,27 +158,27 @@ fn main() -> std::io::Result<()> {
 
     let listen_addr = &bob_config.network.ip_gc;
 
-    println!("[gc-bob] Attempting to bind to TCP listener at: {}", listen_addr);
+    tracing::info!("[gc-bob] Attempting to bind to TCP listener at: {}", listen_addr);
     let listener =
         TcpListener::bind(listen_addr).expect("TcpListener could not bind to address\n");
-    println!("[gc-bob] Successfully bound to {}", listener.local_addr().unwrap());
+    tracing::info!("[gc-bob] Successfully bound to {}", listener.local_addr().unwrap());
 
     loop {
         for stream in listener.incoming() {
             match stream {
                 Ok(mut alice) => {
-                    println!("[gc-bob] Accepted connection from: {}", alice.peer_addr()?);
+                    tracing::info!("[gc-bob] Accepted connection from: {}", alice.peer_addr()?);
                     handle_alice(&mut alice).unwrap_or_else(|e| match e.kind() {
-                        std::io::ErrorKind::BrokenPipe => println!(
+                        std::io::ErrorKind::BrokenPipe => tracing::warn!(
                             "Broken Pipe; we are probably fine because this is how we stop"
                         ),
-                        std::io::ErrorKind::Other => println!("{}", e),
-                        std::io::ErrorKind::ConnectionReset => println!("{}", e),
+                        std::io::ErrorKind::Other => tracing::error!("{}", e),
+                        std::io::ErrorKind::ConnectionReset => tracing::error!("{}", e),
                         _ => panic!("{}", e),
                     });
                 }
                 Err(err) => {
-                    println!("Error: {}", err);
+                    tracing::error!("Error: {}", err);
                     break;
                 }
             }

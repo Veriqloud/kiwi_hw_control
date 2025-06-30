@@ -193,14 +193,14 @@ pub fn sync_at_pps() {
 
 // separate gc from result bit; return as integers
 fn split_gcr(buf_gcr: [u8; 8]) -> (u64, u8) {
-    println!("[gc-hw] gcr raw bytes: {:?}", buf_gcr);
+    tracing::debug!("[gc-hw] gcr raw bytes: {:?}", buf_gcr);
     let mut buf = buf_gcr;
     buf[6] = 0;
     buf[7] = 0;
     let mut gc = u64::from_le_bytes(buf);
     gc = gc * 2 + (buf_gcr[6] & 1) as u64;
     let result = (buf_gcr[6] >> 1) & 1;
-    println!("[gc-hw] -> gc: {}, result: {}", gc, result);
+    tracing::debug!("[gc-hw] -> gc: {}, result: {}", gc, result);
     return (gc, result);
 }
 
