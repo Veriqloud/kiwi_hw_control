@@ -80,7 +80,10 @@ fn recv_angles(
     let mut file_angles = match file_angles {
         Some(fd) => fd,
         None => {
-            //println!("[qber-alice] Opening Angle FIFO for reading: {}", &fifos.angle_file_path);
+            //println!(
+            //    "[qber-alice] Opening Angle FIFO for reading: {}",
+            //    &fifos.angle_file_path
+            //);
             OpenOptions::new()
                 .read(true)
                 .open(&fifos.angle_file_path)
@@ -106,8 +109,12 @@ fn recv_angles(
 
     for _ in 0..num / 32 {
         file_angles.read_exact(&mut aa)?;
+        println!("READ ANGLES ALICE : {:?}", &aa);
         bob.read_exact(&mut ab)?;
+        println!("READ ANGLES BOB : {:?}", &ab);
+
         bob.read_exact(&mut r)?;
+        //println!("CLICK RESULT : {:?}", r);
         //println!("[qber-alice] Received and processed a batch of 32 angles/results.");
 
         // expand angles to array
@@ -179,12 +186,18 @@ fn recv_angles(
 
 fn main() -> std::io::Result<()> {
     let cli = Cli::parse();
-    //println!("[qber-alice] Loading network config from: {}", &cli.network_path);
+    //println!(
+    //    "[qber-alice] Loading network config from: {}",
+    //    &cli.network_path
+    //);
     let network = ConfigNetworkAlice::from_path(cli.network_path);
     //println!("[qber-alice] Loading FIFO config from: {}", &cli.fifo_path);
     let fifos = ConfigFifoAlice::from_path(cli.fifo_path);
 
-    //println!("[qber-alice] Attempting to connect to qber-bob at {}...", network.ip_bob_qber);
+    //println!(
+    //    "[qber-alice] Attempting to connect to qber-bob at {}...",
+    //    network.ip_bob_qber
+    //);
     let mut bob =
         TcpStream::connect(&network.ip_bob_qber).expect("connecting to Bob_qber via TcpStream\n");
     //println!("[qber-alice] Connected to Bob_qber at {}", bob.peer_addr()?);
@@ -198,7 +211,10 @@ fn main() -> std::io::Result<()> {
             _ => panic!("{}", e),
         });
 
-        //println!("[qber-alice] Sending DebugOn request to gc-alice via UNIX socket: {}", &fifos.command_socket_path);
+        //println!(
+        //    "[qber-alice] Sending DebugOn request to gc-alice via UNIX socket: {}",
+        //    &fifos.command_socket_path
+        //);
         let mut stream = UnixStream::connect(&fifos.command_socket_path)
             .expect("could not connect to UnixStream");
         write_message(&mut stream, Request::DebugOn)?;
@@ -206,7 +222,10 @@ fn main() -> std::io::Result<()> {
         //println!("[qber-alice] Received response from gc-alice: {:?}", m);
     }
 
-    //println!("[qber-alice] Sending Start request to gc-alice via UNIX socket: {}", &fifos.command_socket_path);
+    //println!(
+    //    "[qber-alice] Sending Start request to gc-alice via UNIX socket: {}",
+    //    &fifos.command_socket_path
+    //);
     let mut stream = UnixStream::connect(&fifos.command_socket_path).expect(&format!(
         "could not connect to UnixStream {:?}",
         &fifos.command_socket_path
