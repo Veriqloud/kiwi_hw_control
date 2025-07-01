@@ -14,14 +14,14 @@ use std::thread;
 
 #[derive(Parser)]
 struct Cli {
-    /// number of gc to process before stop
-    num: u64,
+    ///// number of gc to process before stop
+    //num: u64,
     /// save result to file
     #[arg(short, long)]
     save: bool,
 
     /// Path to the configuration file
-    #[arg(short = 'c', long, default_value_os_t = PathBuf::from("/home/vq-user/qline/config/config.json"))]
+    #[arg(short = 'c', long, default_value_os_t = PathBuf::from("/home/vq-user/qline/config/gc.json"))]
     config_path: PathBuf,
 }
 

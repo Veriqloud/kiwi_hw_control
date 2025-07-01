@@ -14,7 +14,7 @@ use std::path::{Path, PathBuf};
 #[derive(Parser)]
 struct Cli {
     /// Path to the configuration file
-    #[arg(short = 'c', long, default_value_os_t = PathBuf::from("/home/vq-user/qline/config/config.json"))]
+    #[arg(short = 'c', long, default_value_os_t = PathBuf::from("/home/vq-user/qline/config/gc.json"))]
     config_path: PathBuf,
 }
 
