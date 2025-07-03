@@ -159,7 +159,7 @@ mod test {
 
     #[test]
     fn test_alice_config_parsing() {
-        let path = std::path::PathBuf::from("../config/local_sim_gc_alice.json");
+        let path = std::path::PathBuf::from("../config/sim/local_sim_gc_alice.json");
         let conf_from_file = Configuration::from_pathbuf_alice(&path);
 
         let hardcoded_conf = Configuration {
@@ -187,7 +187,7 @@ mod test {
 
     #[test]
     fn test_bob_config_parsing() {
-        let path = std::path::PathBuf::from("../config/local_sim_gc_bob.json");
+        let path = std::path::PathBuf::from("../config/sim/local_sim_gc_bob.json");
         let conf_from_file = Configuration::from_pathbuf_bob(&path);
 
         let hardcoded_conf = Configuration {

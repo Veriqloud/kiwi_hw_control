@@ -4,13 +4,15 @@ use comm::qber_comms::*;
 use clap::Parser;
 use comm::read_message;
 use comm::write_message;
-use qber::config::{ConfigFifoAlice, ConfigNetworkAlice};
 use std::fmt;
 use std::fs::{File, OpenOptions};
 use std::io::Read;
 use std::io::Write;
 use std::net::TcpStream;
 use std::os::unix::net::UnixStream;
+use std::path::PathBuf;
+
+use qber::config::AliceConfig;
 
 #[derive(Parser, Debug)]
 struct Cli {
@@ -20,8 +22,8 @@ struct Cli {
     #[arg(short, long)]
     debug: bool,
     /// Provide a config file for the fifos.
-    #[arg(short, default_value = "/home/vq-user/qline/config/fifos.json")]
-    pub fifo_path: String,
+    #[arg(short, default_value_os_t = PathBuf::from("/home/vq-user/qline/config/fifos.json"))]
+    pub config_path: PathBuf,
     /// Provide a config file for the network.
     #[arg(short, default_value = "/home/vq-user/qline/config/network.json")]
     pub network_path: String,
@@ -71,7 +73,7 @@ impl fmt::Display for Line {
 
 fn recv_angles(
     bob: &mut TcpStream,
-    fifos: &ConfigFifoAlice,
+    config: &AliceConfig,
     num: u32,
     file_angles: Option<File>,
     debug: bool,
@@ -86,7 +88,7 @@ fn recv_angles(
             //);
             OpenOptions::new()
                 .read(true)
-                .open(&fifos.angle_file_path)
+                .open(&config.angle_file_path)
                 .expect("opening angle file")
         }
     };
@@ -186,20 +188,17 @@ fn recv_angles(
 
 fn main() -> std::io::Result<()> {
     let cli = Cli::parse();
+    let config = AliceConfig::from_pathbuf(&cli.config_path);
     //println!(
     //    "[qber-alice] Loading network config from: {}",
     //    &cli.network_path
     //);
-    let network = ConfigNetworkAlice::from_path(cli.network_path);
-    //println!("[qber-alice] Loading FIFO config from: {}", &cli.fifo_path);
-    let fifos = ConfigFifoAlice::from_path(cli.fifo_path);
-
     //println!(
     //    "[qber-alice] Attempting to connect to qber-bob at {}...",
     //    network.ip_bob_qber
     //);
     let mut bob =
-        TcpStream::connect(&network.ip_bob_qber).expect("connecting to Bob_qber via TcpStream\n");
+        TcpStream::connect(&config.ip_bob).expect("connecting to Bob_qber via TcpStream\n");
     //println!("[qber-alice] Connected to Bob_qber at {}", bob.peer_addr()?);
 
     let mut debug = false;
@@ -215,10 +214,10 @@ fn main() -> std::io::Result<()> {
         //    "[qber-alice] Sending DebugOn request to gc-alice via UNIX socket: {}",
         //    &fifos.command_socket_path
         //);
-        let mut stream = UnixStream::connect(&fifos.command_socket_path)
+        let mut stream = UnixStream::connect(&config.command_socket_path)
             .expect("could not connect to UnixStream");
         write_message(&mut stream, Request::DebugOn)?;
-        let m: Response = read_message(&mut stream)?;
+        let _m: Response = read_message(&mut stream)?;
         //println!("[qber-alice] Received response from gc-alice: {:?}", m);
     }
 
@@ -226,18 +225,18 @@ fn main() -> std::io::Result<()> {
     //    "[qber-alice] Sending Start request to gc-alice via UNIX socket: {}",
     //    &fifos.command_socket_path
     //);
-    let mut stream = UnixStream::connect(&fifos.command_socket_path).expect(&format!(
+    let mut stream = UnixStream::connect(&config.command_socket_path).expect(&format!(
         "could not connect to UnixStream {:?}",
-        &fifos.command_socket_path
+        &config.command_socket_path
     ));
     write_message(&mut stream, Request::Start)?;
-    let m: Response = read_message(&mut stream)?;
+    let _m: Response = read_message(&mut stream)?;
     //println!("[qber-alice] Received response from gc-alice: {:?}", m);
 
     let mut file_angles: Option<File> = None;
     loop {
         //println!("[qber-alice] Requesting angles from qber-bob...");
         write_message(&mut bob, &Qber::SendAngles)?;
-        file_angles = recv_angles(&mut bob, &fifos, cli.num, file_angles, debug)?;
+        file_angles = recv_angles(&mut bob, &config, cli.num, file_angles, debug)?;
     }
 }
