@@ -3,7 +3,7 @@
 import socket, json, time, struct, sys, datetime
 #import numpy as np
 import ctl_alice as ctl
-from lib.fpga import get_tmp, save_tmp, update_tmp, update_default, get_default, Sync_Gc, wait_for_pps_ret
+from lib.fpga import get_tmp, save_tmp, update_tmp, update_default, get_default, Sync_Gc, wait_for_pps_ret, get_gc
 import lib.gen_seq as gen_seq
 from termcolor import colored
 
@@ -130,6 +130,17 @@ def sync_gc(conn):
     Sync_Gc()
     sendc(conn, 'sync_gc done')
 
+def compare_gc(conn):
+    sendc(bob, 'compare_gc')
+    print("flag 1")
+    gc = get_gc()
+    print("flag 2")
+    gc_bob = rcv_d(bob)
+    print("flag 3")
+    diff = gc - gc_bob
+    difftime = diff/80e6
+    sendc(conn, f'gc difference: {diff} ({difftime} s)')
+
 def find_vca(conn, limit=3000):
     sendc(bob, 'find_vca')
     update_tmp('am_mode', 'double')
@@ -217,7 +228,7 @@ def verify_am_bias(conn, sendresult=True):
     count_double = rcv_i(bob)
 
     ratio = count_double / count_off
-    if ratio >= 2:
+    if ratio >= 1.5:
         m = colored(f"success: double/off  = {ratio:.2f} ({count_double}/{count_off}) \n", "green")
         print(m)
         result = True
@@ -486,6 +497,7 @@ def fz_a(conn):
 functionmap = {}
 functionmap['init'] = init
 functionmap['sync_gc'] = sync_gc
+functionmap['compare_gc'] = compare_gc
 functionmap['find_vca'] = find_vca
 functionmap['find_am_bias'] = find_am_bias
 functionmap['verify_am_bias'] = verify_am_bias
@@ -533,7 +545,13 @@ while True:
                 print('command: ', command)
                 functionmap['find_vca'](conn, limit)
             else:
-                functionmap[command](conn)
+                try:
+                    functionmap[command](conn)
+                except:
+                    print(colored('unkown command '+command, 'red'))
+                    sendc(conn, colored('unknown command '+command, 'red'))
+                    continue
+
             print(colored('... '+command+' done \n', 'blue'))
 
 

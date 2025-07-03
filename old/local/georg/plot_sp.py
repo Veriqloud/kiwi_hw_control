@@ -21,11 +21,12 @@ for name in names:
 for i in range(len(hist)):
     plt.plot(bins[:-1]+1, hist[i], label=names[i])
 
+gates = [28, 542, 40]
 plt.axvline(625, color= 'black')
-plt.axvline(20, color= 'red')
-plt.axvline(80, color= 'red')
-plt.axvline(530, color= 'red')
-plt.axvline(590, color= 'red')
+plt.axvline(gates[0], color= 'red')
+plt.axvline(gates[0] + gates[2], color= 'red')
+plt.axvline(gates[1], color= 'red')
+plt.axvline(gates[1] + gates[2], color= 'red')
 plt.ylim(0)
 plt.legend()
 plt.show()

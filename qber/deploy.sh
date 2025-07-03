@@ -10,8 +10,10 @@ if [[ $# > 0 ]]; then
     if [[ $1 == "with_config" ]]; then
         rsync -v config/network_alice.json $Alice:~/qline/config/network.json
         rsync -v config/fifos_alice.json $Alice:~/qline/config/fifos.json
+        rsync -v config/alice.json $Alice:~/qline/config/config.json
 
         rsync -v config/fifos_bob.json $Bob:~/qline/config/fifos.json
+        rsync -v config/bob.json $Bob:~/qline/config/config.json
     else 
         echo "wrong argument"
     fi

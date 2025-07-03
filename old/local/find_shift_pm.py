@@ -166,5 +166,5 @@ def best_shift(party):
     plt.show()
 
 
-# best_shift('alice')
-best_shift('alice')
+#best_shift('alice')
+best_shift('bob')

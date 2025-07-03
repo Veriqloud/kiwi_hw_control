@@ -144,7 +144,7 @@ def read(offset, addr):
         with open("/dev/xdma0_user", 'r+b', buffering=0) as fd:
             with mmap.mmap(fd.fileno(), 4096, offset=offset) as mm:
                 for a in addr:
-                    value.append(int.from_bytes(mm[addr:addr+4], 'little'))
+                    value.append(int.from_bytes(mm[a:a+4], 'little'))
         return value
                     
 
@@ -662,16 +662,16 @@ def decoy_state(mode):
     #dpram_rng_max_addr
     write(0x16000, 28, 0x40)
     #Write data to rng_dpram
-    Base_seq0 = 0x00016000 + 1024
+    Base_seq0 = 0x00016000
     if mode=='single':
-        rngseq0 = 0x00000001
-        rngseq1 = 0x00000000
+        rngseq0 = 0x1
+        rngseq1 = 0x0
     elif mode=='off':
-        rngseq0 = 0x00000000
-        rngseq1 = 0x00000000
+        rngseq0 = 0x0
+        rngseq1 = 0x0
     else:
         exit("wrong decoy state string")
-    write(Base_seq0, [0,4], [rngseq0, rngseq1])
+    write(Base_seq0, [1024,1028], [rngseq0, rngseq1])
     #Write rng mode
     write(0x16000, [12, 0, 0], [0, 0, 1])
     #last two are for enable regs values
@@ -880,6 +880,13 @@ def Sync_Gc():
     write(0x12000, [8, 8], [1, 0])
     write(0, [8, 8], [0, 1])
     time.sleep(1.2)
+
+def get_gc():
+    write(0x1000, [4,4], [0,1])
+    time.sleep(0.01)
+    data = read(0x1000, [60, 64])
+    current_gc = (data[1] << 32) | (data[0])
+    return current_gc
 
 def Time_Calib_Init():
     Config_Tdc() #Get digital data from TDC chip

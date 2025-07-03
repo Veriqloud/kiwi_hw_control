@@ -4,7 +4,7 @@ import socket, json, time, os, struct, datetime
 #import numpy as np
 import ctl_bob as ctl
 
-from lib.fpga import get_tmp, save_tmp, update_tmp, Set_t0, get_default, Sync_Gc
+from lib.fpga import get_tmp, save_tmp, update_tmp, Set_t0, get_default, Sync_Gc, get_gc
 from termcolor import colored
 
 
@@ -127,6 +127,10 @@ while True:
                 rcvc()
                 Sync_Gc()
                 print(colored('sync_gc', 'cyan'))
+            
+            elif command == 'compare_gc':
+                gc = get_gc()
+                send_d(gc)
                 
             elif command == 'find_vca':
                 print(colored('find_vca', 'cyan'))

@@ -1,5 +1,0 @@
-each qline has a network. 
-
-when you control a qline you pass the network file to the control scripts
-
-
