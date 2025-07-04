@@ -1,8 +1,0 @@
-{
-  "player": {
-    "Alice": {
-      "network": "config/qber_net_alice.json",
-      "fifo": "config/qber_fifo_alice.json"
-    }
-  }
-}
