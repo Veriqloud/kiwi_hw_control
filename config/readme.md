@@ -1,5 +1,6 @@
 example folder structure:
 
+```
 qline2
 ├── network.json                # source for the network configuration
 ├── ports_for_localhost.json    # for connection through the internet
@@ -10,7 +11,7 @@ qline2
     └── bob                     # files to be copied over to bob:~/qline/config/
         ├── gc_bob.json
         └── qber_bob.json
-
+```
 
 to generate the remote files from network.json, run `gen_config` with the appropriate arguments. 
 
