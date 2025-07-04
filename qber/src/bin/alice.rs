@@ -22,7 +22,7 @@ struct Cli {
     #[arg(short, long)]
     debug: bool,
     /// Provide a config file for the fifos.
-    #[arg(short, default_value_os_t = PathBuf::from("/home/vq-user/qline/config/fifos.json"))]
+    #[arg(short, default_value_os_t = PathBuf::from("/home/vq-user/qline/config/qber.json"))]
     pub config_path: PathBuf,
     /// Provide a config file for the network.
     #[arg(short, default_value = "/home/vq-user/qline/config/network.json")]
@@ -111,9 +111,9 @@ fn recv_angles(
 
     for _ in 0..num / 32 {
         file_angles.read_exact(&mut aa)?;
-        println!("READ ANGLES ALICE : {:?}", &aa);
+        //println!("READ ANGLES ALICE : {:?}", &aa);
         bob.read_exact(&mut ab)?;
-        println!("READ ANGLES BOB : {:?}", &ab);
+        //println!("READ ANGLES BOB : {:?}", &ab);
 
         bob.read_exact(&mut r)?;
         //println!("CLICK RESULT : {:?}", r);

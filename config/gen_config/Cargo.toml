@@ -10,6 +10,7 @@ clap = { version = "4.5.32", features = ["derive"] }
 
 gc = {path = "../../gc"}
 qber = {path = "../../qber"}
+hw_sim = { path = "../../../hw_sim" }
 
 
 

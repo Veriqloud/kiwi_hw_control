@@ -38,7 +38,7 @@ use std::fmt::Debug;
 use std::io::{Read, Write};
 
 pub fn write_message<T: Serialize + Debug, W: Write>(stream: &mut W, message: T) -> std::io::Result<()> {
-    println!("[qber-comm] WRITE: {:?}", message);
+    //println!("[qber-comm] WRITE: {:?}", message);
     let serialized_message = bincode::serde::encode_to_vec(&message, bincode::config::standard())
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
 
@@ -63,6 +63,6 @@ pub fn read_message<T: DeserializeOwned + Debug, R: Read>(stream: &mut R) -> std
         bincode::serde::decode_from_slice(&buffer, bincode::config::standard())
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
 
-    println!("[qber-comm] READ: {:?}", message);
+    //println!("[qber-comm] READ: {:?}", message);
     Ok(message)
 }

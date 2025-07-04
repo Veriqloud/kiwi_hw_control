@@ -14,6 +14,10 @@ pub struct Configuration {
 }
 
 impl Configuration {
+    pub fn save_to_file(self, path: &PathBuf){
+        let s = serde_json::to_string_pretty(&self).unwrap();
+        std::fs::write(path, s).expect("writing config to file");
+    }
     pub fn from_pathbuf_alice(path: &PathBuf) -> Self {
         let contents = std::fs::read_to_string(path)
             .expect(&format!("failed reading config at path: {path:?}"));

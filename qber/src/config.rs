@@ -10,6 +10,11 @@ pub struct AliceConfig {
 }
 
 impl AliceConfig {
+    pub fn save_to_file(self, path: &PathBuf){
+        let s = serde_json::to_string_pretty(&self).unwrap();
+        std::fs::write(path, s).expect("writing config to file");
+    }
+
     pub fn from_pathbuf(path: &PathBuf) -> Self {
         let config_str = std::fs::read_to_string(path)
             .unwrap_or_else(|e| panic!("Failed to read config file {:?}: {}", path, e));
@@ -27,6 +32,10 @@ pub struct BobConfig {
 }
 
 impl BobConfig {
+    pub fn save_to_file(self, path: &PathBuf){
+        let s = serde_json::to_string_pretty(&self).unwrap();
+        std::fs::write(path, s).expect("writing config to file");
+    }
     pub fn from_pathbuf(path: &PathBuf) -> Self {
         let config_str = std::fs::read_to_string(path)
             .unwrap_or_else(|e| panic!("Failed to read config file {:?}: {}", path, e));

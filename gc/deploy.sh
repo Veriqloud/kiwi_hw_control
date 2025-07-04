@@ -1,7 +1,7 @@
 #!/bin/bash
 
-Alice=$SSH_ALICE
-Bob=$SSH_BOB
+Alice='KAlice2'
+Bob='KBob2'
 
 rsync -v target/release/alice $Alice:~/qline/server/gc
 rsync -v target/release/controller $Alice:~/qline/bin/gc_controller
