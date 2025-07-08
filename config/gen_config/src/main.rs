@@ -71,7 +71,6 @@ fn main() {
     std::fs::create_dir_all(&cli.output_path_alice).expect("creating directory for alice");
     std::fs::create_dir_all(&cli.output_path_bob).expect("creating directory for alice");
 
-
     let network = Network::from_pathbuf(&cli.network_path);
 
     match cli.sim {
@@ -89,7 +88,8 @@ fn main() {
                         gc_file_path: "/tmp/gc_alice_gc.fifo".to_string(),
                     },
                 }),
-                current_hw_parameters_file_path: "../config/sim/alice/hw_params.txt".to_string(),
+                current_hw_parameters_file_path: std::fs::canonicalize(&cli.output_path_alice)
+                    .unwrap().join("hw_params.txt").to_str().unwrap().to_string(),
                 fpga_start_socket_path: "/tmp/fpga_alice".to_string(),
                 log_level: cli.log_level.clone(),
                 }; 
@@ -110,7 +110,8 @@ fn main() {
                         click_result_file_path: "/tmp/gc_bob_click_result.fifo".to_string(),
                     },
                 }),
-                current_hw_parameters_file_path: "../config/sim/alice/hw_params.txt".to_string(),
+                current_hw_parameters_file_path: std::fs::canonicalize(&cli.output_path_bob)
+                    .unwrap().join("hw_params.txt").to_str().unwrap().to_string(),
                 fpga_start_socket_path: "/tmp/fpga_bob".to_string(),
                 log_level: cli.log_level.clone(),
             };

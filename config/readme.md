@@ -23,4 +23,11 @@ gen_config -n network.json -a remote/alice -b remote/bob
 ```
 
 
+For the simulator
+
+```.bash
+cd sim
+gen_config -n network.json -a alice -b bob -s hw_sim.json
+```
+
 
