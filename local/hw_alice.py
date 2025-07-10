@@ -5,9 +5,11 @@ import json
 import argparse
 #from termcolor import colored
 import struct
+import os
 
-network_file = '../config/network.json'
-ports_for_localhost_file = '../config/ports_for_localhost.json'
+network_file = os.path.join(os.environ['QLINE_CONFIG_DIR'], 'network.json')
+ports_for_localhost_file = os.path.join(os.environ['QLINE_CONFIG_DIR'], 'ports_for_localhost.json')
+
 
 
 

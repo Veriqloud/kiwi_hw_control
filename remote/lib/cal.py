@@ -3,6 +3,7 @@ import time
 import numpy as np
 from scipy.optimize import curve_fit
 import matplotlib.pyplot as plt
+from termcolor import colored
 
 HW_CONTROL = '/home/vq-user/qline/hw_control/'
 
