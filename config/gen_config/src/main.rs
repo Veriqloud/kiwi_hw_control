@@ -35,7 +35,8 @@ struct Port{
     hws: u32,
     gc: u32,
     qber: u32,
-    node: u32
+    node: u32,
+    mon: u32
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq)]

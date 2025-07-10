@@ -30,7 +30,7 @@ control(){
     rsync -v alice_server/*.py $Alice:~/qline/server/
     rsync -v control_servers.sh $Alice:~/qline/server/
 
-    rsync -v hw_bob.py ctl_bob.py hws_bob.py $Bob:~/qline/hw_control/
+    rsync -v hw_bob.py ctl_bob.py hws_bob.py mon_bob.py $Bob:~/qline/hw_control/
     rsync -v lib/*.py $Bob:~/qline/hw_control/lib/
     rsync -v lib/test_tdc/dma_from_device lib/test_tdc/tdc_bin2txt $Bob:~/qline/hw_control/lib/test_tdc
     rsync -v lib/aurea/* $Bob:~/qline/hw_control/lib/aurea/
