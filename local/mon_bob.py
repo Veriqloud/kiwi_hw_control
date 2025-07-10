@@ -76,6 +76,12 @@ def rcv_d():
 
 
 
+def get_counts():
+    sendc('get_counts')
+    total = rcv_i()
+    click0 = rcv_i()
+    click1 = rcv_i()
+    return total, click0, click1
 
 
 
@@ -93,10 +99,7 @@ connect_to_bob(args.use_localhost)
 
 if args.counts:
     while 1:
-        sendc('get_counts')
-        total = rcv_i()
-        click0 = rcv_i()
-        click1 = rcv_i()
+        total, click0, click1 = get_counts()
         print(f"Total: {total}, Click0: {click0}, Click1: {click1}              ",flush=True)
         time.sleep(0.1)
 
