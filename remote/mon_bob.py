@@ -6,9 +6,11 @@ import json, struct
 import datetime
 from lib.fpga import update_tmp, save_tmp, get_tmp
 import lib.gen_seq as gen_seq
+import numpy as np, pickle
 
 import ctl_bob as ctl
 
+HW_CONTROL = '/home/vq-user/qline/hw_control/'
 
 qlinepath = '/home/vq-user/qline/'
 
@@ -68,20 +70,11 @@ def rcv_d(socket):
 
 # send binary data
 def send_data(socket, data):
-    log.write(colored('sending data', 'blue')+'\n')
+    #mon_logfile.write(colored('sending data', 'blue')+'\n')
     l = len(data)
-    print('sending', l)
     m = struct.pack('i', l) + data
     socket.sendall(m)
 
-def rcv_data(socket):
-    m = recv_exact(socket, 4)
-    l = struct.unpack('i', m)[0]
-    print('receiving', l)
-    m = bytes(0)
-    while len(m)<l:
-        m += socket.recv(l - len(m))
-    return m
 
 
 
@@ -99,6 +92,15 @@ def handle_client(conn, addr):
                 c = ctl.counts_fast()
                 for i in range(3):
                     send_i(conn, c[i])
+            
+            elif command == 'get_gates':
+                ctl.Download_Time(10000, 'get_gates')
+                input_file = HW_CONTROL+'data/tdc/get_gates.txt'
+                data = np.loadtxt(input_file, usecols=1) % 625
+                bins = np.arange(0, 625, 2)
+                h1, _ = np.histogram(data, bins=bins)
+                serialized = pickle.dumps(h1)
+                send_data(conn, serialized)
         
 
 

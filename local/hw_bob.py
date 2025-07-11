@@ -7,6 +7,8 @@ import argparse
 import struct
 import time
 import os
+import pickle
+import matplotlib.pylab as plt, numpy as np
 
 network_file = os.path.join(os.environ['QLINE_CONFIG_DIR'], 'network.json')
 ports_for_localhost_file = os.path.join(os.environ['QLINE_CONFIG_DIR'], 'ports_for_localhost.json')
@@ -30,6 +32,11 @@ def connect_to_bob(use_localhost=False):
 
 
 
+def recv_exact(l):
+    m = bytes(0)
+    while len(m)<l:
+        m += bob.recv(l - len(m))
+    return m
 
 # send command
 def sendc(c):
@@ -73,6 +80,14 @@ def rcv_d():
     m = bob.recv(8)
     value = struct.unpack('d', m)[0]
     return value
+
+def rcv_data():
+    m = recv_exact(4)
+    l = struct.unpack('i', m)[0]
+    m = bytes(0)
+    while len(m)<l:
+        m += bob.recv(l - len(m))
+    return m
 
 
 def init(args):
@@ -181,6 +196,16 @@ def get(args):
             click1 = rcv_i()
             print(f"Total: {total}, Click0: {click0}, Click1: {click1}              ",flush=True)
             time.sleep(1)
+    
+    elif args.gates:
+        sendc('get_gates')
+        data = rcv_data()
+        h = pickle.loads(data)
+        plt.figure()
+        bins = np.arange(0,625, 2)
+        plt.plot(bins[:-1], h)
+        plt.show()
+
 
 
 
@@ -267,7 +292,7 @@ parser_get.add_argument("--counts", action="store_true",
                         help="get SPD counts")
 parser_get.add_argument("--counts2", action="store_true", 
                         help="get SPD counts averaged over 1s")
-parser_get.add_argument("--time", type=int, metavar="num_counts",
+parser_get.add_argument("--gates", action="store_true",
                         help="download timestamps of spd clicks")
 parser_get.add_argument("--gc", action="store_true",
                         help="get current global counter")

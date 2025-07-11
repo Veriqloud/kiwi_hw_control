@@ -9,6 +9,8 @@ import ctl_bob as ctl
 import struct
 from lib.fpga import update_tmp, save_tmp, get_tmp
 import lib.gen_seq as gen_seq
+import pickle   # serialize numpy data
+import numpy as np
 
 HW_CONTROL = '/home/vq-user/qline/hw_control/'
 
@@ -98,6 +100,13 @@ while True:
         log.write(colored(value, 'cyan')+'\n')
         return value
 
+    # send binary data
+    def send_data(data):
+        log.write(colored('sending data', 'blue')+'\n')
+        l = len(data)
+        m = struct.pack('i', l) + data
+        conn.sendall(m)
+
     
     try:
         while True:
@@ -175,9 +184,9 @@ while True:
                 ctl.Update_Softgate()
             elif command == 'set_soft_gates':
                 t = get_tmp()
-                t['soft_gate0'] = rcv_d()
-                t['soft_gate1'] = rcv_d()
-                t['soft_gatew'] = rcv_d()
+                t['soft_gate0'] = rcv_i()
+                t['soft_gate1'] = rcv_i()
+                t['soft_gatew'] = rcv_i()
                 save_tmp(t)
                 ctl.Update_Softgate()
             elif command == 'set_feedback':
@@ -249,6 +258,16 @@ while True:
                 c = ctl.counts_slow()
                 for i in range(3):
                     send_i(c[i])
+            
+            elif command == 'get_gates':
+                ctl.Download_Time(10000, 'get_gates')
+                input_file = HW_CONTROL+'data/tdc/get_gates.txt'
+                data = np.loadtxt(input_file, usecols=1) % 625
+                bins = np.arange(0, 625, 2)
+                h1, _ = np.histogram(data, bins=bins)
+                serialized = pickle.dumps(h1)
+                send_data(serialized)
+                
 
             elif not command:
                 print("Client disconnected.")
