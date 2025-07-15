@@ -7,7 +7,7 @@ import json
 import datetime
 import ctl_alice as ctl
 import struct
-from lib.fpga import update_tmp, save_tmp, get_tmp
+from lib.fpga import update_tmp, save_tmp, get_tmp, get_gc
 import lib.gen_seq as gen_seq
 
 HW_CONTROL = '/home/vq-user/qline/hw_control/'
@@ -194,7 +194,8 @@ while True:
                     s = f.read()
                     sendc(s)
             elif command == 'get_gc':
-                gc = ctl.Get_Current_Gc()
+                #gc = ctl.Get_Current_Gc()
+                gc = get_gc()
                 send_q(gc)
             elif command == 'get_ddr_status':
                 s = ctl.Ddr_Status()

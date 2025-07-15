@@ -7,7 +7,7 @@ import json
 import datetime
 import ctl_bob as ctl
 import struct
-from lib.fpga import update_tmp, save_tmp, get_tmp
+from lib.fpga import update_tmp, save_tmp, get_tmp, get_gc
 import lib.gen_seq as gen_seq
 import pickle   # serialize numpy data
 import numpy as np
@@ -241,7 +241,8 @@ while True:
                     s = f.read()
                     sendc(s)
             elif command == 'get_gc':
-                gc = ctl.Get_Current_Gc()
+                gc = get_gc()
+                #gc = ctl.Get_Current_Gc()
                 send_q(gc)
             elif command == 'get_ddr_status':
                 s = ctl.Ddr_Status()

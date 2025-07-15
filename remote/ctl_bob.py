@@ -723,22 +723,22 @@ def counts_slow():
 
 
 
-def Get_Current_Gc():
-    #Command_enable
-    Write(0x00001000+4,0x0)
-    Write(0x00001000+4,0x1)
-    time.sleep(0.01)
-    #Readback registers
-    gc_lsb = Read(0x00001000+60)
-    gc_msb = Read(0x00001000+64)
-    print(gc_lsb)
-    print(gc_msb)
-
-    current_gc = np.int64(int(gc_msb.decode('utf-8').strip(),16) << 32 | int(gc_lsb.decode('utf-8').strip(),16))
-
-    print(hex(current_gc))
-    print(current_gc/40e6, 's')
-    return current_gc
+#def Get_Current_Gc():
+#    #Command_enable
+#    Write(0x00001000+4,0x0)
+#    Write(0x00001000+4,0x1)
+#    time.sleep(0.01)
+#    #Readback registers
+#    gc_lsb = Read(0x00001000+60)
+#    gc_msb = Read(0x00001000+64)
+#    print(gc_lsb)
+#    print(gc_msb)
+#
+#    current_gc = np.int64(int(gc_msb.decode('utf-8').strip(),16) << 32 | int(gc_lsb.decode('utf-8').strip(),16))
+#
+#    print(hex(current_gc))
+#    print(current_gc/40e6, 's')
+#    return current_gc
 
 
 
