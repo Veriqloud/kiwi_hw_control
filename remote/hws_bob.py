@@ -178,44 +178,53 @@ while True:
             elif command == 'ad':
                 print(colored('ad', 'cyan'))
                 update_tmp('soft_gate', 'off')
+                update_tmp('gate_delay', 0)
+                ctl.Gen_Gate()
                 ctl.Update_Softgate()
                 ctl.Ensure_Spd_Mode('gated')
                 ctl.Download_Time(10000, 'verify_gate_ad_0')
                 file_off = HW_CONTROL+"data/tdc/verify_gate_ad_0.txt"
 
-                max_iter = 2
-                iter_count = 0
+                #max_iter = 2
+                #iter_count = 0
+                    
 
-                while True:
-                    lf = ctl.fall_edge(file_off, 200, 900)
-               #     print("Last falling edge off between 200 and 900:", lf)
-
-                    if abs(lf - 725) <= 2 or iter_count >= max_iter:
-                        break
-
-                    d = get_tmp()
-                    tmp_delay0=d['gate_delay0']
-                #    print("gate_delay0 =", tmp_delay0)
-                    tmp_delay=d['gate_delay']
-                 #   print("tmp_delay =", tmp_delay)
-                    if lf > 725:
-                        ad = tmp_delay - ((lf - 725) * 20)
-                    else:
-                        ad = tmp_delay + ((725 - lf) * 20)
-
-                    ad = abs(ad)
-                    ad = 5000 if ad > 12500 else ad
-
-                    update_tmp('gate_delay', ad)
-                    update_tmp('gate_delay0', ad)
-                    ctl.Gen_Gate()
-                    iter_count += 1
-                    ctl.Download_Time(10000, 'verify_gate_ad_'+str(iter_count))
-                    file_off = HW_CONTROL+"data/tdc/verify_gate_ad_"+str(iter_count)+".txt"
+                lf = ctl.fall_edge(file_off)
+                target = (65-lf) % 312
+                update_tmp('gate_delay', target*40)
+                ctl.Gen_Gate()
                 sendc('done')
-                ctl.Ensure_Spd_Mode('continuous')
-                sendc('ok')
-                time.sleep(0.2)
+
+                #while True:
+                #    lf = ctl.fall_edge(file_off, 200, 900)
+               ##     print("Last falling edge off between 200 and 900:", lf)
+
+                #    if abs(lf - 725) <= 2 or iter_count >= max_iter:
+                #        break
+
+                #    d = get_tmp()
+                #    tmp_delay0=d['gate_delay0']
+                ##    print("gate_delay0 =", tmp_delay0)
+                #    tmp_delay=d['gate_delay']
+                # #   print("tmp_delay =", tmp_delay)
+                #    if lf > 725:
+                #        ad = tmp_delay - ((lf - 725) * 20)
+                #    else:
+                #        ad = tmp_delay + ((725 - lf) * 20)
+
+                #    ad = abs(ad)
+                #    ad = 5000 if ad > 12500 else ad
+
+                #    update_tmp('gate_delay', ad)
+                #    update_tmp('gate_delay0', ad)
+                #    ctl.Gen_Gate()
+                #    iter_count += 1
+                #    ctl.Download_Time(10000, 'verify_gate_ad_'+str(iter_count))
+                #    file_off = HW_CONTROL+"data/tdc/verify_gate_ad_"+str(iter_count)+".txt"
+                #sendc('done')
+                #ctl.Ensure_Spd_Mode('continuous')
+                #sendc('ok')
+                #time.sleep(0.2)
 
 
             elif command == 'find_sp':

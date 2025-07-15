@@ -321,7 +321,8 @@ def ad(conn, sendresult=True):
     rcvc(bob)
     update_tmp('am_mode', 'double')
     ctl.Update_Dac()
-    rcvc(bob)
+    time.sleep(0.2)
+    #rcvc(bob)
     if sendresult:
         sendc(conn, 'ad done')
 
