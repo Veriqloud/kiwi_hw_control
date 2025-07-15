@@ -6,6 +6,7 @@ import json, struct
 import datetime
 from lib.fpga import update_tmp, save_tmp, get_tmp
 import lib.gen_seq as gen_seq
+from lib.fpga import get_arrival_time
 import numpy as np, pickle
 
 import ctl_bob as ctl
@@ -94,9 +95,10 @@ def handle_client(conn, addr):
                     send_i(conn, c[i])
             
             elif command == 'get_gates':
-                ctl.Download_Time(10000, 'get_gates')
-                input_file = HW_CONTROL+'data/tdc/get_gates.txt'
-                data = np.loadtxt(input_file, usecols=1) % 625
+                #ctl.Download_Time(10000, 'get_gates')
+                #input_file = HW_CONTROL+'data/tdc/get_gates.txt'
+                #data = np.loadtxt(input_file, usecols=1) % 625
+                data = get_arrival_time('/dev/xdma0_c2h_2', 10000)
                 bins = np.arange(0, 625, 2)
                 h1, _ = np.histogram(data, bins=bins)
                 serialized = pickle.dumps(h1)

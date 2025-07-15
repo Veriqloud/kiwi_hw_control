@@ -784,6 +784,17 @@ def Get_Stream(base_addr,device_c2h,output_file,count):
     command = HW_CONTROL+"lib/test_tdc/dma_from_device "+"-d "+ device_c2h +" -f "+ output_file+ " -c " + str(count) 
     s = subprocess.check_call(command, shell = True)
 
+def get_arrival_time(device_c2h, count):
+    #Send command to fpga to reset fifo
+    write(0, [40, 40], [0, 1])
+    time = np.zeros(count, dtype=int)
+    with open(device_c2h, 'rb') as f:
+        for i in range(count):
+            data = f.read(16)
+            time[i] = int(data[0]) + ((int(data[1]) & 0x3f) << 8)
+    return time
+
+
 def Reset_Tdc():
     write(0x12000, [4, 4],[1,0])
     time.sleep(1.2)
