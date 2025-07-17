@@ -950,26 +950,41 @@ def Ddr_Data_Init():
 
 
 def Ddr_Status():
-    ddr_fifos_status = Read(0x00001000 + 52)
-    fifos_status = Read(0x00001000 + 56)
-    hex_ddr_fifos_status = ddr_fifos_status.decode('utf-8').strip()
-    hex_fifos_status = fifos_status.decode('utf-8').strip()
-    vfifo_idle = (int(hex_ddr_fifos_status,16) & 0x180)>>7
-    vfifo_empty = (int(hex_ddr_fifos_status,16) & 0x60)>>5
-    vfifo_full = (int(hex_ddr_fifos_status,16) & 0x18)>>3
-    gc_out_full = (int(hex_ddr_fifos_status,16) & 0x4)>>2
-    gc_in_empty = (int(hex_ddr_fifos_status,16) & 0x2)>>1
-    alpha_out_full = int(hex_ddr_fifos_status,16) & 0x1
+    ddr_fifos_status = read(0x1000, 52)
+    print(ddr_fifos_status)
+    fifos_status = read(0x1000, 56)
+    #hex_ddr_fifos_status = ddr_fifos_status.decode('utf-8').strip()
+    #hex_fifos_status = fifos_status.decode('utf-8').strip()
+    vfifo_idle = (ddr_fifos_status & 0x180)>>7
+    vfifo_empty = (ddr_fifos_status & 0x60)>>5
+    vfifo_full = (ddr_fifos_status & 0x18)>>3
+    gc_out_full = (ddr_fifos_status & 0x4)>>2
+    gc_in_empty = (ddr_fifos_status & 0x2)>>1
+    alpha_out_full = ddr_fifos_status & 0x1
 
-    gc_out_empty = (int(hex_fifos_status,16) & 0x4)>>2
-    gc_in_full = (int(hex_fifos_status,16) & 0x2)>>1
-    alpha_out_empty = int(hex_fifos_status,16) & 0x1
+    gc_out_empty = (fifos_status & 0x4)>>2
+    gc_in_full = (fifos_status & 0x2)>>1
+    alpha_out_empty = fifos_status & 0x1
     #current_time = datetime.datetime.now()
     #print(f"Time: {current_time} VF: {vfifo_full} VE: {vfifo_empty}, VI: {vfifo_idle} | gc_out_f,e: {gc_out_full},{gc_out_empty} | gc_in_f,e: {gc_in_full},{gc_in_empty} | alpha_out_f,e: {alpha_out_full},{alpha_out_empty}", flush=True)
     s = f'VF: {vfifo_full} VE: {vfifo_empty}, VI: {vfifo_idle} | gc_out_f,e: {gc_out_full},{gc_out_empty} | gc_in_f,e: {gc_in_full},{gc_in_empty} | alpha_out_f,e: {alpha_out_full},{alpha_out_empty}'
     #print("Time: {current_time}  VF: {vfifo_full}, VE: {vfifo_empty}, VI: {vfifo_idle} | gc_out_f,e: {gc_out_full}, {gc_out_empty} | gc_in_f,e: {gc_in_full}, {gc_in_empty} | alpha_out_f,e: {alpha_out_full}, {alpha_out_empty}                                                                      " ,end ='\r', flush=True)
     return s
 
+def ddr_status2():
+    ddr_fifos_status = read(0x1000, 52)
+    fifos_status = read(0x1000, 56)
+    vfifo_idle = (ddr_fifos_status & 0x180)>>7
+    vfifo_empty = (ddr_fifos_status & 0x60)>>5
+    vfifo_full = (ddr_fifos_status & 0x18)>>3
+    gc_out_full = (ddr_fifos_status & 0x4)>>2
+    gc_in_empty = (ddr_fifos_status & 0x2)>>1
+    alpha_out_full = ddr_fifos_status & 0x1
+
+    gc_out_empty = (fifos_status & 0x4)>>2
+    gc_in_full = (fifos_status & 0x2)>>1
+    alpha_out_empty = fifos_status & 0x1
+    return vfifo_full, gc_out_full, gc_in_full, alpha_out_full
 
 
 

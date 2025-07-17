@@ -44,6 +44,11 @@ class Aurea():
         ret=SPD_OEM.setDeadtime(self.iDev, val)
         if ret<0: print(" -> failed\n")
         else: print(" set deadtime " + str(val) + " us done\n")
+    
+    def temp(self):
+        #val = float(input("Enter deadtime to set (in us): "))
+        ret,temp=SPD_OEM.getBodySocketTemp(self.iDev)
+        return temp
 
     def effi(self, val):
         #val = int(input("Enter efficiency to set (in %): "))

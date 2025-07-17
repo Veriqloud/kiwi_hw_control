@@ -3,12 +3,13 @@
 import socket
 import json
 import argparse
-#from termcolor import colored
+from termcolor import colored
 import struct
 import time
 import os
 import matplotlib.pylab as plt, numpy as np
 import pickle
+from tabulate import tabulate
 
 network_file = os.path.join(os.environ['QLINE_CONFIG_DIR'], 'network.json')
 ports_for_localhost_file = os.path.join(os.environ['QLINE_CONFIG_DIR'], 'ports_for_localhost.json')
@@ -104,12 +105,14 @@ def get_gates():
     return h
 
 
+
 #create top_level parser
 parser = argparse.ArgumentParser()
 
 parser.add_argument("--use_localhost", action="store_true", 
                     help="connect to localhost instead of ip from network.json; e.g. when port forwarding")
 
+parser.add_argument("--status", action="store_true", help="print status")
 parser.add_argument("--counts", action="store_true", help="counts per 0.1s")
 parser.add_argument("--gates", action="store_true", help="plot gates")
 
@@ -198,4 +201,109 @@ elif args.gates:
         fig.canvas.draw()
         fig.canvas.flush_events()
         time.sleep(0.1)
+
+
+elif args.status:
+    firstrun = True
+    count = 0
+
+    while 1:
+        # rng 
+        sendc('get_rng_status')
+        rng_status = rcv_i()
+        if rng_status==0:
+            rng_s = colored('ok', 'green')
+        else:
+            rng_s = colored(rng_status, 'red')
+
+        # fifos
+        sendc('get_fifo_status')
+        vfifo_f = rcv_i()
+        gc_out_f = rcv_i()
+        gc_in_f = rcv_i()
+        alpha_out_f = rcv_i()
+        fifo_s = ""
+        if vfifo_f!=0:
+            fifo_s += 'vfifo_full'
+        if gc_out_f!=0:
+            fifo_s += 'gc_out_full'
+        if gc_in_f !=0:
+            fifo_s += 'gc_in_full'
+        if alpha_out_f !=0:
+            fifo_s += 'alpha_out_full'
+        if fifo_s == "":
+            fifo_s = colored('ok', 'green')
+        else:
+            fifo_s = colored(fifo_s, 'red')
+
+        # counts
+        total, click0, click1 = get_counts()
+        if firstrun:
+            first_total = total
+            first_click0 = click0
+            first_click1 = click1
+        if (total<(first_total/2)) or (total>(first_total*2)):
+            total_s = colored(total, 'red')
+        else:
+            total_s = colored(total, 'green')
+        if (click0<(first_click0/2)) or (click0>(first_click0*2)):
+            click0_s = colored(click0, 'red')
+        else:
+            click0_s = colored(click0, 'green')
+        if (click1<(first_click1/2)) or (click1>(first_click1*2)):
+            click1_s = colored(click1, 'red')
+        else:
+            click1_s = colored(click1, 'green')
+
+        # spd temp
+        if (count%100 == 0):
+            # aure usb interface is slow; update rarely
+            sendc('get_spd_temp')
+            temp = rcv_d()
+        if temp < 30:
+            temp_s = colored(temp, 'green')
+
+        # pci interface
+        sendc('get_pci_status')
+        m = rcvc()
+        if m=='ok':
+            xilinx_s = colored(m, 'green')
+        else:
+            xilinx_s = colored(m, 'red')
+
+
+
+
+        table = [
+                ["rng status", rng_s],
+                ["initial counts (1/0.1s)", first_total, first_click0, first_click1],
+                ["current counts (1/0.1s)", total_s, click0_s, click1_s],
+                ["spd temp (update in "+str(100-count%100)+")", temp_s],
+                ["xilinx pci (update in "+str(100-count%100)+")", xilinx_s],
+                ["fifos", fifo_s],
+                ]
+        print("\033[2J")
+        #print("")
+        print(tabulate(table, tablefmt="plain")+"\r")
+        time.sleep(1)
+        #s = ""
+        ## clear table
+        #for i in range(7):
+        #    s+="\033[1A\r" # move one line up
+        #    s+="\033[K" # erase to end of line
+        #print(s) 
+        firstrun = False
+        count += 1
+
+
+
+
+
+
+
+
+
+
+
+
 

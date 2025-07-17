@@ -40,6 +40,12 @@ def Ensure_Spd_Mode(mode):
         exit("wrong mode")
     save_tmp(t)
 
+def get_spd_temp():
+    aurea = Aurea()
+    temp = aurea.temp()
+    aurea.close()
+    return temp
+
 def Update_Dac():
     # update from tmp.txt
     # Generate sequences for dac0 and dac1 and write to device.

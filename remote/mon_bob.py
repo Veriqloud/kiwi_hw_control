@@ -6,8 +6,9 @@ import json, struct
 import datetime
 from lib.fpga import update_tmp, save_tmp, get_tmp
 import lib.gen_seq as gen_seq
-from lib.fpga import get_arrival_time
+from lib.fpga import get_arrival_time, ddr_status2
 import numpy as np, pickle
+import subprocess
 
 import ctl_bob as ctl
 
@@ -18,6 +19,7 @@ qlinepath = '/home/vq-user/qline/'
 networkfile = qlinepath+'config/network.json'
 connection_logfile = qlinepath+'log/ip_connections_to_mon.log'
 mon_logfile = qlinepath+'log/mon.log'
+rng_errorfile = qlinepath+'rng_fpga/errorflag'
 
 
 ####### convenient send and receive commands ########
@@ -105,6 +107,27 @@ def handle_client(conn, addr):
                 send_data(conn, serialized)
         
 
+            elif command == 'get_rng_status':
+                with open(rng_errorfile, 'rb') as f:
+                    status = f.read()
+                status = int.from_bytes(status, byteorder='little')
+                send_i(conn, int(status))
+            
+            elif command == 'get_spd_temp':
+                temp = ctl.get_spd_temp()
+                send_d(conn, temp)
+
+            elif command == 'get_pci_status':
+                ret = subprocess.check_output("lspci | grep Xilinx", shell=True)
+                if "Xilinx" in str(ret):
+                    sendc(conn, 'ok')
+                else:
+                    sendc(conn, 'missing')
+            
+            elif command == 'get_fifo_status':
+                status = ddr_status2()
+                for i in range(4):
+                    send_i(conn, status[i])
 
 
 

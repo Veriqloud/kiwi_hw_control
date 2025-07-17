@@ -18,7 +18,7 @@ void sigint_handler (int signum) {
 	char *devname = "/dev/xdma0_h2c_1";
 	int fpga_fd = open(devname,O_RDWR);
 	if (fpga_fd < 0) {
-		fprintf(stderr, "unable to open device %s, %d.\n",
+		fprintf(stderr, "at sigint: unable to open device %s, %d.\n",
 			devname, fpga_fd);
 	} else {
         char buf = 0;
@@ -75,6 +75,21 @@ int main(){
         printf("Could not read!\n");
         return 1;
 	} 				    
+    // create the errorfile and write the errorbyte in there (0 == no error)
+    FILE *errorfile = fopen("/home/vq-user/qline/rng_fpga/errorflag", "w");
+    if (errorfile == NULL) {
+        fprintf(stderr, "unable to open errorflag file\n");
+    }
+    char error = buf[8];
+    if (fwrite(&error, sizeof(char), 1, errorfile) != 1){
+        fprintf(stderr, "unable to write to errorfile\n");
+    }
+    fclose(errorfile);
+    if (buf[8] != 0){
+        fprintf(stderr, "error byte was not 0; exiting.\n");
+        return -1;
+    }
+        
 
     
     //Send rng data to xdma_h2c0
@@ -106,10 +121,14 @@ int main(){
 		}
         char error = rbytes[16000];
         if (error){
-            //int errorfile = open("/home/vq-user/qline/log/error.log", O_RDWR);
-            //if (errorfile < 0) {
-            //    fprintf(stderr, "unable to open error.log file\n");
-            //}
+            FILE *errorfile = fopen("/home/vq-user/qline/rng_fpga/errorflag", "w");
+            if (errorfile == NULL) {
+                fprintf(stderr, "unable to open errorflag file\n");
+            }
+            if (fwrite(&error, sizeof(char), 1, errorfile) != 1){
+                fprintf(stderr, "unable to write to errorfile\n");
+            }
+            fclose(errorfile);
             printf("RNG ERROR: %d\n", error);
 
         } 
