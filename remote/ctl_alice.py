@@ -78,7 +78,7 @@ def Update_Dac():
         Write_Angles(t['angle0'], t['angle1'], t['angle2'], t['angle3'])
         dac1 = gen_seq.dac1_sample(np.zeros(64), 0)
     elif t['pm_mode'] == 'true_rng':
-        Write_Pm_Mode('fake_rng', insert_zeros=t['insert_zeros'])
+        Write_Pm_Mode('true_rng', insert_zeros=t['insert_zeros'])
         Write_Angles(t['angle0'], t['angle1'], t['angle2'], t['angle3'])
         dac1 = gen_seq.dac1_sample(np.zeros(64), 0)
     

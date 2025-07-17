@@ -5,7 +5,7 @@ Bob=$SSH_BOB
 qline_config_dir=$QLINE_CONFIG_DIR
 
 usage() {
-    echo "Usage: $0 {gc|qber|control|config|registers|all}"
+    echo "Usage: $0 {gc|qber|control|config|registers|rng|all}"
     exit 1
 }
 
@@ -53,6 +53,12 @@ registers(){
     cd -
 }
 
+rng(){
+    cd ../remote
+    rsync -v rng_fpga/rng2fpga $Alice:~/qline/rng_fpga/
+    rsync -v rng_fpga/rng2fpga $Bob:~/qline/rng_fpga/
+}
+
 # Check that exactly one argument is provided
 [ $# -eq 1 ] || usage
 
@@ -72,8 +78,11 @@ case "$1" in
     registers)
         registers
         ;;
+    rng)
+        rng
+        ;;
     all)
-        gc; qber; control; config; registers
+        gc; qber; control; config; registers; rng
         ;;
     *)
         echo "Error: Unknown command '$1'"

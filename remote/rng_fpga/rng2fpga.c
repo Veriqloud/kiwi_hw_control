@@ -2,13 +2,34 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
-#include <string.h>
+//#include <string.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <termios.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <errno.h>
+#include <signal.h>
+#include <fcntl.h>
+
+
+// write a zeros to the fpga upon exit
+void sigint_handler (int signum) {
+	char *devname = "/dev/xdma0_h2c_1";
+	int fpga_fd = open(devname,O_RDWR);
+	if (fpga_fd < 0) {
+		fprintf(stderr, "unable to open device %s, %d.\n",
+			devname, fpga_fd);
+	} else {
+        char buf = 0;
+		write(fpga_fd, &buf, 1);
+    }
+    close(fpga_fd);
+    _exit(0);
+}
+
+
+
 
 //Main
 int main(){
@@ -65,6 +86,7 @@ int main(){
 		perror("open device");
 		return -EINVAL;
 	}
+    signal(SIGINT, sigint_handler);
 	while(1){
         char rbytes[16001];  
         if (write(fd, "x", 1) != 1) {
@@ -90,7 +112,7 @@ int main(){
             //}
             printf("RNG ERROR: %d\n", error);
 
-        }
+        } 
 		ret_write = write(fpga_fd, rbytes, 16000);
         if (ret_write!=16000){
 		    printf("Wrong number of bytes written: %ld\n",ret_write);

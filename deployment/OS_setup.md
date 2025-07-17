@@ -138,12 +138,12 @@ Add following content to rng.service
 Description=SwiftRNG Service                                                                                     
 
 [Service]                                                                                                         
-ExecStart=/home/vq-user/qline/hw_control/rng_fpga/rng2file                                                        
+ExecStart=/home/vq-user/qline/rng_fpga/rng2fpga                                                       
 Restart=always                                                                                                    
 User=vq-user                                                                                                      
-WorkingDirectory=/home/vq-user/qline/hw_control                                                                  
-StandardOutput=journal                                                                                            
-StandardError=journal                                                                                             
+WorkingDirectory=/home/vq-user/qline/rng_fpga                                                                  
+StandardOutput=file:/home/vq-user/qline/log/rng.log                                                                                           
+StandardError=file:/home/vq-user/qline/log/rng.log                                                                                           
 
 [Install]                                                                                                         
 WantedBy=multi-user.target  

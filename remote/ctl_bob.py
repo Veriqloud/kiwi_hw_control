@@ -26,6 +26,7 @@ def Ensure_Spd_Mode(mode):
             aurea.close()
             t['spd_mode'] = 'continuous'
             t['spd_deadtime'] = deadtime_cont
+            time.sleep(0.2)
     elif mode=='gated':
         if (t['spd_mode'] != 'gated') or (t['spd_deadtime']!=deadtime_gated):
             aurea = Aurea()
@@ -34,6 +35,7 @@ def Ensure_Spd_Mode(mode):
             aurea.close()
             t['spd_mode'] = 'gated'
             t['spd_deadtime'] = deadtime_gated
+            time.sleep(0.2)
     else:
         exit("wrong mode")
     save_tmp(t)
