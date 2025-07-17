@@ -10,7 +10,7 @@ from lib.fpga import get_arrival_time, ddr_status2, get_gc
 import numpy as np, pickle
 import subprocess
 
-import ctl_bob as ctl
+import ctl_alice as ctl
 
 HW_CONTROL = '/home/vq-user/qline/hw_control/'
 
@@ -91,21 +91,6 @@ def handle_client(conn, addr):
             if not command:
                 print(f"[-] Disconnected: {addr}")
                 break
-            elif command == 'get_counts':
-                c = ctl.counts_fast()
-                for i in range(3):
-                    send_i(conn, c[i])
-            
-            elif command == 'get_gates':
-                #ctl.Download_Time(10000, 'get_gates')
-                #input_file = HW_CONTROL+'data/tdc/get_gates.txt'
-                #data = np.loadtxt(input_file, usecols=1) % 625
-                data = get_arrival_time('/dev/xdma0_c2h_2', 10000)
-                bins = np.arange(0, 625, 2)
-                h1, _ = np.histogram(data, bins=bins)
-                serialized = pickle.dumps(h1)
-                send_data(conn, serialized)
-        
 
             elif command == 'get_rng_status':
                 with open(rng_errorfile, 'rb') as f:
@@ -113,10 +98,6 @@ def handle_client(conn, addr):
                 status = int.from_bytes(status, byteorder='little')
                 send_i(conn, int(status))
             
-            elif command == 'get_spd_temp':
-                temp = ctl.get_spd_temp()
-                send_d(conn, temp)
-
             elif command == 'get_pci_status':
                 ret = subprocess.check_output("lspci | grep Xilinx", shell=True)
                 if "Xilinx" in str(ret):
@@ -128,7 +109,7 @@ def handle_client(conn, addr):
                 status = ddr_status2()
                 for i in range(4):
                     send_i(conn, status[i])
-
+            
             elif command == 'get_gc':
                 gc = get_gc()
                 send_d(gc)
@@ -143,7 +124,7 @@ def main():
     with open(networkfile, 'r') as f:
         network = json.load(f)
 
-    host = network['ip']['bob']
+    host = network['ip']['alice']
     port = int(network['port']['mon'])
 
     server_socket = socket.socket()
