@@ -11,7 +11,7 @@ use std::os::unix::net::UnixListener;
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::mpsc::{Receiver, Sender, TryRecvError, channel};
-use std::thread;
+use std::{thread, time};
 use tracing_subscriber::fmt::writer::MakeWriterExt;
 use uuid::Uuid;
 
@@ -86,10 +86,30 @@ fn recv_gc(bob: &mut TcpStream, rx: &Receiver<Request>, debug_mode: bool) -> std
     //thread::sleep(time::Duration::from_millis(100));
 }
 
-fn handle_bob(rx: Receiver<Request>, tx: Sender<Response>, ip_bob: &str) {
-    let mut bob = TcpStream::connect(&ip_bob).expect("could not connect to stream\n");
-    tracing::info!("connected to Bob");
+fn connect_to_bob(ip_bob: &str) -> TcpStream {
+    // loop until bob opens TcpStream
+    loop {
+        match TcpStream::connect(&ip_bob){
+            Ok(stream) => {
+                return stream
+            },
+            Err(e) => {
+                match e.kind() {
+                    std::io::ErrorKind::ConnectionRefused => {
+                        thread::sleep(time::Duration::from_millis(1000));
+                        continue
+                    },
+                    _ => panic!("{}", e),
+                }
+            }
+        }
+    }
+}
 
+fn handle_bob(rx: Receiver<Request>, tx: Sender<Response>, ip_bob: &str) {
+    tracing::info!("connecting to Bob...");
+    let mut bob =  connect_to_bob(&ip_bob);
+    tracing::info!("connected to Bob");
     let mut debug_mode = false;
 
     loop {

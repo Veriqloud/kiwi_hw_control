@@ -100,7 +100,19 @@ with open(networkfile, 'r') as f:
 host = network['ip']['bob']
 port = int(network['port']['hws'])
 bob = socket.socket()
-bob.connect((host, port))
+
+try_connect = True
+print('trying to connect to Bob...')
+while try_connect:
+    try:
+        bob.connect((host, port))
+        try_connect = False
+    except ConnectionRefusedError:
+        time.sleep(1)
+        continue
+    except:
+        exit('could not connect to Bob')
+
 
 # Create TCP socket for listening for commands from admin
 host = network['ip']['alice']
