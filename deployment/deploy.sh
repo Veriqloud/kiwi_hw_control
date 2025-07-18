@@ -18,7 +18,7 @@ gc(){
 
 qber(){
     cd ../qber/target/release
-    rsync -v alice $Alice:~/qline/server/qber
+    rsync -v alice $Alice:~/qline/bin/qber
     rsync -v bob $Bob:~/qline/server/qber
     cd -
 }
