@@ -1,0 +1,16 @@
+[Unit]
+Description=hardware monitoring server
+Requires=network-online.target
+After=network-online.target
+
+[Service] 
+EnvironmentFile=/etc/environment
+ExecStart=/home/vq-user/qline/server/mon.py
+Restart=always
+User=vq-user
+WorkingDirectory=/home/vq-user/qline/server
+StandardOutput=append:/home/vq-user/qline/log/mon.log
+StandardError=append:/home/vq-user/qline/log/mon.log
+
+[Install] 
+WantedBy=multi-user.target

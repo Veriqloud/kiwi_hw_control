@@ -173,4 +173,23 @@ service rng status
 service decoy_rng status
 ```
 
+# systemctl setup
+
+add `PYTHONPATH=/home/vq-user` to `/etc/environment`
+
+copy files from `systemd` to machine:~/
+
+and then on remote machine
+
+```.bash
+cd 
+sudo rsync --chown root:root *.service  /etc/systemd/system/
+rm *.service
+sudo systemctl enable hw.service
+sudo systemctl enable hws.service
+sudo systemctl enable mon.service
+sudo systemctl enable gc.service
+```
+
+
 

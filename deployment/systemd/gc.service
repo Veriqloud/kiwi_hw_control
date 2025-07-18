@@ -1,0 +1,15 @@
+[Unit]
+Description=pass global counter from fpga over OS to fpga
+Requires=network-online.target
+After=network-online.target
+
+[Service] 
+ExecStart=/home/vq-user/qline/server/gc
+Restart=always
+User=vq-user
+WorkingDirectory=/home/vq-user/qline/server
+StandardOutput=append:/home/vq-user/qline/log/gc.log
+StandardError=append:/home/vq-user/qline/log/gc.log
+
+[Install] 
+WantedBy=multi-user.target

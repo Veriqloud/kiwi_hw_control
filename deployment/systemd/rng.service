@@ -1,0 +1,13 @@
+[Unit]                                                                                                           
+Description=SwiftRNG Service                                                                                     
+
+[Service]                                                                                                         
+ExecStart=/home/vq-user/qline/rng_fpga/rng2fpga                                                       
+Restart=always                                                                                                    
+User=vq-user                                                                                                      
+WorkingDirectory=/home/vq-user/qline/rng_fpga                                                                 
+StandardOutput=append:/home/vq-user/qline/log/rng.log
+StandardError=append:/home/vq-user/qline/log/rng.log
+
+[Install]                                                                                                         
+WantedBy=multi-user.target  
