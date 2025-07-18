@@ -7,7 +7,7 @@ import json
 import datetime
 import ctl_bob as ctl
 import struct
-from lib.fpga import update_tmp, save_tmp, get_tmp, get_gc
+from lib.fpga import update_tmp, save_tmp, get_tmp, get_gc, get_ltc_info, get_sda_info, get_fda_info
 import lib.gen_seq as gen_seq
 import pickle   # serialize numpy data
 import numpy as np
@@ -269,6 +269,23 @@ while True:
                 serialized = pickle.dumps(h1)
                 send_data(serialized)
                 
+            elif command == 'get_ltc_info':
+                regs = get_ltc_info(verbose=True)
+                header = ['add', 'exp', 'got']
+                s = tabulate(regs, headers=header, tablefmt='plain') 
+                sendc(s)
+            
+            elif command == 'get_sda_info':
+                regs = get_sda_info(verbose=True)
+                header = ['add', 'exp', 'got']
+                s = tabulate(regs, headers=header, tablefmt='plain') 
+                sendc(s)
+            
+            elif command == 'get_fda_info':
+                regs = get_fda_info(verbose=True)
+                header = ['add', 'exp', 'got']
+                s = tabulate(regs, headers=header, tablefmt='plain') 
+                sendc(s)
 
             elif not command:
                 print("Client disconnected.")

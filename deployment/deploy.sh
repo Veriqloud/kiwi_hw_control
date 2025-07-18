@@ -25,7 +25,7 @@ qber(){
 
 control(){
     cd ../remote
-    rsync -v hw_alice.py hws_alice.py ctl_alice.py $Alice:~/qline/hw_control/
+    rsync -v hw_alice.py hws_alice.py ctl_alice.py mon_alice.py $Alice:~/qline/hw_control/
     rsync -v lib/*.py $Alice:~/qline/hw_control/lib/
     rsync -v alice_server/*.py $Alice:~/qline/server/
     rsync -v control_servers.sh $Alice:~/qline/server/

@@ -205,6 +205,16 @@ def get(args):
         bins = np.arange(0,625, 2)
         plt.plot(bins[:-1], h)
         plt.show()
+    
+    elif args.ltc:
+        sendc('get_ltc_info')
+        print(rcvc())
+    elif args.sda:
+        sendc('get_sda_info')
+        print(rcvc())
+    elif args.fda:
+        sendc('get_fda_info')
+        print(rcvc())
 
 
 
@@ -300,6 +310,12 @@ parser_get.add_argument("--gc", action="store_true",
 #                            help="download the postprocessed angles")
 parser_get.add_argument("--ddr_status", action="store_true",
                         help="print ddr status")
+parser_get.add_argument("--ltc", action="store_true",
+                        help="print clock chip registers")
+parser_get.add_argument("--sda", action="store_true",
+                        help="print slow dac registers")
+parser_get.add_argument("--fda", action="store_true",
+                        help="print fast dac registers")
 
 parser_set.add_argument("--angles", nargs=4, type=float, 
                         help="float [-1,1]")

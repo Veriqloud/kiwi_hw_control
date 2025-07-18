@@ -144,15 +144,24 @@ def get(args):
     if args.info:
         sendc('get_info')
         print(rcvc())
-    if args.gc:
+    elif args.gc:
         sendc('get_gc')
         #Ddr_Data_Init()
         #Get_Current_Gc()
         gc = rcv_q()
         t = gc/80e6
         print("current gc:", gc, '({:.2f} s)'.format(t))
-    if args.ddr_status:
+    elif args.ddr_status:
         sendc('get_ddr_status')
+        print(rcvc())
+    elif args.ltc:
+        sendc('get_ltc_info')
+        print(rcvc())
+    elif args.sda:
+        sendc('get_sda_info')
+        print(rcvc())
+    elif args.fda:
+        sendc('get_fda_info')
         print(rcvc())
 
 
@@ -229,6 +238,12 @@ parser_get.add_argument("--gc", action="store_true",
                         help="get current global counter")
 parser_get.add_argument("--ddr_status", action="store_true",
                         help="print ddr status")
+parser_get.add_argument("--ltc", action="store_true",
+                        help="print clock chip registers")
+parser_get.add_argument("--sda", action="store_true",
+                        help="print slow dac registers")
+parser_get.add_argument("--fda", action="store_true",
+                        help="print fast dac registers")
 
 
 

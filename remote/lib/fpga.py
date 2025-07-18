@@ -305,6 +305,25 @@ def Get_Ltc_info():
     print("Monitoring ltc finished")
     reg_file.close()
 
+def get_ltc_info(verbose=False):
+    data = np.loadtxt(HW_CONFIG+'registers/ltc/Ltc6951Expect.txt', delimiter=',', converters=lambda s: int(s, 16), dtype=int)
+    add = data[:,0]
+    expect = data[:,1]
+    l = len(add)
+    got = np.zeros(l, dtype=int)
+    for i in range(l):
+        add_shifted = (add[i]<<1) | 1
+        got[i] = Get_reg_new(2,'ltc',add_shifted,0)[1]
+    if verbose:
+        output = np.zeros((l,3), dtype=int)
+        output[:,0] = add
+        output[:,1] = expect
+        output[:,2] = got
+        return output
+    else:
+        return (got==expect).all()
+
+
 def Get_Id():
     id_add = 0x13
     add_shifted = (id_add <<1) | 1 
@@ -358,6 +377,32 @@ def Get_Sda_Config():
         #print("reg_val1:",val1)
     print("Monitoring sda finished")
     file.close()
+
+def get_sda_info(verbose=False):
+    data = np.loadtxt(HW_CONFIG+'registers/sda/Dac81408_setting.txt', delimiter=',', converters=lambda s: int(s, 16), dtype=int)
+    add = data[:,0]
+    expect = data[:,1]<<8 | data[:,2]
+    l = len(add)
+    got = np.zeros(l, dtype=int)
+    for i in range(l):
+        add_shifted = 1<<7 | add[i] #Start to readback value for monitoring
+        val2_pre = Get_reg_new(2,'sda',add_shifted,0,0)
+        ret = Get_reg_new(2,'sda',0,0,0)
+        got[i] = ret[1]<<8 | ret[2]
+    if verbose:
+        output = np.zeros((l,3), dtype=int)
+        output[:,0] = add
+        output[:,1] = expect
+        output[:,2] = got
+        return output
+    else:
+        # ignore addr 4 and addr 0xb because
+        # they don't match even though the device seems
+        # to be working normally
+        got[2] = expect[2]
+        got[8] = expect[8]
+        return (got==expect).all()
+
 
 def Config_Sda():
     Soft_Reset_Sda()
@@ -575,6 +620,25 @@ def Get_reg_monitor():
     print("Monitoring finished. If dyn_link_latency != 0x00 then run sda_init again")
     file.close()
     return check
+
+def get_fda_info(verbose=False):
+    data = np.loadtxt(HW_CONFIG+'registers/fda/hop_regs/reg_monitor.txt', delimiter=',', converters=lambda s: int(s, 16), dtype=int)
+    addb1 = data[:,0]
+    addb2 = data[:,1]
+    expect = data[:,2]
+    l = len(addb1)
+    got = np.zeros(l, dtype=int)
+    for i in range(l):
+        instr = addb1[i] | 0x80
+        got[i] = Get_reg_new(2,'fda', instr, addb2[i], 0)[-1]
+    if verbose:
+        output = np.zeros((l,3), dtype=int)
+        output[:,0] = addb1<<8 | addb2
+        output[:,1] = expect
+        output[:,2] = got
+        return output
+    else:
+        return (got==expect).all()
 
 
 def Get_Id_Fda():

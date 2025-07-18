@@ -7,8 +7,9 @@ import json
 import datetime
 import ctl_alice as ctl
 import struct
-from lib.fpga import update_tmp, save_tmp, get_tmp, get_gc
+from lib.fpga import update_tmp, save_tmp, get_tmp, get_gc, get_ltc_info, get_sda_info, get_fda_info
 import lib.gen_seq as gen_seq
+from tabulate import tabulate
 
 HW_CONTROL = '/home/vq-user/qline/hw_control/'
 
@@ -199,6 +200,24 @@ while True:
                 send_q(gc)
             elif command == 'get_ddr_status':
                 s = ctl.Ddr_Status()
+                sendc(s)
+            
+            elif command == 'get_ltc_info':
+                regs = get_ltc_info(verbose=True)
+                header = ['add', 'exp', 'got']
+                s = tabulate(regs, headers=header, tablefmt='plain') 
+                sendc(s)
+            
+            elif command == 'get_sda_info':
+                regs = get_sda_info(verbose=True)
+                header = ['add', 'exp', 'got']
+                s = tabulate(regs, headers=header, tablefmt='plain') 
+                sendc(s)
+            
+            elif command == 'get_fda_info':
+                regs = get_fda_info(verbose=True)
+                header = ['add', 'exp', 'got']
+                s = tabulate(regs, headers=header, tablefmt='plain') 
                 sendc(s)
 
             elif not command:

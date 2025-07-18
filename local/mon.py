@@ -160,6 +160,20 @@ def get_pci_status(socket):
     return xilinx_s
 
 
+def check_chip_status(command):
+    sendc(alice, command)
+    sendc(bob, command)
+    r_alice = rcv_i(alice)
+    r_bob = rcv_i(bob)
+    if r_alice:
+        ltc_alice  = colored('ok', 'green')
+    else: 
+        ltc_alice  = colored('error', 'red')
+    if r_bob:
+        ltc_bob  = colored('ok', 'green')
+    else: 
+        ltc_bob  = colored('error', 'red')
+    return ltc_alice, ltc_bob
 
 
 
@@ -247,7 +261,7 @@ elif args.gates:
     line1, = ax1.plot(bins[:-1], h, '-o', markersize=2)
     ax1.set_xlabel('time bins [20ps]')
     ax1.set_ylabel('counts / bin')
-    ax1.set_ylim(0, (max(h)//200 + 1)*200)
+    ax1.set_ylim(0, (max(h)//50 + 1)*50)
     fig.canvas.draw()
     fig.canvas.flush_events()
     fig.canvas.mpl_connect('close_event', handle_close) # listen to close event
@@ -255,7 +269,7 @@ elif args.gates:
     while close_flag == 0:
         h = get_gates()
         line1.set_ydata(h)
-        ax1.set_ylim(0, (max(h)//200 + 1)*200)
+        ax1.set_ylim(0, (max(h)//50 + 1)*50)
         fig.canvas.draw()
         fig.canvas.flush_events()
         time.sleep(0.1)
@@ -271,8 +285,8 @@ elif args.status:
         rng_bob = rng_status(bob)
 
         # fifos
-        fifo_alice = get_fifo_status(alice)
-        fifo_bob = get_fifo_status(bob)
+        fifo_alice = fifo_status(alice)
+        fifo_bob = fifo_status(bob)
 
         # counts
         total, click0, click1 = get_counts()
@@ -281,22 +295,22 @@ elif args.status:
             first_click0 = click0
             first_click1 = click1
         if (total<(first_total/2)) or (total>(first_total*2)):
-            total_s = colored(total, 'red')
+            total_s = colored(total, 'yellow')
         else:
             total_s = colored(total, 'green')
         if (click0<(first_click0/2)) or (click0>(first_click0*2)):
-            click0_s = colored(click0, 'red')
+            click0_s = colored(click0, 'yellow')
         else:
             click0_s = colored(click0, 'green')
         if (click1<(first_click1/2)) or (click1>(first_click1*2)):
-            click1_s = colored(click1, 'red')
+            click1_s = colored(click1, 'yellow')
         else:
             click1_s = colored(click1, 'green')
 
         # spd temp
         if (count%100 == 0):
             # aure usb interface is slow; update rarely
-            sendc('get_spd_temp')
+            sendc(bob, 'get_spd_temp')
             temp = rcv_d(bob)
         if temp < 30:
             temp_s = colored(temp, 'green')
@@ -308,36 +322,44 @@ elif args.status:
         # sync
         sendc(alice, 'get_gc')
         sendc(bob, 'get_gc')
-        gc_alice = rcv_d(alice)
-        gc_bob = rcv_d(bob)
+        gc_alice = int(rcv_d(alice))
+        gc_bob = int(rcv_d(bob))
         gc_diff = gc_bob - gc_alice
-        gc_time = gc_alice/80e6
-        gc_time = gc_bob/80e6
-        gc_diff_time = gc_diff / 80e6
+        gc_time = gc_alice/40e6
+        gc_time = gc_bob/40e6
+        gc_diff_time = gc_diff / 40e6
         if abs(gc_diff_time) > 0.1:
-            gc_diff_time_ms = colored(str(round(gc_diff_time*1000))+'ms', 'red')
+            gc_diff_time_ms = colored(round(gc_diff_time*1000,2), 'red')
         else:
-            gc_diff_time_ms = colored(str(round(gc_diff_time*1000))+'ms', 'green')
+            gc_diff_time_ms = colored(round(gc_diff_time*1000,2), 'green')
+
+        # hw components
+        if (count%100 == 0):
+            ltc_alice, ltc_bob = check_chip_status('get_ltc_info')
+            sda_alice, sda_bob = check_chip_status('get_sda_info')
+            fda_alice, fda_bob = check_chip_status('get_fda_info')
+
+            
 
 
-
-        header1 = ['', 'Alice', 'Bob', 'diff']
+        header1 = ['', 'Alice', 'Bob', '']
         table1 = [
-                ["rng status", rng_alice, rng_bob],
-                ["xilinx pci (update in "+str(100-count%100)+")", xilinx_alice, xilinx_bob],
+                ["rng", rng_alice, rng_bob],
                 ["fifos", fifo_alice, fifo_bob],
-                ["gc", gc_alice, gc_bob, str(gc_diff)+" ("+gc_diff_time_ms+')'],
+                ["xilinx pci", xilinx_alice, xilinx_bob, "update in "+str(100-count%100)],
+                ["clock chip", ltc_alice, ltc_bob, "update in "+str(100-count%100)],
+                ["slow dac", sda_alice, sda_bob, "update in "+str(100-count%100)],
+                ["fast dac", fda_alice, fda_bob, "update in "+str(100-count%100)],
                 ]
         table2 = [
                 ["initial counts (1/0.1s)", first_total, first_click0, first_click1],
                 ["current counts (1/0.1s)", total_s, click0_s, click1_s],
-                ["spd temp (update in "+str(100-count%100)+")", temp_s],
-                ["gctime", gc_time],
+                ["spd temp", temp_s, "", "", "update in "+str(100-count%100)],
+                ["gc time (s)", round(gc_time,2)],
+                ["gc A-B diff time (ms)", gc_diff_time_ms],
                 ]
-        print("\033[2J")
-        #print("")
-        print(tabulate(table2, tablefmt="plain")+"\r")
-        print(tabulate(table1, tablefmt="plain", header=header1)+"\r")
+        
+        print("\033[2J", tabulate(table2, tablefmt="plain"), "\n\n", tabulate(table1, tablefmt="plain", headers=header1))
         time.sleep(1)
         firstrun = False
         count += 1

@@ -6,7 +6,7 @@ import json, struct
 import datetime
 from lib.fpga import update_tmp, save_tmp, get_tmp
 import lib.gen_seq as gen_seq
-from lib.fpga import get_arrival_time, ddr_status2, get_gc
+from lib.fpga import get_arrival_time, ddr_status2, get_gc, get_ltc_info, get_sda_info, get_fda_info
 import numpy as np, pickle
 import subprocess
 
@@ -112,7 +112,19 @@ def handle_client(conn, addr):
             
             elif command == 'get_gc':
                 gc = get_gc()
-                send_d(gc)
+                send_d(conn, gc)
+            
+            elif command == 'get_ltc_info':
+                r = get_ltc_info()
+                send_i(conn, r)
+            
+            elif command == 'get_sda_info':
+                r = get_sda_info()
+                send_i(conn, r)
+            
+            elif command == 'get_fda_info':
+                r = get_fda_info()
+                send_i(conn, r)
 
 
 
