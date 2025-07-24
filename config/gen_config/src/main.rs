@@ -1,7 +1,6 @@
-use clap::{Parser};
-use std::path::PathBuf;
+use clap::Parser;
 use serde::{Deserialize, Serialize};
-
+use std::path::PathBuf;
 
 #[derive(Parser, Debug)]
 struct Cli {
@@ -22,52 +21,48 @@ struct Cli {
     sim: Option<PathBuf>,
 }
 
-
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
-struct Ip{
+struct Ip {
     alice: String,
-    bob: String
+    bob: String,
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
-struct Port{
+struct Port {
     hw: u32,
     hws: u32,
     gc: u32,
     qber: u32,
     node: u32,
-    mon: u32
+    mon: u32,
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
-struct Network{
+struct Network {
     ip: Ip,
-    port: Port
+    port: Port,
 }
 
-
-impl Network{
+impl Network {
     fn from_pathbuf(path: &PathBuf) -> Network {
-        let contents = std::fs::read_to_string(path)
-            .expect(&format!("failed reading network file: {path:?}"));
+        let contents =
+            std::fs::read_to_string(path).expect(&format!("failed reading network file: {path:?}"));
         let network: Network =
             serde_json::from_str(&contents).expect(&format!("failed to parse config: {contents}"));
         network
     }
-    pub fn save_to_file(&self, path: &PathBuf){
+    pub fn save_to_file(&self, path: &PathBuf) {
         let s = serde_json::to_string_pretty(&self).unwrap();
         std::fs::write(path, s).expect("writing config to file");
     }
 }
 
-
 fn main() {
-
     let cli = Cli::parse();
 
-    if cli.output_path_bob==cli.output_path_alice{
+    if cli.output_path_bob == cli.output_path_alice {
         println!("ERROR: output paths for alice and bob cannot be the same!");
-        return 
+        return;
     }
     std::fs::create_dir_all(&cli.output_path_alice).expect("creating directory for alice");
     std::fs::create_dir_all(&cli.output_path_bob).expect("creating directory for alice");
@@ -77,12 +72,12 @@ fn main() {
     match cli.sim {
         Some(hw_sim_path) => {
             // generate files for the simulator
-            
+
             // gc config Alice
             let hardcoded_conf = gc::config::Configuration {
                 player: gc::config::QlinePlayer::Alice(gc::config::AliceConfig {
                     network: gc::config::ConfigNetwork {
-                        ip_gc: network.ip.bob.clone()+":"+&network.port.gc.to_string(),
+                        ip_gc: network.ip.bob.clone() + ":" + &network.port.gc.to_string(),
                     },
                     fifo: gc::config::ConfigFifoAlice {
                         command_socket_path: "/tmp/gc_alice_command.socket".to_string(),
@@ -90,10 +85,14 @@ fn main() {
                     },
                 }),
                 current_hw_parameters_file_path: std::fs::canonicalize(&cli.output_path_alice)
-                    .unwrap().join("hw_params.txt").to_str().unwrap().to_string(),
+                    .unwrap()
+                    .join("hw_params.txt")
+                    .to_str()
+                    .unwrap()
+                    .to_string(),
                 fpga_start_socket_path: "/tmp/fpga_alice".to_string(),
                 log_level: cli.log_level.clone(),
-                }; 
+            };
             let mut output_file = cli.output_path_alice.clone();
             output_file.push("gc.json");
             println!("writing gc config for Alice to {:?}", output_file);
@@ -103,7 +102,7 @@ fn main() {
             let hardcoded_conf = gc::config::Configuration {
                 player: gc::config::QlinePlayer::Bob(gc::config::BobConfig {
                     network: gc::config::ConfigNetwork {
-                        ip_gc: network.ip.bob.clone()+":"+&network.port.gc.to_string(),
+                        ip_gc: network.ip.bob.clone() + ":" + &network.port.gc.to_string(),
                     },
                     fifo: gc::config::ConfigFifoBob {
                         gcr_file_path: "/tmp/gc_bob_gcr.fifo".to_string(),
@@ -112,7 +111,11 @@ fn main() {
                     },
                 }),
                 current_hw_parameters_file_path: std::fs::canonicalize(&cli.output_path_bob)
-                    .unwrap().join("hw_params.txt").to_str().unwrap().to_string(),
+                    .unwrap()
+                    .join("hw_params.txt")
+                    .to_str()
+                    .unwrap()
+                    .to_string(),
                 fpga_start_socket_path: "/tmp/fpga_bob".to_string(),
                 log_level: cli.log_level.clone(),
             };
@@ -123,7 +126,7 @@ fn main() {
 
             // qber config Alice
             let hardcoded_conf = qber::config::AliceConfig {
-                ip_bob: network.ip.bob.clone()+":"+&network.port.qber.to_string(),
+                ip_bob: network.ip.bob.clone() + ":" + &network.port.qber.to_string(),
                 angle_file_path: "/tmp/gc_alice_angle.fifo".to_string(),
                 command_socket_path: "/tmp/gc_alice_command.socket".to_string(),
             };
@@ -134,7 +137,7 @@ fn main() {
 
             // qber config Bob
             let hardcoded_conf = qber::config::BobConfig {
-                ip_listen: network.ip.bob.clone()+":"+&network.port.qber.to_string(),
+                ip_listen: network.ip.bob.clone() + ":" + &network.port.qber.to_string(),
                 angle_file_path: "/tmp/gc_bob_angle.fifo".to_string(),
                 click_result_file_path: "/tmp/gc_bob_click_result.fifo".to_string(),
             };
@@ -157,59 +160,69 @@ fn main() {
             std::fs::write(output_file, s).expect("writing hw_params to file");
 
             // hw_sim config Alice
-            let sim_config_str = std::fs::read_to_string(&hw_sim_path).expect("failed reading hw_sim file");
-            let sim_config: configs::backend::Configuration = serde_json::from_str(&sim_config_str).expect("failed parsing hw_sim config");
-            let sim_full_config_alice = configs::Configuration {
-                backend_config: sim_config,
-                ipc_config: configs::ipc::Configuration::Alice(configs::ipc::AliceIpcConfig {
-                    command_path: "/tmp/fpga_alice".to_string(), // Default command path for Bob
-                    angle_file_path: "/tmp/gc_alice_angle.fifo".to_string(),
-                    gc_read_file_path: "/tmp/gc_alice_gc.fifo".to_string(),
-                }),
-                log_level: configs::LogLevel(cli.log_level.clone()),
-
+            let sim_config_alice_str =
+                std::fs::read_to_string(&hw_sim_path).expect("failed reading hw_sim file");
+            let sim_backend_config_alice: simulator_configs::backend::Configuration =
+                serde_json::from_str(&sim_config_alice_str).expect("failed parsing hw_sim config");
+            let sim_full_config_alice = simulator_configs::Configuration {
+                backend_config: sim_backend_config_alice,
+                ipc_config: simulator_configs::ipc::Configuration::Alice(
+                    simulator_configs::ipc::AliceIpcConfig {
+                        command_path: "/tmp/fpga_alice".to_string(), // Default command path for Bob
+                        angle_file_path: "/tmp/gc_alice_angle.fifo".to_string(),
+                        gc_read_file_path: "/tmp/gc_alice_gc.fifo".to_string(),
+                    },
+                ),
+                log_level: simulator_configs::LogLevel(cli.log_level.clone()),
             };
             let output_file = cli.output_path_alice.join("hw_sim.json");
             println!("writing hw_sim config for Alice to {:?}", output_file);
-            let sim_config_json = serde_json::to_string_pretty(&sim_full_config_alice).expect("serializing hw_sim config");
-            std::fs::write(&output_file, sim_config_json).expect("writing hw_sim config to file");
-            
-            // hw_sim config Bob
-            let sim_config_bob: configs::backend::Configuration = serde_json::from_str(&sim_config_str).expect("failed parsing hw_sim config for Bob");
-            let sim_full_config_bob = configs::Configuration {
-                backend_config: sim_config_bob,
-                ipc_config: configs::ipc::Configuration::Bob(configs::ipc::BobIpcConfig {
-                    command_path: "/tmp/fpga_bob".to_string(), // Default command path for Bob
-                    angle_file_path: "/tmp/gc_bob_angle.fifo".to_string(),
-                    gcr_file_path: "/tmp/gc_bob_gcr.fifo".to_string(),
-                    gc_read_file_path: "/tmp/gc_bob_gc.fifo".to_string(),
-                }),
-                log_level: configs::LogLevel(cli.log_level.clone()),
+            let sim_alice_config_json = serde_json::to_string_pretty(&sim_full_config_alice)
+                .expect("serializing hw_sim config");
+            std::fs::write(&output_file, sim_alice_config_json)
+                .expect("writing hw_sim config to file");
 
+            // hw_sim config Bob
+            let sim_backend_config_bob: simulator_configs::backend::Configuration =
+                serde_json::from_str(&sim_config_alice_str)
+                    .expect("failed parsing hw_sim config for Bob");
+            let sim_full_config_bob = simulator_configs::Configuration {
+                backend_config: sim_backend_config_bob,
+                ipc_config: simulator_configs::ipc::Configuration::Bob(
+                    simulator_configs::ipc::BobIpcConfig {
+                        command_path: "/tmp/fpga_bob".to_string(), // Default command path for Bob
+                        angle_file_path: "/tmp/gc_bob_angle.fifo".to_string(),
+                        gcr_file_path: "/tmp/gc_bob_gcr.fifo".to_string(),
+                        gc_read_file_path: "/tmp/gc_bob_gc.fifo".to_string(),
+                    },
+                ),
+                log_level: simulator_configs::LogLevel(cli.log_level.clone()),
             };
             let output_file = cli.output_path_bob.join("hw_sim.json");
             println!("writing hw_sim config for Bob to {:?}", output_file);
-            let sim_config_json = serde_json::to_string_pretty(&sim_full_config_bob).expect("serializing hw_sim config");
-            std::fs::write(&output_file, sim_config_json).expect("writing hw_sim config to file");
-        
+            let sim_bob_config_json = serde_json::to_string_pretty(&sim_full_config_bob)
+                .expect("serializing hw_sim config");
+            std::fs::write(&output_file, sim_bob_config_json)
+                .expect("writing hw_sim config to file");
         }
         None => {
             // generate files for the real hardware
-        
+
             // gc config Alice
             let hardcoded_conf = gc::config::Configuration {
-            player: gc::config::QlinePlayer::Alice(gc::config::AliceConfig {
-                network: gc::config::ConfigNetwork {
-                    ip_gc: network.ip.bob.clone()+":"+&network.port.gc.to_string(),
-                },
-                fifo: gc::config::ConfigFifoAlice {
-                    command_socket_path: "/home/vq-user/start_stop.socket".to_string(),
-                    gc_file_path: "/dev/xdma0_h2c_0".to_string(),
-                },
-            }),
-            current_hw_parameters_file_path: "/home/vq-user/hw_control/config/tmp.txt".to_string(),
-            fpga_start_socket_path: "/dev/xdma0_user".to_string(),
-            log_level: cli.log_level.clone(),
+                player: gc::config::QlinePlayer::Alice(gc::config::AliceConfig {
+                    network: gc::config::ConfigNetwork {
+                        ip_gc: network.ip.bob.clone() + ":" + &network.port.gc.to_string(),
+                    },
+                    fifo: gc::config::ConfigFifoAlice {
+                        command_socket_path: "/home/vq-user/start_stop.socket".to_string(),
+                        gc_file_path: "/dev/xdma0_h2c_0".to_string(),
+                    },
+                }),
+                current_hw_parameters_file_path: "/home/vq-user/hw_control/config/tmp.txt"
+                    .to_string(),
+                fpga_start_socket_path: "/dev/xdma0_user".to_string(),
+                log_level: cli.log_level.clone(),
             };
             let mut output_file = cli.output_path_alice.clone();
             output_file.push("gc.json");
@@ -220,7 +233,7 @@ fn main() {
             let hardcoded_conf = gc::config::Configuration {
                 player: gc::config::QlinePlayer::Bob(gc::config::BobConfig {
                     network: gc::config::ConfigNetwork {
-                        ip_gc: network.ip.bob.clone()+":"+&network.port.gc.to_string(),
+                        ip_gc: network.ip.bob.clone() + ":" + &network.port.gc.to_string(),
                     },
                     fifo: gc::config::ConfigFifoBob {
                         gcr_file_path: "/dev/xdma0_c2h_1".to_string(),
@@ -228,7 +241,8 @@ fn main() {
                         click_result_file_path: "/home/vq-user/click_result.fifo".to_string(),
                     },
                 }),
-                current_hw_parameters_file_path: "/home/vq-user/hw_control/config/tmp.txt".to_string(),
+                current_hw_parameters_file_path: "/home/vq-user/hw_control/config/tmp.txt"
+                    .to_string(),
                 fpga_start_socket_path: "/dev/xdma0_user".to_string(),
                 log_level: cli.log_level.clone(),
             };
@@ -236,12 +250,10 @@ fn main() {
             output_file.push("gc.json");
             println!("writing gc config for Bob to {:?}", output_file);
             hardcoded_conf.save_to_file(&output_file);
-        
-
 
             // qber config Alice
             let hardcoded_conf = qber::config::AliceConfig {
-                ip_bob: network.ip.bob.clone()+":"+&network.port.qber.to_string(),
+                ip_bob: network.ip.bob.clone() + ":" + &network.port.qber.to_string(),
                 angle_file_path: "/dev/xdma0_c2h_3".to_string(),
                 command_socket_path: "/home/vq-user/start_stop.socket".to_string(),
             };
@@ -252,7 +264,7 @@ fn main() {
 
             // qber config Bob
             let hardcoded_conf = qber::config::BobConfig {
-                ip_listen: network.ip.bob.clone()+":"+&network.port.qber.to_string(),
+                ip_listen: network.ip.bob.clone() + ":" + &network.port.qber.to_string(),
                 angle_file_path: "/dev/xdma0_c2h_3".to_string(),
                 click_result_file_path: "/home/vq-user/click_result.fifo".to_string(),
             };
@@ -266,24 +278,12 @@ fn main() {
             output_file.push("network.json");
             println!("copying network.json to {:?}", output_file);
             network.save_to_file(&output_file);
-            
+
             // cp network.json for Bob
             let mut output_file = cli.output_path_bob.clone();
             output_file.push("network.json");
             println!("copying network.json to {:?}", output_file);
             network.save_to_file(&output_file);
-
         }
     }
-
-
 }
-
-
-
-
-
-
-
-
-
