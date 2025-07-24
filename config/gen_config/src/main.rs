@@ -201,11 +201,11 @@ fn main() {
                     ip_gc: network.ip.bob.clone()+":"+&network.port.gc.to_string(),
                 },
                 fifo: gc::config::ConfigFifoAlice {
-                    command_socket_path: "/home/vq-user/qline/start_stop.socket".to_string(),
+                    command_socket_path: "/home/vq-user/start_stop.socket".to_string(),
                     gc_file_path: "/dev/xdma0_h2c_0".to_string(),
                 },
             }),
-            current_hw_parameters_file_path: "/home/vq-user/qline/hw_control/config/tmp.txt".to_string(),
+            current_hw_parameters_file_path: "/home/vq-user/hw_control/config/tmp.txt".to_string(),
             fpga_start_socket_path: "/dev/xdma0_user".to_string(),
             log_level: cli.log_level.clone(),
             };
@@ -223,10 +223,10 @@ fn main() {
                     fifo: gc::config::ConfigFifoBob {
                         gcr_file_path: "/dev/xdma0_c2h_1".to_string(),
                         gc_file_path: "/dev/xdma0_h2c_0".to_string(),
-                        click_result_file_path: "/home/vq-user/qline/click_result.fifo".to_string(),
+                        click_result_file_path: "/home/vq-user/click_result.fifo".to_string(),
                     },
                 }),
-                current_hw_parameters_file_path: "/home/vq-user/qline/hw_control/config/tmp.txt".to_string(),
+                current_hw_parameters_file_path: "/home/vq-user/hw_control/config/tmp.txt".to_string(),
                 fpga_start_socket_path: "/dev/xdma0_user".to_string(),
                 log_level: cli.log_level.clone(),
             };
@@ -241,7 +241,7 @@ fn main() {
             let hardcoded_conf = qber::config::AliceConfig {
                 ip_bob: network.ip.bob.clone()+":"+&network.port.qber.to_string(),
                 angle_file_path: "/dev/xdma0_c2h_3".to_string(),
-                command_socket_path: "/home/vq-user/qline/start_stop.socket".to_string(),
+                command_socket_path: "/home/vq-user/start_stop.socket".to_string(),
             };
             let mut output_file = cli.output_path_alice.clone();
             output_file.push("qber.json");
@@ -252,7 +252,7 @@ fn main() {
             let hardcoded_conf = qber::config::BobConfig {
                 ip_listen: network.ip.bob.clone()+":"+&network.port.qber.to_string(),
                 angle_file_path: "/dev/xdma0_c2h_3".to_string(),
-                click_result_file_path: "/home/vq-user/qline/click_result.fifo".to_string(),
+                click_result_file_path: "/home/vq-user/click_result.fifo".to_string(),
             };
             let mut output_file = cli.output_path_bob.clone();
             output_file.push("qber.json");

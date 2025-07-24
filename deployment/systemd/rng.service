@@ -1,13 +1,15 @@
-[Unit]                                                                                                           
-Description=SwiftRNG Service                                                                                     
+[Unit] 
+Description=SwiftRNG Service 
 
-[Service]                                                                                                         
-ExecStart=/home/vq-user/qline/rng_fpga/rng2fpga                                                       
-Restart=always                                                                                                    
-User=vq-user                                                                                                      
-WorkingDirectory=/home/vq-user/qline/rng_fpga                                                                 
-StandardOutput=append:/home/vq-user/qline/log/rng.log
-StandardError=append:/home/vq-user/qline/log/rng.log
+[Service] 
+ExecStart=/home/vq-user/rng_fpga/rng2fpga 
+Restart=always
+RestartSec=10
+StartLimitBurst=5
+User=vq-user
+WorkingDirectory=/home/vq-user/rng_fpga 
+StandardOutput=append:/home/vq-user/log/rng.log
+StandardError=append:/home/vq-user/log/rng.log
 
-[Install]                                                                                                         
-WantedBy=multi-user.target  
+[Install] 
+WantedBy=multi-user.target

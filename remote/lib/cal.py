@@ -5,7 +5,7 @@ from scipy.optimize import curve_fit
 import matplotlib.pyplot as plt
 from termcolor import colored
 
-HW_CONTROL = '/home/vq-user/qline/hw_control/'
+HW_CONTROL = '/home/vq-user/hw_control/'
 
 def Shift_Unit(j,party):
     #times_ref_click0=[]

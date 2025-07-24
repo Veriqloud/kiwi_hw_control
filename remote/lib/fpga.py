@@ -1,9 +1,9 @@
 import subprocess, time, mmap, numpy as np
 
-import qline.hw_control.lib.gen_seq as gen_seq
+import hw_control.lib.gen_seq as gen_seq
 
-HW_CONTROL = '/home/vq-user/qline/hw_control/'
-HW_CONFIG = '/home/vq-user/qline/config/'
+HW_CONTROL = '/home/vq-user/hw_control/'
+HW_CONFIG = '/home/vq-user/config/'
 
 def save_default(data):
     """
@@ -175,25 +175,25 @@ def request_counts():
 
 
 
-def Write_stream(device,file, size, count):
-    str_device = device
-    str_file = file
-    str_size = str(size)
-    str_count = str(count)
-    # command ="../../tools/dma_to_device -d "+ str_device + " -f "+ str_file + " -s "+ str_size + " -c " + str_count 
-    command ="/home/vq-user/qline/dma_ip_drivers/XDMA/linux-kernel/tools/dma_to_device -d "+ str_device + " -f "+ str_file + " -s "+ str_size + " -c " + str_count 
-    print(command)
-    s = subprocess.check_call(command, shell = True)
-
-def Read_stream(device, file, size, count):
-    str_device = device
-    str_file = file
-    str_size = str(size)
-    str_count = str(count)
-    # command ="../../tools/dma_from_device -d "+ str_device + " -f "+ str_file + " -s "+ str_size + " -c " + str_count 
-    command ="/home/vq-user/qline/dma_ip_drivers/XDMA/linux-kernel/tools/dma_from_device -d "+ str_device + " -f "+ str_file + " -s "+ str_size + " -c " + str_count 
-    print(command)
-    s = subprocess.check_call(command, shell = True)
+#def Write_stream(device,file, size, count):
+#    str_device = device
+#    str_file = file
+#    str_size = str(size)
+#    str_count = str(count)
+#    # command ="../../tools/dma_to_device -d "+ str_device + " -f "+ str_file + " -s "+ str_size + " -c " + str_count 
+#    command ="/home/vq-user/qline/dma_ip_drivers/XDMA/linux-kernel/tools/dma_to_device -d "+ str_device + " -f "+ str_file + " -s "+ str_size + " -c " + str_count 
+#    print(command)
+#    s = subprocess.check_call(command, shell = True)
+#
+#def Read_stream(device, file, size, count):
+#    str_device = device
+#    str_file = file
+#    str_size = str(size)
+#    str_count = str(count)
+#    # command ="../../tools/dma_from_device -d "+ str_device + " -f "+ str_file + " -s "+ str_size + " -c " + str_count 
+#    command ="/home/vq-user/qline/dma_ip_drivers/XDMA/linux-kernel/tools/dma_from_device -d "+ str_device + " -f "+ str_file + " -s "+ str_size + " -c " + str_count 
+#    print(command)
+#    s = subprocess.check_call(command, shell = True)
 
 
 

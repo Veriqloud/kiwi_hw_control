@@ -22,10 +22,10 @@ struct Cli {
     #[arg(short, long)]
     debug: bool,
     /// Provide a config file for the fifos.
-    #[arg(short, default_value_os_t = PathBuf::from("/home/vq-user/qline/config/qber.json"))]
+    #[arg(short, default_value_os_t = PathBuf::from("/home/vq-user/config/qber.json"))]
     pub config_path: PathBuf,
     /// Provide a config file for the network.
-    #[arg(short, default_value = "/home/vq-user/qline/config/network.json")]
+    #[arg(short, default_value = "/home/vq-user/config/network.json")]
     pub network_path: String,
 }
 

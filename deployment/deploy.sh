@@ -11,52 +11,56 @@ usage() {
 
 gc(){
     cd ../gc/target/release
-    rsync -v alice $Alice:~/qline/server/gc
-    rsync -v bob $Bob:~/qline/server/gc
+    ssh $Alice "mkdir -p server"
+    rsync -v alice $Alice:~/server/gc
+    ssh $Bob "mkdir -p server"
+    rsync -v bob $Bob:~/server/gc
     cd -
 }
 
 qber(){
     cd ../qber/target/release
-    rsync -v alice $Alice:~/qline/bin/qber
-    rsync -v bob $Bob:~/qline/server/qber
+    ssh $Alice "mkdir -p server"
+    rsync -v alice $Alice:~/bin/qber
+    ssh $Bob "mkdir -p server"
+    rsync -v bob $Bob:~/server/qber
     cd -
 }
 
 control(){
     cd ../remote
-    rsync -v hw_alice.py hws_alice.py ctl_alice.py mon_alice.py $Alice:~/qline/hw_control/
-    rsync -v lib/*.py $Alice:~/qline/hw_control/lib/
-    rsync -v alice_server/*.py $Alice:~/qline/server/
-    rsync -v control_servers.sh $Alice:~/qline/server/
+    rsync -v hw_alice.py hws_alice.py ctl_alice.py mon_alice.py $Alice:~/hw_control/
+    rsync -v lib/*.py $Alice:~/hw_control/lib/
+    rsync -v alice_server/*.py $Alice:~/server/
+    rsync -v control_servers.sh $Alice:~/server/
 
-    rsync -v hw_bob.py ctl_bob.py hws_bob.py mon_bob.py $Bob:~/qline/hw_control/
-    rsync -v lib/*.py $Bob:~/qline/hw_control/lib/
-    rsync -v lib/test_tdc/dma_from_device lib/test_tdc/tdc_bin2txt $Bob:~/qline/hw_control/lib/test_tdc
-    rsync -v lib/aurea/* $Bob:~/qline/hw_control/lib/aurea/
-    rsync -v bob_server/*.py $Bob:~/qline/server/
-    rsync -v control_servers.sh $Bob:~/qline/server/
+    rsync -v hw_bob.py ctl_bob.py hws_bob.py mon_bob.py $Bob:~/hw_control/
+    rsync -v lib/*.py $Bob:~/hw_control/lib/
+    rsync -v lib/test_tdc/dma_from_device lib/test_tdc/tdc_bin2txt $Bob:~/hw_control/lib/test_tdc
+    rsync -v lib/aurea/* $Bob:~/hw_control/lib/aurea/
+    rsync -v bob_server/*.py $Bob:~/server/
+    rsync -v control_servers.sh $Bob:~/server/
     cd -
 }
 
 config(){
     cd $qline_config_dir
-    rsync -v remote/alice/*.json $Alice:~/qline/config/
-    rsync -v remote/bob/*.json $Bob:~/qline/config/
+    rsync -v remote/alice/*.json $Alice:~/config/
+    rsync -v remote/bob/*.json $Bob:~/config/
     cd -
 }
 
 registers(){
     cd ../remote
-    rsync -v registers $Alice:~/qline/config/
-    rsync -v registers $Bob:~/qline/config/
+    rsync -v -a registers $Alice:~/config/
+    rsync -v -a registers $Bob:~/config/
     cd -
 }
 
 rng(){
     cd ../remote
-    rsync -v rng_fpga/rng2fpga $Alice:~/qline/rng_fpga/
-    rsync -v rng_fpga/rng2fpga $Bob:~/qline/rng_fpga/
+    rsync -v rng_fpga/rng2fpga $Alice:~/rng_fpga/
+    rsync -v rng_fpga/rng2fpga $Bob:~/rng_fpga/
 }
 
 # Check that exactly one argument is provided

@@ -12,22 +12,14 @@ install ubuntu-server 22.4
 
 don't wait for second network on boot: add `optional: true` to `/etc/netplan/01-netcfg.yaml` to skip waiting at boot if no network is connected. 
 
-Alternativeley
-
-~~~~.bash
-sudo systemctl disable systemd-networkd-wait-online.service
-sudo systemctl mask systemd-networkd-wait-online.service
-~~~~
-
 Install some packages
 
 ~~~~.bash
 sudo apt-get update && sudo apt-get -y upgrade
-sudo apt-get -y install apt-utils build-essential tree python-is-python3 python3-pip openssl fio
-pip install numpy matplotlib ipython
-pip install termcolor
-sudo apt-get -y install neofetch
+sudo apt-get -y install apt-utils build-essential tree python-is-python3 openssl fio neofetch zoxide ipython python3-pip
+sudo apt install python3-numpy python3-termcolor python3-tabulate
 sudo reboot
+python3 -m pip install --upgrade termcolor --break-system-packages
 ~~~~
 
 [Lan power on](https://www.claudiokuenzler.com/blog/1208/how-to-enable-wake-on-lan-wol-asrock-b550-motherboard-linux)
@@ -73,19 +65,33 @@ sudo udevadm control --reload
 sudo udevadm trigger
 ```
 
+# Environment
+
+add `PYTHONPATH="/home/vq-user"` to `/etc/environment`
+
+increase histsize in bashrc and add
+
+```
+alias ..='cd ..'
+export PATH=$PATH:.
+export PYTHONPATH=/home/vq-user
+
+eval "$(zoxide init bash)"
+
+```
+
+create some folders
+
+```.bash
+mkdir log
+mkdir hw_control/config
+mkdir hw_control/data/tdc
+```
+
+
 # PCIe driver
 
-[reference about the key for secure boot](https://askubuntu.com/questions/760671/could-not-load-vboxdrv-after-upgrade-to-ubuntu-16-04-and-i-want-to-keep-secur/768310#768310)
-
-generate keys for signing kernel module
-
-~~~~.bash
-mkdir ~/driver_certs
-cd ~/driver_certs
-sudo openssl req -new -x509 -newkey rsa:2048 -keyout signing_key.pem -outform DER -out signing_key.x509 -nodes -subj "/CN=Owner/"
-~~~~
-
-compile driver
+compile driver and install 
 
 ~~~~.bash
 git clone https://github.com/Xilinx/dma_ip_drivers.git
@@ -93,12 +99,26 @@ cd XDMA/linux-kernel/xdma/
 sudo make install
 ~~~~
 
-sign module
+Ubuntu 24.04.02: there is already an xdma module preinstalled that does not work for us. To make sure depmod loads our custom module of the same name, modify the priority file `/etc/depmod.d/ubuntu.conf` in the following way. This will look first in the folder xdma, where our custom module was copied to by the previous command
+
+```
+search xdma updates ubuntu built-in
+```
+
+generate keys for signing kernel module and sign the module that was just installed
+
+[reference about the key for secure boot](https://askubuntu.com/questions/760671/could-not-load-vboxdrv-after-upgrade-to-ubuntu-16-04-and-i-want-to-keep-secur/768310#768310)
 
 ~~~~.bash
-cd ~/driver_certs
-/usr/src/linux-headers-MOSTRECENT-generic/scripts/sign-file sha256 signing_key.pem signing_key.x509 XDMAFOLDER/xdma.ko
+sudo openssl req -new -x509 -newkey rsa:2048 -keyout signing_key.pem -outform DER -out signing_key.x509 -nodes -subj "/CN=Owner/"
+/usr/src/linux-headers-$(uname -r)/scripts/sign-file sha256 signing_key.pem signing_key.x509 /lib/modules/$(uname -r)/xdma/xdma.ko
 ~~~~
+
+tell the system to load the drive automatically at boot
+
+```.bash
+echo xdma | sudo tee /etc/modules-load.d/xdma.conf
+```
 
 register the key to the motherboard
 
@@ -106,60 +126,52 @@ register the key to the motherboard
 sudo mokutil --import signing_key.x509
 ~~~~
 
-reboot and follow instructions to enroll MOK (machine owner key)
+reboot and follow instructions to enroll MOK (machine owner key). Check after reboot that the module was loaded: `lsmod | grep xdma`
 
-go to `$xdma/tools` and perform some tests. Change device id in `load_driver.sh` to `9034` or similar (check `lspci`) and location of the driver to `XDMAFOLDER/xdma.ko` in line 73.
 
-~~~~.bash
-sudo ./load_driver.sh
-sudo ./run_test.sh
-sudo ./perform_hwcount.sh 1 1
-~~~~
 
-for automatic loading at boot
+# Tranfer files
 
-~~~~.bash
-sudo cp path_to/xdma.ko /lib/modules/kernel_version/xdma/xdma.ko
-sudo depmod
-sudo reboot
-~~~~
+clone repo `git@github.com:Veriqloud/kiwi_hw_control.git` and probably `git@github.com:Veriqloud/hw_sim.git`
 
-# RNG Service
-Create a system service to run RNG in the background
+```.bashrc
+cd deployment
+make    # to build the rust programs
+cd ../config/qlineX             # update ips in network.json
+gen_config -n network.json -a remote/alice -b remote/bob
+deploy all  # make sure all files have been copied
+export QLINE_CONFIG_DIR=YOURPATH/kiwi_hw_control/config/qlineX
+```
 
-~~~~.bash
-cd /etc/systemd/system
-sudo vi rng.service
-~~~~
-Add following content to rng.service
+# setup systemctl
+
+on local machine
+
+```.bahsrc
+cd deployment/systemd
+scp *.service SSH_ALICE:~/
+scp *.service SSH_BOB:~/
+cd ..
+scp check_systemd.sh SSH_ALICE:~/bin/
+scp check_systemd.sh SSH_BOB:~/bin/
 
 ```
-[Unit]                                                                                                           
-Description=SwiftRNG Service                                                                                     
 
-[Service]                                                                                                         
-ExecStart=/home/vq-user/qline/rng_fpga/rng2fpga                                                       
-Restart=always                                                                                                    
-User=vq-user                                                                                                      
-WorkingDirectory=/home/vq-user/qline/rng_fpga                                                                  
-StandardOutput=file:/home/vq-user/qline/log/rng.log                                                                                           
-StandardError=file:/home/vq-user/qline/log/rng.log                                                                                           
+on remote machines
 
-[Install]                                                                                                         
-WantedBy=multi-user.target  
-```
-Reload 
-
-~~~~.bash
+```.bash
+sudo rsync --chown root:root *.service  /etc/systemd/system/
 sudo systemctl daemon-reload
-~~~~
+sudo systemctl enable hw.service
+sudo systemctl enable hws.service
+sudo systemctl enable mon.service
+sudo systemctl enable gc.service
+check_status.sh     # make sure they are up
+```
 
-You can start and stop rng.service manually when device need true RNG
+logfiles are in ~/log/
 
-~~~~.bash
-sudo systemctl start rng.service
-sudo systemctl stop rng.service
-~~~~
+
 
 Create the second service decoy_rng similar to the rng.service on Alice when she use decoy state.
 
@@ -173,22 +185,14 @@ service rng status
 service decoy_rng status
 ```
 
-# systemctl setup
-
-add `PYTHONPATH=/home/vq-user` to `/etc/environment`
-
-copy files from `systemd` to machine:~/
-
-and then on remote machine
+# First run
 
 ```.bash
-cd 
-sudo rsync --chown root:root *.service  /etc/systemd/system/
-rm *.service
-sudo systemctl enable hw.service
-sudo systemctl enable hws.service
-sudo systemctl enable mon.service
-sudo systemctl enable gc.service
+cd local
+hw_alice.py init --rst_tmp
+hw_alice.py init --rst_default
+hw_bob.py init --rst_tmp
+hw_bob.py init --rst_default
 ```
 
 

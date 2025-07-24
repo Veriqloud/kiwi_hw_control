@@ -2,7 +2,7 @@
 
 import sys
 
-sys.path.insert(0, '/home/vq-user/qline/hw_control')
+sys.path.insert(0, '/home/vq-user/hw_control')
 
 import hws_alice
 

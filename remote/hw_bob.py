@@ -11,15 +11,14 @@ from lib.fpga import update_tmp, save_tmp, get_tmp, get_gc, get_ltc_info, get_sd
 import lib.gen_seq as gen_seq
 import pickle   # serialize numpy data
 import numpy as np
+from tabulate import tabulate
 
-HW_CONTROL = '/home/vq-user/qline/hw_control/'
+HW_CONTROL = '/home/vq-user/hw_control/'
 
-#qlinepath = '/home/vq-user/qline/'
 qlinepath = '../'
 
 networkfile = qlinepath+'config/network.json'
 connection_logfile = qlinepath+'log/ip_connections_to_hardware.log'
-hardware_logfile = qlinepath+'log/hardware.log'
 
 
 # get ip from config/network.json
@@ -38,22 +37,19 @@ server_socket.bind((host, port))
 server_socket.listen()
 
 
-print(f"Server listening on {host}:{port}")
+print(f"[hw_bob] {datetime.datetime.now()}\tServer listening on {host}:{port}")
 
 
 while True:
     conn, addr = server_socket.accept()  # Accept incoming connection
-    print(f"Connected by {addr}")
+    print(f"[hw_bob] {datetime.datetime.now()}\tConnected by {addr}")
     with open(connection_logfile, 'a') as f:
-        f.write(f"{datetime.datetime.now()}\t{addr}\n")
-
-    log = open(hardware_logfile, 'a')
-    log.write(f"\n{datetime.datetime.now()}\t{addr}\n")
+        f.write(f"[hw_bob] {datetime.datetime.now()}\t{addr}")
 
 
     # send command
     def sendc(c):
-        log.write(colored(c, 'blue')+'\n')
+        print(colored(c, 'blue', force_color=True))
         b = c.encode()
         m = len(c).to_bytes(2, 'little')+b
         conn.sendall(m)
@@ -65,18 +61,18 @@ while True:
         while len(mr)<l:
             mr += conn.recv(l-len(mr))
         command = mr.decode().strip()
-        log.write(colored(command, 'cyan')+'\n')
+        print(colored(command, 'cyan', force_color=True))
         return command
     
     # send integer
     def send_i(value):
-        log.write(colored(value, 'blue')+'\n')
+        print(colored(value, 'blue', force_color=True))
         m = struct.pack('i', value)
         conn.sendall(m)
     
     # send long integer
     def send_q(value):
-        log.write(colored(value, 'blue')+'\n')
+        print(colored(value, 'blue', force_color=True))
         m = struct.pack('q', value)
         conn.sendall(m)
 
@@ -84,12 +80,12 @@ while True:
     def rcv_i():
         m = conn.recv(4)
         value = struct.unpack('i', m)[0]
-        log.write(colored(value, 'cyan')+'\n')
+        print(colored(value, 'cyan', force_color=True))
         return value
 
     # send double
     def send_d(value):
-        log.write(colored(value, 'blue')+'\n')
+        print(colored(value, 'blue', force_color=True))
         m = struct.pack('d', value)
         conn.sendall(m)
 
@@ -97,12 +93,12 @@ while True:
     def rcv_d():
         m = conn.recv(8)
         value = struct.unpack('d', m)[0]
-        log.write(colored(value, 'cyan')+'\n')
+        print(colored(value, 'cyan', force_color=True))
         return value
 
     # send binary data
     def send_data(data):
-        log.write(colored('sending data', 'blue')+'\n')
+        print(colored('sending data', 'blue', force_color=True))
         l = len(data)
         m = struct.pack('i', l) + data
         conn.sendall(m)
@@ -114,7 +110,7 @@ while True:
                 # Receive command from client
                 command = rcvc()
             except ConnectionResetError:
-                print("Client connection was reset. Exiting loop.")
+                print(f"[hw_bob] {datetime.datetime.now()}\tClient connection was reset. Exiting loop.")
                 break
 
             if command == 'init_ltc':
@@ -201,7 +197,7 @@ while True:
                 sendc(s)
             elif command == 'set_spd_mode':
                 mode = rcvc()
-                print("opening SPD...")
+                #print("opening SPD...")
                 aurea = ctl.Aurea()
                 if mode=="free":
                     update_tmp('spd_mode', 'continuous')
@@ -213,14 +209,14 @@ while True:
                     aurea.close()
             elif command == 'set_spd_deadtime':
                 deadtime = rcv_i()
-                print("opening SPD...")
+                #print("opening SPD...")
                 aurea = ctl.Aurea()
                 aurea.deadtime(deadtime)
                 aurea.close()
                 update_tmp('spd_deadtime', deadtime)
             elif command == 'set_spd_eff':
                 eff = rcv_i()
-                print("opening SPD...")
+                #print("opening SPD...")
                 aurea = ctl.Aurea()
                 aurea.effi(eff)
                 aurea.close()
@@ -288,19 +284,18 @@ while True:
                 sendc(s)
 
             elif not command:
-                print("Client disconnected.")
+                print(f"[hw_bob] {datetime.datetime.now()}\tClient disconnected.")
                 break  # Exit loop if the client closes the connection
 
 
     except KeyboardInterrupt:
-        print("Server stopped by keyboard interrupt.")
+        print(f"[hw_bob] {datetime.datetime.now()}\tServer stopped by keyboard interrupt.")
     finally:
         try:
             conn.shutdown(socket.SHUT_RDWR)  # Properly shutdown connection
         except OSError:
             pass  # Ignore if connection is already closed
         conn.close()
-        log.close()
 
 
 

@@ -12,9 +12,9 @@ import subprocess
 
 import ctl_bob as ctl
 
-HW_CONTROL = '/home/vq-user/qline/hw_control/'
+HW_CONTROL = '/home/vq-user/hw_control/'
 
-qlinepath = '/home/vq-user/qline/'
+qlinepath = '/home/vq-user/'
 
 networkfile = qlinepath+'config/network.json'
 connection_logfile = qlinepath+'log/ip_connections_to_mon.log'

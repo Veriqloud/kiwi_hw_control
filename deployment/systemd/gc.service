@@ -4,12 +4,14 @@ Requires=network-online.target
 After=network-online.target
 
 [Service] 
-ExecStart=/home/vq-user/qline/server/gc
+ExecStart=/home/vq-user/server/gc
 Restart=always
+RestartSec=10
+StartLimitBurst=5
 User=vq-user
-WorkingDirectory=/home/vq-user/qline/server
-StandardOutput=append:/home/vq-user/qline/log/gc.log
-StandardError=append:/home/vq-user/qline/log/gc.log
+WorkingDirectory=/home/vq-user/server
+StandardOutput=append:/home/vq-user/log/gc.log
+StandardError=append:/home/vq-user/log/gc.log
 
 [Install] 
 WantedBy=multi-user.target
