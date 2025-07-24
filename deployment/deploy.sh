@@ -32,14 +32,12 @@ control(){
     rsync -v hw_alice.py hws_alice.py ctl_alice.py mon_alice.py $Alice:~/hw_control/
     rsync -v lib/*.py $Alice:~/hw_control/lib/
     rsync -v alice_server/*.py $Alice:~/server/
-    rsync -v control_servers.sh $Alice:~/server/
 
     rsync -v hw_bob.py ctl_bob.py hws_bob.py mon_bob.py $Bob:~/hw_control/
     rsync -v lib/*.py $Bob:~/hw_control/lib/
     rsync -v lib/test_tdc/dma_from_device lib/test_tdc/tdc_bin2txt $Bob:~/hw_control/lib/test_tdc
     rsync -v lib/aurea/* $Bob:~/hw_control/lib/aurea/
     rsync -v bob_server/*.py $Bob:~/server/
-    rsync -v control_servers.sh $Bob:~/server/
     cd -
 }
 
