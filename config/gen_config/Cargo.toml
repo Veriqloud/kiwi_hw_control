@@ -10,7 +10,7 @@ clap = { version = "4.5.32", features = ["derive"] }
 
 gc = {path = "../../gc"}
 qber = {path = "../../qber"}
-hw_sim = { path = "../../../hw_sim" }
+configs = {git = "ssh://git@github.com/Veriqloud/hw_sim.git", branch = "move_config_to_lib" }
 
 
 

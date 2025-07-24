@@ -157,38 +157,40 @@ fn main() {
             std::fs::write(output_file, s).expect("writing hw_params to file");
 
             // hw_sim config Alice
-            let sim_config = hw_sim::backend::config::Configuration::from_pathbuf(&hw_sim_path);
-            let sim_full_config = hw_sim::config::Configuration {
-                backend_config: sim_config.clone(),
-                ipc_config: hw_sim::ipc::config::Configuration::Alice(hw_sim::ipc::config::AliceIpcConfig {
+            let sim_config_str = std::fs::read_to_string(&hw_sim_path).expect("failed reading hw_sim file");
+            let sim_config: configs::backend::Configuration = serde_json::from_str(&sim_config_str).expect("failed parsing hw_sim config");
+            let sim_full_config_alice = configs::Configuration {
+                backend_config: sim_config,
+                ipc_config: configs::ipc::Configuration::Alice(configs::ipc::AliceIpcConfig {
                     command_path: "/tmp/fpga_alice".to_string(), // Default command path for Bob
                     angle_file_path: "/tmp/gc_alice_angle.fifo".to_string(),
                     gc_read_file_path: "/tmp/gc_alice_gc.fifo".to_string(),
                 }),
-                log_level: hw_sim::config::LogLevel(cli.log_level.clone()),
+                log_level: configs::LogLevel(cli.log_level.clone()),
 
             };
-            let mut output_file = cli.output_path_alice.clone();
-            output_file.push("hw_sim.json");
+            let output_file = cli.output_path_alice.join("hw_sim.json");
             println!("writing hw_sim config for Alice to {:?}", output_file);
-            sim_full_config.save_to_file(&output_file);
+            let sim_config_json = serde_json::to_string_pretty(&sim_full_config_alice).expect("serializing hw_sim config");
+            std::fs::write(&output_file, sim_config_json).expect("writing hw_sim config to file");
             
             // hw_sim config Bob
-            let sim_full_config = hw_sim::config::Configuration {
-                backend_config: sim_config,
-                ipc_config: hw_sim::ipc::config::Configuration::Bob(hw_sim::ipc::config::BobIpcConfig {
+            let sim_config_bob: configs::backend::Configuration = serde_json::from_str(&sim_config_str).expect("failed parsing hw_sim config for Bob");
+            let sim_full_config_bob = configs::Configuration {
+                backend_config: sim_config_bob,
+                ipc_config: configs::ipc::Configuration::Bob(configs::ipc::BobIpcConfig {
                     command_path: "/tmp/fpga_bob".to_string(), // Default command path for Bob
                     angle_file_path: "/tmp/gc_bob_angle.fifo".to_string(),
                     gcr_file_path: "/tmp/gc_bob_gcr.fifo".to_string(),
                     gc_read_file_path: "/tmp/gc_bob_gc.fifo".to_string(),
                 }),
-                log_level: hw_sim::config::LogLevel(cli.log_level.clone()),
+                log_level: configs::LogLevel(cli.log_level.clone()),
 
             };
-            let mut output_file = cli.output_path_bob.clone();
-            output_file.push("hw_sim.json");
+            let output_file = cli.output_path_bob.join("hw_sim.json");
             println!("writing hw_sim config for Bob to {:?}", output_file);
-            sim_full_config.save_to_file(&output_file);
+            let sim_config_json = serde_json::to_string_pretty(&sim_full_config_bob).expect("serializing hw_sim config");
+            std::fs::write(&output_file, sim_config_json).expect("writing hw_sim config to file");
         
         }
         None => {
