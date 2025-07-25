@@ -162,19 +162,10 @@ fn main() {
             // hw_sim config Alice
             let sim_config_alice_str =
                 std::fs::read_to_string(&hw_sim_path).expect("failed reading hw_sim file");
-            let sim_backend_config_alice: simulator_configs::backend::Configuration =
-                serde_json::from_str(&sim_config_alice_str).expect("failed parsing hw_sim config");
-            let sim_full_config_alice = simulator_configs::Configuration {
-                backend_config: sim_backend_config_alice,
-                ipc_config: simulator_configs::ipc::Configuration::Alice(
-                    simulator_configs::ipc::AliceIpcConfig {
-                        command_path: "/tmp/fpga_alice".to_string(), // Default command path for Bob
-                        angle_file_path: "/tmp/gc_alice_angle.fifo".to_string(),
-                        gc_read_file_path: "/tmp/gc_alice_gc.fifo".to_string(),
-                    },
-                ),
-                log_level: simulator_configs::LogLevel(cli.log_level.clone()),
-            };
+            let sim_full_config_alice =
+                serde_json::from_str::<simulator_configs::Configuration>(&sim_config_alice_str)
+                    .unwrap();
+
             let output_file = cli.output_path_alice.join("hw_sim.json");
             println!("writing hw_sim config for Alice to {:?}", output_file);
             let sim_alice_config_json = serde_json::to_string_pretty(&sim_full_config_alice)
@@ -183,11 +174,11 @@ fn main() {
                 .expect("writing hw_sim config to file");
 
             // hw_sim config Bob
-            let sim_backend_config_bob: simulator_configs::backend::Configuration =
+            let sim_config_bob: simulator_configs::Configuration =
                 serde_json::from_str(&sim_config_alice_str)
                     .expect("failed parsing hw_sim config for Bob");
             let sim_full_config_bob = simulator_configs::Configuration {
-                backend_config: sim_backend_config_bob,
+                backend_config: sim_config_bob.backend_config,
                 ipc_config: simulator_configs::ipc::Configuration::Bob(
                     simulator_configs::ipc::BobIpcConfig {
                         command_path: "/tmp/fpga_bob".to_string(), // Default command path for Bob
