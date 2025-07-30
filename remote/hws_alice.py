@@ -144,11 +144,8 @@ def sync_gc(conn):
 
 def compare_gc(conn):
     sendc(bob, 'compare_gc')
-    print("flag 1")
     gc = get_gc()
-    print("flag 2")
     gc_bob = rcv_d(bob)
-    print("flag 3")
     diff = gc - gc_bob
     difftime = diff/80e6
     sendc(conn, f'gc difference: {diff} ({difftime} s)')
@@ -159,6 +156,11 @@ def find_vca(conn, limit=3000):
     ctl.Update_Dac()
     d = get_default()
     vca = d['vca']
+    bias_1 = d['am_bias']
+    bias_2 = d['am_bias_2']
+    if limit==3000 :
+       ctl.Set_Am_Bias(bias_1 + 0.3)
+       ctl.Set_Am_Bias_2(bias_2 + 0.3)
     count = 0
     while  (count < limit) and (vca <= 4.8) :
         vca = round(vca + 0.2, 2)
@@ -177,6 +179,9 @@ def find_vca(conn, limit=3000):
         print(m)
     update_tmp('vca_calib', vca)
     update_default('vca', max(vca-1, 0))
+    ctl.Set_Am_Bias(bias_1)
+    ctl.Set_Am_Bias_2(bias_2)
+    ctl.Set_Vca(4.5)
     sendc(bob, 'done')
     sendc(conn, 'find_vca '+m)
 
@@ -233,14 +238,20 @@ def verify_am_bias(conn, sendresult=True):
     count_off = rcv_i(bob)
 
     update_tmp('am_mode', 'double')
+    t = get_tmp()
+    bias = t['am_bias']
+    bias2=bias+2
+    ctl.Set_Am_Bias(bias2)
     ctl.Update_Dac()
     time.sleep(0.2)
 
     sendc(bob, 'get counts')
     count_double = rcv_i(bob)
+    ctl.Set_Am_Bias(bias)
+    time.sleep(0.2)
 
     ratio = count_double / count_off
-    if ratio >= 1.5:
+    if ratio >= 1.8:
         m = colored(f"success: double/off  = {ratio:.2f} ({count_double}/{count_off}) \n", "green")
         print(m)
         result = True
@@ -255,7 +266,7 @@ def verify_am_bias(conn, sendresult=True):
     return result, count_double, count_off
 
 def loop_find_am_bias(conn):
-    for voltage in [0.3, 0.5, 1, 2]:
+    for voltage in [0.3, 0.5, 1, 2 , 6]:
         find_am_bias(conn, voltage, sendresult=False)
         result, count_double, count_off = verify_am_bias(conn, sendresult=False)
         if result:
@@ -265,6 +276,8 @@ def loop_find_am_bias(conn):
         m = colored(f"fail double/off = {ratio:.2f} ({count_double}/{count_off}) \n", "yellow")
     else:
         m = colored(f"success: double/off  = {ratio:.2f} ({count_double}/{count_off}) \n", "green")
+        t = get_tmp()
+        update_default('am_bias',t['am_bias'])
     print(m)
     sendc(conn, 'loop_find_am_bias '+m)
 
@@ -325,6 +338,8 @@ def pol_bob(conn):
     sendc(bob, 'pol_bob')
     rcvc(bob)
     sendc(conn, 'pol_bob done')
+
+
 
 def ad(conn, sendresult=True):
     sendc(bob, 'ad')
@@ -488,22 +503,81 @@ def fz_b(conn):
     ctl.Write_To_Fake_Rng(gen_seq.seq_rng_zeros())
     ctl.Update_Dac()
     rcvc(bob)
+    update_tmp('insert_zeros', 'on')
+    ctl.Write_To_Fake_Rng(gen_seq.seq_rng_zeros())
+    ctl.Update_Dac()
     sendc(conn, 'fz_b done')
+
+#def fz_a(conn):
+#    sendc(bob, 'fz_a')
+#    d = get_default()
+#    t = get_tmp()
+#    t['pm_mode'] = 'fake_rng'
+#    t['insert_zeros'] = 'on'
+#    t['zero_pos'] = d['zero_pos']
+#    save_tmp(t)
+#    ctl.Write_To_Fake_Rng(gen_seq.seq_rng_all_one())
+#    ctl.Update_Dac()
+#    send_i(bob, t['fiber_delay_mod'])
+#    zero_pos = ctl.Find_Zero_Pos_A_new()
+#    update_tmp('zero_pos', zero_pos)
+#    update_default('zero_pos', zero_pos)
+#    ctl.Update_Dac()
+#    sendc(conn, 'fz_a done')
+
+
+
 
 def fz_a(conn):
     sendc(bob, 'fz_a')
+    d = get_default()
     t = get_tmp()
     t['pm_mode'] = 'fake_rng'
     t['insert_zeros'] = 'on'
-    t['zero_pos'] = 0
+    t['zero_pos'] = d['zero_pos']
     save_tmp(t)
     ctl.Write_To_Fake_Rng(gen_seq.seq_rng_all_one())
     ctl.Update_Dac()
-    send_i(bob, t['fiber_delay_mod'])
-    zero_pos = rcv_i(bob)
+
+    t = get_tmp()
+    initial_zero_pos = t['zero_pos']
+
+    sendc(bob, 'get ratio')
+    ratio = rcv_d(bob)
+    if ratio > 3:
+        zero_pos = initial_zero_pos
+        print(f"Initial zero_pos {initial_zero_pos} is good, ratio={ratio:.2f}")
+    else:
+        max_ratio = ratio
+        best_zero_pos = initial_zero_pos
+        for zp in range(16):
+            t['zero_pos'] = zp
+            save_tmp(t)
+            ctl.Update_Dac()
+            time.sleep(0.2)
+            sendc(bob, 'get ratio')
+            ratio = rcv_d(bob)
+
+            if ratio > 3:
+                zero_pos = zp
+                break
+
+            if ratio > max_ratio:
+                max_ratio = ratio
+                best_zero_pos = zp
+            else:
+                zero_pos = best_zero_pos
+    sendc(bob, 'ok')
     update_tmp('zero_pos', zero_pos)
+    update_default('zero_pos', zero_pos)
     ctl.Update_Dac()
+    rcvc(bob)
     sendc(conn, 'fz_a done')
+
+
+
+
+
 
 
 # for convencience

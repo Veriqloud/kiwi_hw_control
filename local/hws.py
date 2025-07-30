@@ -136,6 +136,7 @@ if args.full_init:
     interact('fz_a')
     interact('fz_b')
 
+
 elif args.command is not None:
     interact(args.command[0])
 

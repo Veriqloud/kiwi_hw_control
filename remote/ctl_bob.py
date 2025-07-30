@@ -26,7 +26,7 @@ def Ensure_Spd_Mode(mode):
             aurea.close()
             t['spd_mode'] = 'continuous'
             t['spd_deadtime'] = deadtime_cont
-            time.sleep(0.2)
+            time.sleep(0.01)
     elif mode=='gated':
         if (t['spd_mode'] != 'gated') or (t['spd_deadtime']!=deadtime_gated):
             aurea = Aurea()
@@ -35,7 +35,7 @@ def Ensure_Spd_Mode(mode):
             aurea.close()
             t['spd_mode'] = 'gated'
             t['spd_deadtime'] = deadtime_gated
-            time.sleep(0.2)
+            time.sleep(0.01)
     else:
         exit("wrong mode")
     save_tmp(t)
@@ -253,6 +253,7 @@ def Verify_Gates(num_clicks=20000):
     t['feedack'] = 'off'
     save_tmp(t)
     Update_Dac()
+    time.sleep(0.1)
     Download_Time(num_clicks, "histogram_dp")
 
 
@@ -439,9 +440,70 @@ def Find_Zero_Pos_B():
     h1, b = np.histogram(gc1, bins=bins)
     h = abs(h0-h1)
     peakpos = np.argmax(h) 
-    zeros_pos = (t['fiber_delay_mod'] -2 - peakpos) % 16
+    zeros_pos = (t['fiber_delay_mod'] - 2 - peakpos) % 16
     print("zeros pos found:", zeros_pos) 
     return zeros_pos 
+
+
+def Find_Zero_Pos_B_new():
+    t = get_tmp()
+    t['pm_mode'] = 'fake_rng'
+    t['feedback'] = 'on'
+    t['soft_gate'] = 'on'
+    t['insert_zeros'] = 'on'
+    save_tmp(t)
+
+    Write_To_Fake_Rng(gen_seq.seq_rng_all_one())
+    Update_Softgate()
+
+    initial_zero_pos = t['zero_pos']
+    save_tmp(t)
+    Update_Dac()
+    time.sleep(0.3)
+
+    counts = get_counts()
+    c1 = counts[1]
+    c2 = counts[2]
+
+    if c1 == 0 or c2 == 0:
+        ratio = 0
+    else:
+        ratio = max(c1 / c2, c2 / c1)
+
+    if ratio > 3:
+        print(f"Initial zero_pos {initial_zero_pos} is good, ratio={ratio:.2f}")
+        return initial_zero_pos
+
+    max_ratio = ratio
+    best_zero_pos = initial_zero_pos
+
+    for zp in range(16):
+        t['zero_pos'] = zp
+        save_tmp(t)
+        Update_Dac()
+        time.sleep(0.3)
+
+        counts = get_counts()
+        c1 = counts[1]
+        c2 = counts[2]
+
+        if c1 == 0 or c2 == 0:
+            ratio = 0
+        else:
+            ratio = max(c1 / c2, c2 / c1)
+
+        if ratio > 3:
+            print(f"Found zero_pos {zp} with good ratio={ratio:.2f}")
+            return zp
+
+        if ratio > max_ratio:
+            max_ratio = ratio
+            best_zero_pos = zp
+
+    print(f"Best zero_pos found after full scan: {best_zero_pos}, ratio={max_ratio:.2f}")
+    return best_zero_pos
+
+
 
 def Find_Zero_Pos_A(fiber_delay_mod):
     t = get_tmp()
@@ -476,6 +538,14 @@ def Find_Zero_Pos_A(fiber_delay_mod):
     zeros_pos = (fiber_delay_mod - 1 - peakpos) % 16
     print("zeros pos found:", zeros_pos) 
     return int(zeros_pos )
+
+def calculate_ratio():
+    counts = get_counts()
+    c1 = counts[1]
+    c2 = counts[2]
+    if c1 == 0 or c2 == 0:
+        return 0
+    return max(c1 / c2, c2 / c1)
 
 #def Check_Zeros_Pos():
 #    t = get_tmp()
@@ -841,6 +911,10 @@ def init_apply_default():
 
 
 def init_rst_default():
+    default_file = '/home/vq-user/qline/hw_control/config/default.txt'
+    if os.path.exists(default_file):
+        return
+
     d = {}
     d['pm_shift'] = 320
     d['angle0'] = 0
@@ -857,10 +931,14 @@ def init_rst_default():
     d['fiber_delay_mod'] = 0
     d['fiber_delay_long'] = 0
     d['fiber_delay'] = 0
-    d['zero_pos'] = 0
+    d['zero_pos'] = 14
     save_default(d)
 
 def init_rst_tmp():
+    tmp_file = '/home/vq-user/qline/hw_control/config/tmp.txt'
+    if os.path.exists(tmp_file):
+        return
+
     t = {}
     t['pm_mode'] = 'off'
     t['pm_shift'] = 0
@@ -891,11 +969,12 @@ def init_rst_tmp():
     t['fiber_delay_mod'] = 0
     t['fiber_delay_long'] = 0
     t['fiber_delay'] = 0
-    t['zero_pos'] = 0
+    t['zero_pos'] = 14
     save_tmp(t)
 
 def init_all():
     init_rst_tmp()
+    init_rst_default()
     init_apply_default()
     init_ltc()
     init_sync()

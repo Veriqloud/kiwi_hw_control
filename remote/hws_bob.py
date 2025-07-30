@@ -3,8 +3,9 @@
 import socket, json, time, os, struct, datetime
 #import numpy as np
 import ctl_bob as ctl
+import lib.gen_seq as gen_seq
 
-from lib.fpga import get_tmp, save_tmp, update_tmp, Set_t0, get_default, Sync_Gc, get_gc
+from lib.fpga import get_tmp, save_tmp, update_tmp, update_default, Set_t0, get_default, Sync_Gc, get_gc
 from termcolor import colored
 
 
@@ -171,8 +172,7 @@ while True:
             elif command == 'pol_bob':
                     print(colored('pol_bob', 'cyan'))
                     ctl.Polarisation_Control()
-                    sendc('ok')
-
+                    sendc('done')
 
 
             elif command == 'ad':
@@ -182,6 +182,7 @@ while True:
                 ctl.Gen_Gate()
                 ctl.Update_Softgate()
                 ctl.Ensure_Spd_Mode('gated')
+                time.sleep(0.2)
                 ctl.Download_Time(10000, 'verify_gate_ad_0')
                 file_off = HW_CONTROL+"data/tdc/verify_gate_ad_0.txt"
 
@@ -261,9 +262,9 @@ while True:
                 update_tmp('soft_gate', 'off')
                 ctl.Update_Softgate()
                 ctl.Ensure_Spd_Mode('gated')
+                time.sleep(0.2)
                 ctl.Download_Time(10000, 'verify_gate_off')
                 sendc("gates off done")
-                time.sleep(0.1)
                 ctl.Download_Time(10000, 'verify_gate_double')                
                 t = get_tmp()
                 gate0=t['soft_gate0']
@@ -366,8 +367,9 @@ while True:
             elif command == 'fz_b':
                 print(colored('fz_b', 'cyan'))
                 ctl.Ensure_Spd_Mode('gated')
-                zero_pos = ctl.Find_Zero_Pos_B()
+                zero_pos = ctl.Find_Zero_Pos_B_new()
                 update_tmp('zero_pos', zero_pos)
+                update_default('zero_pos', zero_pos)
                 ctl.Update_Dac()
                 sendc('ok')
             
@@ -375,12 +377,23 @@ while True:
                 print(colored('fz_a', 'cyan'))
                 ctl.Ensure_Spd_Mode('gated')
                 print("received command fz_a")
-                fiber_delay_mod = rcv_i()
-                zero_pos = ctl.Find_Zero_Pos_A(fiber_delay_mod)
+                t = get_tmp()
+                t['feedback'] = 'on'
+                t['soft_gate'] = 'on'
+                t['insert_zeros'] = 'off'
+                save_tmp(t)
+                ctl.Write_To_Fake_Rng(gen_seq.seq_rng_zeros())
+                ctl.Update_Softgate()
+                ctl.Update_Dac()
+                time.sleep(0.3)
+
+                while rcvc() == 'get ratio':
+                      ratio = ctl.calculate_ratio()
+                      send_d(ratio)
+
                 update_tmp('insert_zeros', 'on')
                 ctl.Update_Dac()
-                send_i(zero_pos)
-            
+                sendc('ok')
 
             elif not command:
                 print("Client disconnected.")

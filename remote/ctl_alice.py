@@ -1,6 +1,7 @@
 #!/bin/python
 
 #import argparse
+import os
 import time
 import numpy as np
 #import datetime 
@@ -153,6 +154,9 @@ def init_sda():
     Set_Am_Bias_2(d['am_bias_2'])
 
 def init_apply_default():
+    default_file = '/home/vq-user/qline/hw_control/config/default.txt'
+    if os.path.exists(default_file):
+        return
     d = get_default()
     t = get_tmp()
     t['vca'] = d['vca'] 
@@ -176,6 +180,9 @@ def init_apply_default():
     Update_Angles()
 
 def init_rst_default():
+    default_file = '/home/vq-user/qline/hw_control/config/default.txt'
+    if os.path.exists(default_file):
+        return
     d = {}
     d['vca'] = 2
     d['qdistance'] = 0.095
@@ -194,6 +201,9 @@ def init_rst_default():
     save_default(d)
 
 def init_rst_tmp():
+    tmp_file = '/home/vq-user/qline/hw_control/config/tmp.txt'
+    if os.path.exists(tmp_file):
+        return
     t = {}
     t['am_mode'] = 'off'
     t['am2_mode'] = 'off'
@@ -215,7 +225,6 @@ def init_rst_tmp():
     t['decoy_delay'] = 0
     t['zero_pos'] = 0
     t['insert_zeros'] = 'off'
-
     save_tmp(t)
 
 #def init_ddr():
@@ -228,6 +237,7 @@ def init_all():
     init_sda()
     decoy_reset()
     init_rst_tmp()
+    init_rst_default()
     init_apply_default()
 
 
