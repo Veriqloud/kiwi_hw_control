@@ -15,7 +15,7 @@ struct Cli {
 fn main() -> std::io::Result<()> {
     let cli = Cli::parse();
 
-    let mut stream = UnixStream::connect("/home/vq-user/qline/start_stop.socket")
+    let mut stream = UnixStream::connect("/home/vq-user/start_stop.socket")
         .expect("could not connect to UnixStream");
 
     write_message(&mut stream, cli.message)?;

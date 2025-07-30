@@ -12,9 +12,9 @@ import subprocess
 
 import ctl_alice as ctl
 
-HW_CONTROL = '/home/vq-user/qline/hw_control/'
+HW_CONTROL = '/home/vq-user/hw_control/'
 
-qlinepath = '/home/vq-user/qline/'
+qlinepath = '/home/vq-user/'
 
 networkfile = qlinepath+'config/network.json'
 connection_logfile = qlinepath+'log/ip_connections_to_mon.log'
@@ -125,6 +125,15 @@ def handle_client(conn, addr):
             elif command == 'get_fda_info':
                 r = get_fda_info()
                 send_i(conn, r)
+            
+            elif command == 'get_server_status':
+                status = []
+                status.append(subprocess.run("systemctl is-active hw.service", shell=True).returncode)
+                status.append(subprocess.run("systemctl is-active hws.service", shell=True).returncode)
+                status.append(subprocess.run("systemctl is-active gc.service", shell=True).returncode)
+                status.append(subprocess.run("systemctl is-active rng.service", shell=True).returncode)
+                for i in range(4):
+                    send_i(conn, status[i])
 
 
 

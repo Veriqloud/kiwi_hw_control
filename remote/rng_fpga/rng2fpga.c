@@ -76,7 +76,7 @@ int main(){
         return 1;
 	} 				    
     // create the errorfile and write the errorbyte in there (0 == no error)
-    FILE *errorfile = fopen("/home/vq-user/qline/rng_fpga/errorflag", "w");
+    FILE *errorfile = fopen("/home/vq-user/rng_fpga/errorflag", "w");
     if (errorfile == NULL) {
         fprintf(stderr, "unable to open errorflag file\n");
     }
@@ -121,7 +121,7 @@ int main(){
 		}
         char error = rbytes[16000];
         if (error){
-            FILE *errorfile = fopen("/home/vq-user/qline/rng_fpga/errorflag", "w");
+            FILE *errorfile = fopen("/home/vq-user/rng_fpga/errorflag", "w");
             if (errorfile == NULL) {
                 fprintf(stderr, "unable to open errorflag file\n");
             }

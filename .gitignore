@@ -11,5 +11,5 @@ gc/justfile
 # Ignore build artifacts for the comm crate
 comm/target/
 comm/Cargo.lock
-
+config/gen_config/target/*
 .aider.*

@@ -150,6 +150,27 @@ def fifo_status(socket):
         fifo_s = colored(fifo_s, 'red')
     return fifo_s
 
+def server_status(socket):
+    sendc(socket, 'get_server_status')
+    hw = rcv_i(socket)
+    hws = rcv_i(socket)
+    gc = rcv_i(socket)
+    rng = rcv_i(socket)
+    server_s = ""
+    if hw!=0:
+        server_s += 'hw inactive '
+    if hws!=0:
+        server_s += 'hws inactive '
+    if gc!=0:
+        server_s += 'gc inactive '
+    if rng!=0:
+        server_s += 'rng inactive '
+    if server_s == "":
+        server_s = colored('ok', 'green')
+    else:
+        server_s = colored(server_s, 'yellow')
+    return server_s
+
 def get_pci_status(socket):
     sendc(socket, 'get_pci_status')
     m = rcvc(socket)
@@ -287,6 +308,10 @@ elif args.status:
         # fifos
         fifo_alice = fifo_status(alice)
         fifo_bob = fifo_status(bob)
+        
+        # servers
+        server_alice = server_status(alice)
+        server_bob = server_status(bob)
 
         # counts
         total, click0, click1 = get_counts()
@@ -346,6 +371,7 @@ elif args.status:
         table1 = [
                 ["rng", rng_alice, rng_bob],
                 ["fifos", fifo_alice, fifo_bob],
+                ["servers", server_alice, server_bob],
                 #["xilinx pci", xilinx_alice, xilinx_bob, "update in "+str(100-count%100)],
                 #["clock chip", ltc_alice, ltc_bob, "update in "+str(100-count%100)],
                 #["slow dac", sda_alice, sda_bob, "update in "+str(100-count%100)],

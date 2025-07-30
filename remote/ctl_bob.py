@@ -12,7 +12,7 @@ from lib.aurea.Aurea import Aurea
 from scipy.optimize import curve_fit
 import matplotlib.pyplot as plt
 
-HW_CONTROL = '/home/vq-user/qline/hw_control/'
+HW_CONTROL = '/home/vq-user/hw_control/'
 
 def Ensure_Spd_Mode(mode):
     deadtime_cont = 20

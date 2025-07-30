@@ -5,12 +5,14 @@ After=network-online.target
 
 [Service] 
 EnvironmentFile=/etc/environment
-ExecStart=/home/vq-user/qline/server/hw.py
+ExecStart=/home/vq-user/server/hw.py
 Restart=always
+RestartSec=10
+StartLimitBurst=5
 User=vq-user
-WorkingDirectory=/home/vq-user/qline/server
-StandardOutput=append:/home/vq-user/qline/log/hw.log
-StandardError=append:/home/vq-user/qline/log/hw.log
+WorkingDirectory=/home/vq-user/server
+StandardOutput=append:/home/vq-user/log/hw.log
+StandardError=append:/home/vq-user/log/hw.log
 
 [Install] 
 WantedBy=multi-user.target

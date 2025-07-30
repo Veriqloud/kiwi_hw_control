@@ -9,7 +9,7 @@ from lib.fpga import get_tmp, save_tmp, update_tmp, update_default, Set_t0, get_
 from termcolor import colored
 
 
-HW_CONTROL = '/home/vq-user/qline/hw_control/'
+HW_CONTROL = '/home/vq-user/hw_control/'
 
 
 #qlinepath = '/home/vq-user/qline/'

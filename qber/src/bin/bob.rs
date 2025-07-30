@@ -18,7 +18,7 @@ struct FileDescriptors {
 #[derive(Parser, Debug)]
 struct Cli {
     /// Path to the configuration file.
-    #[arg(short, default_value_os_t = PathBuf::from("/home/vq-user/qline/config/qber.json"))]
+    #[arg(short, default_value_os_t = PathBuf::from("/home/vq-user/config/qber.json"))]
     pub config_path: PathBuf,
 }
 
