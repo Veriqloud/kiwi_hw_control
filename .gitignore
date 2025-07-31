@@ -2,6 +2,10 @@
 qber/target/
 qber/Cargo.lock
 
+# Ignore build artifacts for the gen_config crate
+qber/target/
+qber/Cargo.lock
+
 # Ignore build artifacts for the gc crate
 gc/target/
 gc/Cargo.lock

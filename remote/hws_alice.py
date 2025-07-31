@@ -181,7 +181,6 @@ def find_vca(conn, limit=3000):
     update_default('vca', max(vca-1, 0))
     ctl.Set_Am_Bias(bias_1)
     ctl.Set_Am_Bias_2(bias_2)
-    ctl.Set_Vca(4.5)
     sendc(bob, 'done')
     sendc(conn, 'find_vca '+m)
 

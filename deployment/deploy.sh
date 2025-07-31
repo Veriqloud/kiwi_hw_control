@@ -20,7 +20,7 @@ gc(){
 
 qber(){
     cd ../qber/target/release
-    ssh $Alice "mkdir -p server"
+    ssh $Alice "mkdir -p bin"
     rsync -v alice $Alice:~/bin/qber
     ssh $Bob "mkdir -p server"
     rsync -v bob $Bob:~/server/qber
