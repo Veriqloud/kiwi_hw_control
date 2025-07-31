@@ -22,6 +22,26 @@ sudo reboot
 python3 -m pip install --upgrade termcolor --break-system-packages
 ~~~~
 
+
+Network: we have two network interfaces managed by netplan. Make sure `/etc/netplan/name.yaml` looks something like this:
+
+```
+network:
+  version: 2
+  renderer: networkd
+  ethernets:
+    enp0s31f6:
+      dhcp4: true
+      optional: true
+    enp3s0:
+      dhcp4: false
+      addresses:
+        - 192.168.10.11/24
+      optional: true
+```
+
+then update with `sudo netplan apply`. check with `ip ad`.
+
 [Lan power on](https://www.claudiokuenzler.com/blog/1208/how-to-enable-wake-on-lan-wol-asrock-b550-motherboard-linux)
 
 - go to bios -> advanced -> ACPI Configuration -> I219 Lan Power On -> enable

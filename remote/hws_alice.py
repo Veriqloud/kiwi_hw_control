@@ -97,7 +97,7 @@ with open(networkfile, 'r') as f:
 ########## network ###############
 
 # connect to Bob
-host = network['ip']['bob']
+host = network['ip']['bob_wrs']
 port = int(network['port']['hws'])
 bob = socket.socket()
 

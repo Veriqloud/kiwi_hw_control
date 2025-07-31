@@ -25,7 +25,7 @@ with open(networkfile, 'r') as f:
     network = json.load(f)
 
 # Server configuration
-host = network['ip']['bob']
+host = network['ip']['bob_wrs']
 port = int(network['port']['hws'])
 
 

@@ -25,6 +25,8 @@ struct Cli {
 struct Ip {
     alice: String,
     bob: String,
+    alice_wrs: String,
+    bob_wrs: String,
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
@@ -203,7 +205,7 @@ fn main() {
             let hardcoded_conf = gc::config::Configuration {
                 player: gc::config::QlinePlayer::Alice(gc::config::AliceConfig {
                     network: gc::config::ConfigNetwork {
-                        ip_gc: network.ip.bob.clone() + ":" + &network.port.gc.to_string(),
+                        ip_gc: network.ip.bob_wrs.clone() + ":" + &network.port.gc.to_string(),
                     },
                     fifo: gc::config::ConfigFifoAlice {
                         command_socket_path: "/home/vq-user/start_stop.socket".to_string(),
@@ -224,7 +226,7 @@ fn main() {
             let hardcoded_conf = gc::config::Configuration {
                 player: gc::config::QlinePlayer::Bob(gc::config::BobConfig {
                     network: gc::config::ConfigNetwork {
-                        ip_gc: network.ip.bob.clone() + ":" + &network.port.gc.to_string(),
+                        ip_gc: network.ip.bob_wrs.clone() + ":" + &network.port.gc.to_string(),
                     },
                     fifo: gc::config::ConfigFifoBob {
                         gcr_file_path: "/dev/xdma0_c2h_1".to_string(),
@@ -244,7 +246,7 @@ fn main() {
 
             // qber config Alice
             let hardcoded_conf = qber::config::AliceConfig {
-                ip_bob: network.ip.bob.clone() + ":" + &network.port.qber.to_string(),
+                ip_bob: network.ip.bob_wrs.clone() + ":" + &network.port.qber.to_string(),
                 angle_file_path: "/dev/xdma0_c2h_3".to_string(),
                 command_socket_path: "/home/vq-user/start_stop.socket".to_string(),
             };
@@ -255,7 +257,7 @@ fn main() {
 
             // qber config Bob
             let hardcoded_conf = qber::config::BobConfig {
-                ip_listen: network.ip.bob.clone() + ":" + &network.port.qber.to_string(),
+                ip_listen: network.ip.bob_wrs.clone() + ":" + &network.port.qber.to_string(),
                 angle_file_path: "/dev/xdma0_c2h_3".to_string(),
                 click_result_file_path: "/home/vq-user/click_result.fifo".to_string(),
             };
