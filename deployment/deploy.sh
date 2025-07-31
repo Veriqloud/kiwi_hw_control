@@ -12,7 +12,9 @@ usage() {
 gc(){
     cd ../gc/target/release
     ssh $Alice "mkdir -p server"
+    ssh $Alice "mkdir -p bin"
     rsync -v alice $Alice:~/server/gc
+    rsync -v controller $Alice:~/bin/
     ssh $Bob "mkdir -p server"
     rsync -v bob $Bob:~/server/gc
     cd -

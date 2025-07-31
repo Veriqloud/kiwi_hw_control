@@ -911,7 +911,7 @@ def init_apply_default():
 
 
 def init_rst_default():
-    default_file = '/home/vq-user/qline/hw_control/config/default.txt'
+    default_file = HW_CONTROL+'config/default.txt'
     if os.path.exists(default_file):
         return
 
@@ -935,7 +935,7 @@ def init_rst_default():
     save_default(d)
 
 def init_rst_tmp():
-    tmp_file = '/home/vq-user/qline/hw_control/config/tmp.txt'
+    tmp_file = HW_CONTROL+'config/tmp.txt'
     if os.path.exists(tmp_file):
         return
 

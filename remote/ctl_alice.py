@@ -153,7 +153,7 @@ def init_sda():
     Set_Am_Bias_2(d['am_bias_2'])
 
 def init_apply_default():
-    default_file = '/home/vq-user/qline/hw_control/config/default.txt'
+    default_file = HW_CONTROL+'config/default.txt'
     if os.path.exists(default_file):
         return
     d = get_default()
@@ -179,7 +179,7 @@ def init_apply_default():
     Update_Angles()
 
 def init_rst_default():
-    default_file = '/home/vq-user/qline/hw_control/config/default.txt'
+    default_file = HW_CONTROL+'config/default.txt'
     if os.path.exists(default_file):
         return
     d = {}
@@ -200,7 +200,7 @@ def init_rst_default():
     save_default(d)
 
 def init_rst_tmp():
-    tmp_file = '/home/vq-user/qline/hw_control/config/tmp.txt'
+    tmp_file = HW_CONTROL+'config/tmp.txt'
     if os.path.exists(tmp_file):
         return
     t = {}

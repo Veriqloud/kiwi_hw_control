@@ -74,10 +74,15 @@ increase histsize in bashrc and add
 ```
 alias ..='cd ..'
 export PATH=$PATH:.
-export PYTHONPATH=/home/vq-user
 
 eval "$(zoxide init bash)"
 
+```
+
+add the following line to `~/.profile`
+
+```
+export PYTHONPATH=/home/vq-user
 ```
 
 create some folders
@@ -166,6 +171,7 @@ sudo systemctl enable hw.service
 sudo systemctl enable hws.service
 sudo systemctl enable mon.service
 sudo systemctl enable gc.service
+sudo systemctl enable rng.service
 check_status.sh     # make sure they are up
 ```
 
