@@ -1,0 +1,17 @@
+{
+  "player": {
+    "Bob": {
+      "fifo": {
+        "gcr_file_path": "/tmp/gc_bob_gcr.fifo",
+        "gc_file_path": "/tmp/gc_bob_gc.fifo",
+        "click_result_file_path": "/tmp/gc_bob_click_result.fifo"
+      },
+      "network": {
+        "ip_gc": "localhost:14002"
+      }
+    }
+  },
+  "current_hw_parameters_file_path": "/home/crentist/Documents/Projets_Veriqloud/kiwi_hw_control/gc/gc_conf_bob/hw_params.txt",
+  "fpga_start_socket_path": "/tmp/fpga_bob",
+  "log_level": "INFO"
+}

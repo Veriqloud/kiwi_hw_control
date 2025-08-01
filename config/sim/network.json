@@ -1,7 +1,9 @@
 {
     "ip": {
         "alice": "localhost",
-        "bob": "localhost"
+        "bob": "localhost",
+        "alice_wrs":"",
+        "bob_wrs":""
     },
     "port": {
         "hw": 14000,
