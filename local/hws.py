@@ -135,6 +135,7 @@ if args.full_init:
     interact('fd_a_long')
     interact('fz_a')
     interact('fz_b')
+    interact('start')
 
 
 elif args.command is not None:

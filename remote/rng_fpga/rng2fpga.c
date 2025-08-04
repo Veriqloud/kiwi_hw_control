@@ -129,7 +129,7 @@ int main(){
                 fprintf(stderr, "unable to write to errorfile\n");
             }
             fclose(errorfile);
-            printf("RNG ERROR: %d\n", error);
+            //printf("RNG ERROR: %d\n", error);
 
         } 
 		ret_write = write(fpga_fd, rbytes, 16000);

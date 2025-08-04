@@ -213,7 +213,7 @@ while True:
                 aurea = ctl.Aurea()
                 aurea.deadtime(deadtime)
                 aurea.close()
-                update_tmp('spd_deadtime', deadtime)
+                update_tmp('deadtime_gated', deadtime)
             elif command == 'set_spd_eff':
                 eff = rcv_i()
                 #print("opening SPD...")

@@ -11,13 +11,10 @@ from termcolor import colored
 
 HW_CONTROL = '/home/vq-user/hw_control/'
 
-
-#qlinepath = '/home/vq-user/qline/'
 qlinepath = '../'
 
 networkfile = qlinepath+'config/network.json'
 connection_logfile = qlinepath+'log/ip_connections_to_hardware_system.log'
-hardware_logfile = qlinepath+'log/hardware_system.log'
 
 
 # get ip from config/network.json
@@ -44,8 +41,6 @@ while True:
     with open(connection_logfile, 'a') as f:
         f.write(f"{datetime.datetime.now()}\t{addr}\n")
 
-    log = open(hardware_logfile, 'a')
-    log.write(f"\n{datetime.datetime.now()}\t{addr}\n")
 
     def recv_exact(l):
         m = bytes(0)
@@ -55,7 +50,7 @@ while True:
 
     # send command
     def sendc(c):
-        log.write(colored(c, 'blue')+'\n')
+        print(colored(c, 'blue', force_color=True))
         b = c.encode()
         m = len(c).to_bytes(1, 'little')+b
         conn.sendall(m)
@@ -65,18 +60,18 @@ while True:
         l = int.from_bytes(conn.recv(1), 'little')
         mr = recv_exact(l)
         command = mr.decode().strip()
-        log.write(colored(command, 'cyan')+'\n')
+        print(colored(command, 'cyan', force_color=True))
         return command
     
     # send integer
     def send_i(value):
-        log.write(colored(value, 'blue')+'\n')
+        print(colored(value, 'blue', force_color=True))
         m = struct.pack('i', value)
         conn.sendall(m)
     
     # send long integer
     def send_q(value):
-        log.write(colored(value, 'blue')+'\n')
+        print(colored(value, 'blue', force_color=True))
         m = struct.pack('q', value)
         conn.sendall(m)
 
@@ -84,12 +79,12 @@ while True:
     def rcv_i():
         m = recv_exact(4)
         value = struct.unpack('i', m)[0]
-        log.write(colored(value, 'cyan')+'\n')
+        print(colored(value, 'cyan', force_color=True))
         return value
 
     # send double
     def send_d(value):
-        log.write(colored(value, 'blue')+'\n')
+        print(colored(value, 'blue', force_color=True))
         m = struct.pack('d', value)
         conn.sendall(m)
 
@@ -97,12 +92,12 @@ while True:
     def rcv_d():
         m = recv_exact(8)
         value = struct.unpack('d', m)[0]
-        log.write(colored(value, 'cyan')+'\n')
+        print(colored(value, 'cyan', force_color=True))
         return value
     
     # send binary data
     def send_data(data):
-        log.write(colored('sending data', 'blue')+'\n')
+        print(colored('sending data', 'blue', force_color=True))
         l = len(data)
         print(l)
         m = struct.pack('i', l) + data 
@@ -121,20 +116,20 @@ while True:
                 ctl.init_all()
                 rcvc()
                 sendc('Alice and Bob init done')    
-                print(colored('Alice and Bob init done \n', 'cyan'))
+                print(colored('Alice and Bob init done \n', 'cyan', force_color=True))
 
 
             elif command == 'sync_gc':
                 rcvc()
                 Sync_Gc()
-                print(colored('sync_gc', 'cyan'))
+                print(colored('sync_gc', 'cyan', force_color=True))
             
             elif command == 'compare_gc':
                 gc = get_gc()
                 send_d(gc)
                 
             elif command == 'find_vca':
-                print(colored('find_vca', 'cyan'))
+                print(colored('find_vca', 'cyan', force_color=True))
                 ctl.Ensure_Spd_Mode('continuous')
                 while rcvc() == 'get counts':
                     count = ctl.counts_fast()[0]
@@ -142,14 +137,14 @@ while True:
 
 
             elif command == 'find_am_bias':
-                print(colored('find_am_bias', 'cyan'))
+                print(colored('find_am_bias', 'cyan', force_color=True))
                 while rcvc() == 'get counts':
                     time.sleep(0.2)
                     count = ctl.counts_fast()[0]
                     send_i(count)
 
             elif command == 'find_am2_bias':
-                print(colored('find_am_bias_2', 'cyan'))
+                print(colored('find_am_bias_2', 'cyan', force_color=True))
                 for i in range(21):
                     rcvc()
                     time.sleep(0.2)
@@ -160,7 +155,7 @@ while True:
 
 
             elif command == 'verify_am_bias':
-                print(colored('verify_am_bias', 'cyan'))
+                print(colored('verify_am_bias', 'cyan', force_color=True))
                 for i in range(2):
                     rcvc()
                     time.sleep(0.2)
@@ -170,13 +165,13 @@ while True:
 
 
             elif command == 'pol_bob':
-                    print(colored('pol_bob', 'cyan'))
+                    print(colored('pol_bob', 'cyan', force_color=True))
                     ctl.Polarisation_Control()
                     sendc('done')
 
 
             elif command == 'ad':
-                print(colored('ad', 'cyan'))
+                print(colored('ad', 'cyan', force_color=True))
                 update_tmp('soft_gate', 'off')
                 update_tmp('gate_delay', 0)
                 ctl.Gen_Gate()
@@ -229,7 +224,7 @@ while True:
 
 
             elif command == 'find_sp':
-                print(colored('find_sp', 'cyan'))
+                print(colored('find_sp', 'cyan', force_color=True))
                 t = get_tmp()
                 t['t0'] = 10 #to have some space to the left
                 t['soft_gate'] = 'off'
@@ -258,7 +253,7 @@ while True:
 
 
             elif command == 'verify_gates':
-                print(colored('verify_gates', 'cyan'))
+                print(colored('verify_gates', 'cyan', force_color=True))
                 update_tmp('soft_gate', 'off')
                 ctl.Update_Softgate()
                 ctl.Ensure_Spd_Mode('gated')
@@ -283,7 +278,7 @@ while True:
 
 
             elif command == 'fs_b':
-                print(colored('fs_b', 'cyan'))
+                print(colored('fs_b', 'cyan', force_color=True))
                 ctl.Ensure_Spd_Mode('gated')
                 t = get_tmp()
                 t['pm_mode'] = 'seq64'
@@ -308,7 +303,7 @@ while True:
 
            
             elif command == 'fs_a':
-                print(colored('fs_a', 'cyan'))
+                print(colored('fs_a', 'cyan', force_color=True))
                 ctl.Ensure_Spd_Mode('gated')
                 t = get_tmp()
                 t['pm_mode'] = 'off'
@@ -330,7 +325,7 @@ while True:
 
            
             elif command == 'fd_b':
-                print(colored('fd_b', 'cyan'))
+                print(colored('fd_b', 'cyan', force_color=True))
                 ctl.Ensure_Spd_Mode('gated')
                 fiber_delay = ctl.Find_Opt_Delay_B()
                 response = 'Find delay bob done'
@@ -341,7 +336,7 @@ while True:
                 sendc('ok')
             
             elif command == 'fd_b_long':
-                print(colored('fd_b_long', 'cyan'))
+                print(colored('fd_b_long', 'cyan', force_color=True))
                 ctl.Ensure_Spd_Mode('gated')
                 fiber_delay = ctl.Find_Opt_Delay_B_long()
                 response = 'Find delay bob done'
@@ -352,20 +347,20 @@ while True:
                 sendc('ok')
             
             elif command == 'fd_a':
-                print(colored('fd_a', 'cyan'))
+                print(colored('fd_a', 'cyan', force_color=True))
                 ctl.Ensure_Spd_Mode('gated')
                 fiber_delay = ctl.Find_Opt_Delay_A()
                 send_i(fiber_delay)
             
             elif command == 'fd_a_long':
-                print(colored('fd_a_long', 'cyan'))
+                print(colored('fd_a_long', 'cyan', force_color=True))
                 ctl.Ensure_Spd_Mode('gated')
                 fiber_delay_mod = rcv_i()
                 fiber_delay = ctl.Find_Opt_Delay_A_long(fiber_delay_mod)
                 send_i(fiber_delay)
             
             elif command == 'fz_b':
-                print(colored('fz_b', 'cyan'))
+                print(colored('fz_b', 'cyan', force_color=True))
                 ctl.Ensure_Spd_Mode('gated')
                 zero_pos = ctl.Find_Zero_Pos_B_new()
                 update_tmp('zero_pos', zero_pos)
@@ -374,7 +369,7 @@ while True:
                 sendc('ok')
             
             elif command == 'fz_a':
-                print(colored('fz_a', 'cyan'))
+                print(colored('fz_a', 'cyan', force_color=True))
                 ctl.Ensure_Spd_Mode('gated')
                 print("received command fz_a")
                 t = get_tmp()
@@ -394,6 +389,15 @@ while True:
                 update_tmp('insert_zeros', 'on')
                 ctl.Update_Dac()
                 sendc('ok')
+            
+            elif command == 'start':
+                print(colored('start', 'cyan', force_color=True))
+                t['pm_mode'] = 'true_rng'
+                t['insert_zeros'] = 'on'
+                t['feedback'] = 'on'
+                save_tmp(t)
+                ctl.Update_Dac()
+                sendc('ok')
 
             elif not command:
                 print("Client disconnected.")
@@ -408,6 +412,5 @@ while True:
         except OSError:
             pass  # Ignore if connection is already closed
         conn.close()
-        log.close()
 
 

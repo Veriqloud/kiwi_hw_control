@@ -829,13 +829,13 @@ def Reg_Mngt_Tdc():
     write(BaseAddr, [0, 4, 36, 36, 0], [0, 0x0e04, 0, 1, 1])
     
 
-def Get_TDC_Data(transferSize, transferCount, output_file):
-    device_c2h = '/dev/xdma0_c2h_2'
-    #Send command_histogram
-    BaseAddr = 0
-    write(BaseAddr, [40, 40], [0, 1])
-    #Read from stream
-    Read_stream(device_c2h, output_file, transferSize, transferCount)
+#def Get_TDC_Data(transferSize, transferCount, output_file):
+#    device_c2h = '/dev/xdma0_c2h_2'
+#    #Send command_histogram
+#    BaseAddr = 0
+#    write(BaseAddr, [40, 40], [0, 1])
+#    #Read from stream
+#    Read_stream(device_c2h, output_file, transferSize, transferCount)
 
 def Get_Stream(base_addr,device_c2h,output_file,count):
     #print(command)

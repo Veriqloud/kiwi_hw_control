@@ -15,27 +15,27 @@ import matplotlib.pyplot as plt
 HW_CONTROL = '/home/vq-user/hw_control/'
 
 def Ensure_Spd_Mode(mode):
-    deadtime_cont = 20
-    deadtime_gated = 15
     t = get_tmp()
     if mode=='continuous':
-        if (t['spd_mode'] != 'continuous') or (t['spd_deadtime']!=deadtime_cont):
+        if (t['spd_mode'] != 'continuous'):
             aurea = Aurea()
             aurea.mode("continuous")
-            aurea.deadtime(deadtime_cont)
+            #time.sleep(0.2)
+            aurea.deadtime(t['deadtime_cont'])
+            time.sleep(0.5)
             aurea.close()
             t['spd_mode'] = 'continuous'
-            t['spd_deadtime'] = deadtime_cont
-            time.sleep(0.01)
+            #time.sleep(0.5)
     elif mode=='gated':
-        if (t['spd_mode'] != 'gated') or (t['spd_deadtime']!=deadtime_gated):
+        if (t['spd_mode'] != 'gated'):
             aurea = Aurea()
             aurea.mode("gated")
-            aurea.deadtime(deadtime_gated)
+            #time.sleep(0.2)
+            aurea.deadtime(t['deadtime_gated'])
+            time.sleep(0.5)
             aurea.close()
             t['spd_mode'] = 'gated'
-            t['spd_deadtime'] = deadtime_gated
-            time.sleep(0.01)
+            #time.sleep(0.2)
     else:
         exit("wrong mode")
     save_tmp(t)
@@ -898,6 +898,8 @@ def init_apply_default():
     t['soft_gate1'] = d['soft_gate1']
     t['soft_gatew'] = d['soft_gatew']
     t['t0'] = d['t0']
+    t['deadtime_cont'] = d['deadtime_cont']
+    t['deadtime_gated'] = d['deadtime_gated']
     t['fiber_delay'] = d['fiber_delay']
     t['fiber_delay_long'] = d['fiber_delay_long']
     t['fiber_delay_mod'] = d['fiber_delay']%32
@@ -953,8 +955,9 @@ def init_rst_tmp():
     t['gate_delayf1'] = 0
     t['gate_delayf2'] = 0
     t['spd_mode'] = 'continuous'
-    t['spd_deadtime'] = 100
     t['spd_eff'] = 20
+    t['deadtime_cont'] = 20
+    t['deadtime_gated'] = 15
     t['pol0'] = 2.5
     t['pol1'] = 2.5
     t['pol2'] = 2.5

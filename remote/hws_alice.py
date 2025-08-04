@@ -19,6 +19,7 @@ def recv_exact(socket, l):
 
 # send command
 def sendc(socket, command):
+    print(colored(command, 'blue', force_color=True))
     b = command.encode()
     m = len(command).to_bytes(1, 'little')+b
     socket.sendall(m)
@@ -28,10 +29,12 @@ def rcvc(socket):
     l = int.from_bytes(socket.recv(1), 'little')
     mr = recv_exact(socket, l)
     command = mr.decode().strip()
+    print(colored(command, 'cyan', force_color=True))
     return command
 
 # send integer
 def send_i(socket, value):
+    print(colored(value, 'blue', force_color=True))
     m = struct.pack('i', value)
     socket.sendall(m)
 
@@ -39,16 +42,19 @@ def send_i(socket, value):
 def rcv_i(socket):
     m = recv_exact(socket, 4)
     value = struct.unpack('i', m)[0]
+    print(colored(value, 'cyan', force_color=True))
     return value
 
 # receive long integer
 def rcv_q(socket):
     m = recv_exact(socket, 8)
     value = struct.unpack('q', m)[0]
+    print(colored(value, 'cyan', force_color=True))
     return value
 
 # send double
 def send_d(socket, value):
+    print(colored(value, 'blue', force_color=True))
     m = struct.pack('d', value)
     socket.sendall(m)
 
@@ -56,23 +62,23 @@ def send_d(socket, value):
 def rcv_d(socket):
     m = recv_exact(socket, 8)
     value = struct.unpack('d', m)[0]
+    print(colored(value, 'cyan', force_color=True))
     return value
 
 # send binary data
 def send_data(socket, data):
-    log.write(colored('sending data', 'blue')+'\n')
+    print(colored('sending data', 'blue', force_color=True))
     l = len(data)
-    print('sending', l)
     m = struct.pack('i', l) + data
     socket.sendall(m)
 
 def rcv_data(socket):
     m = recv_exact(socket, 4)
     l = struct.unpack('i', m)[0]
-    print('receiving', l)
     m = bytes(0)
     while len(m)<l:
         m += socket.recv(l - len(m))
+    print(colored('received data', 'blue', force_color=True))
     return m
 
 
@@ -88,7 +94,6 @@ qlinepath = '../'
 
 networkfile = qlinepath+'config/network.json'
 connection_logfile = qlinepath+'log/ip_connections_to_hardware_system.log'
-hardware_logfile = qlinepath+'log/hardware_system.log'
 
 with open(networkfile, 'r') as f:
     network = json.load(f)
@@ -171,11 +176,11 @@ def find_vca(conn, limit=3000):
         print(count)
 
     if count >= limit:
-        m = colored(f"success, {vca}V / {count} cts \n", "green")
+        m = colored(f"success, {vca}V / {count} cts \n", "green", force_color=True)
         print(m)
 
     else:
-        m = colored(f"fail, {vca}V / {count} cts \n", "red")
+        m = colored(f"fail, {vca}V / {count} cts \n", "red", force_color=True)
         print(m)
     update_tmp('vca_calib', vca)
     update_default('vca', max(vca-1, 0))
@@ -251,11 +256,11 @@ def verify_am_bias(conn, sendresult=True):
 
     ratio = count_double / count_off
     if ratio >= 1.8:
-        m = colored(f"success: double/off  = {ratio:.2f} ({count_double}/{count_off}) \n", "green")
+        m = colored(f"success: double/off  = {ratio:.2f} ({count_double}/{count_off}) \n", "green", force_color=True)
         print(m)
         result = True
     else:
-        m = colored(f"fail double/off = {ratio:.2f} ({count_double}/{count_off}) \n", "yellow")
+        m = colored(f"fail double/off = {ratio:.2f} ({count_double}/{count_off}) \n", "yellow", force_color=True)
         print(m)
         result = False
     update_tmp('am_mode', 'off')
@@ -272,9 +277,9 @@ def loop_find_am_bias(conn):
             break
     ratio = count_double / count_off
     if result == False:
-        m = colored(f"fail double/off = {ratio:.2f} ({count_double}/{count_off}) \n", "yellow")
+        m = colored(f"fail double/off = {ratio:.2f} ({count_double}/{count_off}) \n", "yellow", force_color=True)
     else:
-        m = colored(f"success: double/off  = {ratio:.2f} ({count_double}/{count_off}) \n", "green")
+        m = colored(f"success: double/off  = {ratio:.2f} ({count_double}/{count_off}) \n", "green", force_color=True)
         t = get_tmp()
         update_default('am_bias',t['am_bias'])
     print(m)
@@ -291,15 +296,15 @@ def loop_find_gates(conn):
             result, pic = verify_gates(conn, sendresult=False)
             if result:
                 send_data(conn, pic)
-                m = colored("success: good gates found \n", "green")
+                m = colored("success: good gates found \n", "green", force_color=True)
                 sendc(conn, 'loop_find_gates '+m)
                 return 
-            print(colored(f"verify_gates failed retrying...", "yellow"))
+            print(colored(f"verify_gates failed retrying...", "yellow", force_color=True))
 
-        print(colored(f"verify_gates failed after {max_retries} retries, restarting find_gate sequence...", "red"))
+        print(colored(f"verify_gates failed after {max_retries} retries, restarting find_gate sequence...", "red", force_color=True))
 
     send_data(conn, pic)
-    m = colored(f"verify_gates failed", "red")
+    m = colored(f"verify_gates failed", "red", force_color=True)
     sendc(conn, 'loop_find_gates '+m)
 
 
@@ -375,7 +380,7 @@ def find_sp(conn, sendresult=True):
 
 def verify_gates(conn, sendresult=True):
     sendc(bob, 'verify_gates')
-    print(colored('verify_gates', 'cyan'))
+    print(colored('verify_gates', 'cyan', force_color=True))
     update_tmp('am_mode', 'off')
     ctl.Update_Dac()
     rcvc(bob)
@@ -384,11 +389,11 @@ def verify_gates(conn, sendresult=True):
     pic = rcv_data(bob)
     status = rcvc(bob)
     if status == "success":
-        m = colored("success: good gates found \n", "green")
+        m = colored("success: good gates found \n", "green", force_color=True)
         print(m)
         result = True
     else:
-        m = colored("fail: bad gates \n", "red")
+        m = colored("fail: bad gates \n", "red", force_color=True)
         print(m)
         result = False
     if sendresult:
@@ -406,10 +411,10 @@ def fs_b(conn):
     ctl.Update_Dac()
     pm_shift = rcv_i(bob)
     if pm_shift != 1000:
-        m = colored("Success: Shift_Bob found\n", "green")
+        m = colored("Success: Shift_Bob found\n", "green", force_color=True)
         print(m)
     else:
-        m = colored("Fail: pm_shift_Bob is None\n", "red")
+        m = colored("Fail: pm_shift_Bob is None\n", "red", force_color=True)
         print(m)
     sendc(conn, 'fs_b '+m)
 
@@ -433,10 +438,10 @@ def fs_a(conn):
     if pm_shift != 1000:
         update_tmp('pm_shift', pm_shift_coarse + pm_shift)
         ctl.Update_Dac()
-        m = colored("success: Shift_Alice found\n", "green")
+        m = colored("success: Shift_Alice found\n", "green", force_color=True)
         print(m)
     else:
-        m = colored("fail: pm_shift_Alice is None\n", "red")
+        m = colored("fail: pm_shift_Alice is None\n", "red", force_color=True)
         print(m)
     sendc(conn, 'fs_a '+m)
 
@@ -507,22 +512,6 @@ def fz_b(conn):
     ctl.Update_Dac()
     sendc(conn, 'fz_b done')
 
-#def fz_a(conn):
-#    sendc(bob, 'fz_a')
-#    d = get_default()
-#    t = get_tmp()
-#    t['pm_mode'] = 'fake_rng'
-#    t['insert_zeros'] = 'on'
-#    t['zero_pos'] = d['zero_pos']
-#    save_tmp(t)
-#    ctl.Write_To_Fake_Rng(gen_seq.seq_rng_all_one())
-#    ctl.Update_Dac()
-#    send_i(bob, t['fiber_delay_mod'])
-#    zero_pos = ctl.Find_Zero_Pos_A_new()
-#    update_tmp('zero_pos', zero_pos)
-#    update_default('zero_pos', zero_pos)
-#    ctl.Update_Dac()
-#    sendc(conn, 'fz_a done')
 
 
 
@@ -573,6 +562,16 @@ def fz_a(conn):
     rcvc(bob)
     sendc(conn, 'fz_a done')
 
+def start(conn):
+    sendc(bob, 'start')
+    t = get_tmp()
+    t['pm_mode'] = 'true_rng'
+    t['insert_zeros'] = 'on'
+    save_tmp(t)
+    ctl.Update_Dac()
+    rcvc(bob)
+    sendc(conn, 'start done')
+
 
 
 
@@ -602,6 +601,7 @@ functionmap['fd_a'] = fd_a
 functionmap['fd_a_long'] = fd_a_long
 functionmap['fz_a'] = fz_a
 functionmap['fz_b'] = fz_b
+functionmap['start'] = start
 
 
 while True:
@@ -609,9 +609,6 @@ while True:
     print(f"Connected by {addr}")
     with open(connection_logfile, 'a') as f:
         f.write(f"{datetime.datetime.now()}\t{addr}\n")
-
-    log = open(hardware_logfile, 'a')
-    log.write(f"\n{datetime.datetime.now()}\t{addr}\n")
 
     try:
         while True:
@@ -625,7 +622,7 @@ while True:
             if command=='':
                 break
 
-            print(colored(command+' ...\n', 'blue'))
+            print(colored(command+' ...\n', 'blue', force_color=True))
             if command.startswith('find_vca_'):
                 limit = int(command.split('_')[-1])
                 print('command: ', command)
@@ -634,11 +631,11 @@ while True:
                 try:
                     functionmap[command](conn)
                 except:
-                    print(colored('unkown command '+command, 'red'))
-                    sendc(conn, colored('unknown command '+command, 'red'))
+                    print(colored('unkown command or error in function'+command, 'red', force_color=True))
+                    sendc(conn, colored('unknown command or error in function'+command, 'red', force_color=True))
                     continue
 
-            print(colored('... '+command+' done \n', 'blue'))
+            print(colored('... '+command+' done \n', 'blue', force_color=True))
 
 
     except KeyboardInterrupt:
@@ -649,6 +646,5 @@ while True:
         except OSError:
             pass  # Ignore if connection is already closed
         conn.close()
-        log.close()
 
 
