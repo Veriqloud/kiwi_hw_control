@@ -134,7 +134,10 @@ def handle_client(conn, addr):
                 status.append(subprocess.run("systemctl is-active rng.service", shell=True).returncode)
                 for i in range(4):
                     send_i(conn, status[i])
-
+            
+            elif command == 'get_wrs_ip_status':
+                r = subprocess.run("ip ad | grep 192.168.10", shell=True).returncode
+                send_i(conn, r)
 
 
 

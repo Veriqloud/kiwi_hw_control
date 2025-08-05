@@ -154,6 +154,9 @@ def handle_client(conn, addr):
                 for i in range(4):
                     send_i(conn, status[i])
 
+            elif command == 'get_wrs_ip_status':
+                r = subprocess.run("ip ad | grep 192.168.10", shell=True).returncode
+                send_i(conn, r)
 
 
 

@@ -180,6 +180,21 @@ def get_pci_status(socket):
         xilinx_s = colored(m, 'red')
     return xilinx_s
 
+def get_wrs_ip_status():
+    sendc(alice, 'get_wrs_ip_status')
+    sendc(bob, 'get_wrs_ip_status')
+    r_alice = rcv_i(alice)
+    r_bob = rcv_i(bob)
+    if r_alice==0:
+        status_ip_alice = colored('ok', 'green')
+    else:
+        status_ip_alice = colored('no ip on wrs network', 'red')
+    if r_bob==0:
+        status_ip_bob = colored('ok', 'green')
+    else:
+        status_ip_bob = colored('no ip on wrs network', 'red')
+    return status_ip_alice, status_ip_bob
+
 
 def check_chip_status(command):
     sendc(alice, command)
@@ -364,6 +379,9 @@ elif args.status:
         sda_alice, sda_bob = check_chip_status('get_sda_info')
         fda_alice, fda_bob = check_chip_status('get_fda_info')
 
+        # wrs ip status
+        wrs_ip_status_alice, wrs_ip_status_bob = get_wrs_ip_status()
+
             
 
 
@@ -372,6 +390,7 @@ elif args.status:
                 ["rng", rng_alice, rng_bob],
                 ["fifos", fifo_alice, fifo_bob],
                 ["servers", server_alice, server_bob],
+                ["wrs ip", wrs_ip_status_alice, wrs_ip_status_bob, ],
                 #["xilinx pci", xilinx_alice, xilinx_bob, "update in "+str(100-count%100)],
                 #["clock chip", ltc_alice, ltc_bob, "update in "+str(100-count%100)],
                 #["slow dac", sda_alice, sda_bob, "update in "+str(100-count%100)],
