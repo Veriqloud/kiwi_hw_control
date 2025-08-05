@@ -6,7 +6,7 @@ import ctl_alice as ctl
 from lib.fpga import get_tmp, save_tmp, update_tmp, update_default, get_default, Sync_Gc, wait_for_pps_ret, get_gc
 import lib.gen_seq as gen_seq
 from termcolor import colored
-
+import numpy as np
 
 ####### convenient send and receive commands ########
 
@@ -154,6 +154,100 @@ def compare_gc(conn):
     diff = gc - gc_bob
     difftime = diff/80e6
     sendc(conn, f'gc difference: {diff} ({difftime} s)')
+
+
+def qdistance(conn):
+    sendc(bob, 'qdistance')
+    best_q = 0.0
+    max_count = 0
+    prev_q = 0
+    prev_count = 0
+    high_th = 300
+    low_th = 150
+
+    for qd in np.arange(0.0, 1.01, 0.1):
+        update_tmp('qdistance', qd)
+        ctl.Update_Dac()
+        time.sleep(0.2)
+        sendc(bob, 'get counts')
+        diff_count = rcv_i(bob)
+        print(f"qdistance={qd:.2f} -> counts={diff_count}")
+        if diff_count > max_count:
+            max_count = diff_count
+            best_q = qd
+        if (prev_count > high_th or max_count > high_th) and diff_count < low_th:
+            break
+        prev_q = qd
+        prev_count = diff_count
+
+    refined_q = best_q
+    max_count = 0
+    start = max(0.0, best_q - 0.075)
+    end = min(1.0, best_q + 0.075)
+
+    for qd in np.arange(start, end, 0.025):
+        update_tmp('qdistance', qd)
+        ctl.Update_Dac()
+        time.sleep(0.2)
+        sendc(bob, 'get counts')
+        diff_count = rcv_i(bob)
+        print(f"[refined] qdistance={qd:.3f} -> counts={diff_count}")
+        if diff_count > max_count:
+            max_count = diff_count
+            refined_q = qd
+
+    update_tmp('qdistance', refined_q)
+    update_default('qdistance', refined_q)
+    ctl.Update_Dac()
+    msg = colored(f"{refined_q:.3f} / {max_count} counts", "green")
+    print(msg)
+    sendc(bob, 'done')
+    sendc(conn, 'qdistance done')
+
+
+
+
+def vca_per(conn, per=70):
+    sendc(bob, 'vca_per')
+    update_tmp('am_mode', 'double')
+    ctl.Update_Dac()
+    d = get_default()
+    vca = d['vca']
+    bias_1 = d['am_bias']
+    bias_2 = d['am_bias_2']
+    if per==70 :
+       ctl.Set_Am_Bias(bias_1 + 0.3)
+       ctl.Set_Am_Bias_2(bias_2 + 0.3)
+    count = 0
+    ctl.Set_Vca(5)
+    time.sleep(0.2)
+    sendc(bob, 'get counts')
+    max_count=rcv_i(bob)
+    limit=max_count*(per/100)
+    while  (count < limit) and (vca <= 4.8) :
+        vca = round(vca + 0.2, 2)
+        ctl.Set_Vca(round(vca, 2))
+        time.sleep(0.2)
+        sendc(bob, 'get counts')
+        count = rcv_i(bob)
+        print(count)
+
+    if count >= limit:
+        m = colored(f"success, {vca}V / {count} cts \n", "green")
+        print(m)
+
+    else:
+        m = colored(f"fail, {vca}V / {count} cts \n", "red")
+        print(m)
+    update_tmp('vca_calib', vca)
+    update_default('vca', max(vca-1, 0))
+    ctl.Set_Am_Bias(bias_1)
+    ctl.Set_Am_Bias_2(bias_2)
+    sendc(bob, 'done')
+    sendc(conn, 'vca_per '+m)
+
+
+
 
 def find_vca(conn, limit=3000):
     sendc(bob, 'find_vca')
@@ -583,6 +677,8 @@ functionmap = {}
 functionmap['init'] = init
 functionmap['sync_gc'] = sync_gc
 functionmap['compare_gc'] = compare_gc
+functionmap['vca_per'] = vca_per
+functionmap['qdistance'] = qdistance
 functionmap['find_vca'] = find_vca
 functionmap['find_am_bias'] = find_am_bias
 functionmap['verify_am_bias'] = verify_am_bias
@@ -627,6 +723,11 @@ while True:
                 limit = int(command.split('_')[-1])
                 print('command: ', command)
                 functionmap['find_vca'](conn, limit)
+            elif command.startswith('vca_per_'):
+                per = int(command.split('_')[-1])
+                print('command: ', command)
+                functionmap['vca_per'](conn, per)
+
             else:
                 try:
                     functionmap[command](conn)

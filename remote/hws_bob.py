@@ -127,6 +127,22 @@ while True:
             elif command == 'compare_gc':
                 gc = get_gc()
                 send_d(gc)
+
+
+            elif command == 'vca_per':
+                print(colored('vca_per', 'cyan'))
+                ctl.Ensure_Spd_Mode('continuous')
+                while rcvc() == 'get counts':
+                    count = ctl.counts_fast()[0]
+                    send_i(count)
+
+            elif command == 'qdistance':
+                print(colored('qdistance', 'cyan'))
+                ctl.Ensure_Spd_Mode('continuous')
+                while rcvc() == 'get counts':
+                    count = ctl.diff_counts()
+                    send_i(count)
+
                 
             elif command == 'find_vca':
                 print(colored('find_vca', 'cyan', force_color=True))

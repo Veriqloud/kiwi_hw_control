@@ -539,6 +539,7 @@ def Find_Zero_Pos_A(fiber_delay_mod):
     print("zeros pos found:", zeros_pos) 
     return int(zeros_pos )
 
+
 def calculate_ratio():
     counts = get_counts()
     c1 = counts[1]
@@ -546,6 +547,34 @@ def calculate_ratio():
     if c1 == 0 or c2 == 0:
         return 0
     return max(c1 / c2, c2 / c1)
+
+
+
+def diff_counts():
+    max_diff = 0
+    last_significant_diff_time = time.time()
+    start_time = time.time()
+
+    while time.time() - start_time < 15:
+        counts = get_counts()
+        c1 = counts[1]
+        c2 = counts[2]
+        diff = abs(c1 - c2)
+
+        if diff > max_diff:
+            if diff - max_diff > 20:
+                last_significant_diff_time = time.time()
+            max_diff = diff
+
+        if time.time() - last_significant_diff_time > 3:
+            break
+
+
+    return max_diff
+
+
+
+
 
 #def Check_Zeros_Pos():
 #    t = get_tmp()
