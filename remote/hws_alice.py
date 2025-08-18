@@ -211,40 +211,50 @@ def vca_per(conn, per=70):
     sendc(bob, 'vca_per')
     update_tmp('am_mode', 'double')
     ctl.Update_Dac()
+
     d = get_default()
     vca = d['vca']
     bias_1 = d['am_bias']
     bias_2 = d['am_bias_2']
-    if per==70 :
-       ctl.Set_Am_Bias(bias_1 + 0.3)
-       ctl.Set_Am_Bias_2(bias_2 + 0.3)
+
+    if per == 70:
+        ctl.Set_Am_Bias(bias_1 + 0.3)
+        ctl.Set_Am_Bias_2(bias_2 + 0.3)
+
     count = 0
     ctl.Set_Vca(5)
-    time.sleep(0.2)
+    time.sleep(0.3)
     sendc(bob, 'get counts')
-    max_count=rcv_i(bob)
-    limit=max_count*(per/100)
-    while  (count < limit) and (vca <= 4.8) :
-        vca = round(vca + 0.2, 2)
+    max_count = rcv_i(bob)
+    limit = max_count * (per / 100)
+    vca = d['vca']
+    while (count < (limit - 20)) and (vca <= 5):
         ctl.Set_Vca(round(vca, 2))
         time.sleep(0.2)
         sendc(bob, 'get counts')
         count = rcv_i(bob)
         print(count)
 
-    if count >= limit:
+        if count >= (limit - 20):
+            break
+
+        vca = round(vca + 0.2, 2)
+
+    if count >= (limit - 20):
         m = colored(f"success, {vca}V / {count} cts \n", "green")
         print(m)
-
     else:
         m = colored(f"fail, {vca}V / {count} cts \n", "red")
         print(m)
+
     update_tmp('vca_calib', vca)
-    update_default('vca', max(vca-1, 0))
+    update_default('vca', max(vca - 1, 0))
+
     ctl.Set_Am_Bias(bias_1)
     ctl.Set_Am_Bias_2(bias_2)
+
     sendc(bob, 'done')
-    sendc(conn, 'vca_per '+m)
+    sendc(conn, 'vca_per ' + m)
 
 
 
@@ -656,6 +666,112 @@ def fz_a(conn):
     rcvc(bob)
     sendc(conn, 'fz_a done')
 
+
+
+
+def set_angles_a(conn):
+    sendc(bob, 'set_angles_a')
+
+    d = get_default()
+    base_angles = [d['angle0'], d['angle1'], d['angle2'], d['angle3']]
+
+    t = get_tmp()
+    t['pm_mode'] = 'fake_rng'
+    t['insert_zeros'] = 'on'
+    t['zero_pos'] = d['zero_pos']
+    save_tmp(t)
+    ctl.Write_To_Fake_Rng(gen_seq.seq_rng_all_one())
+    ctl.Update_Dac()
+
+    update_tmp('angle0', base_angles[0])
+    update_tmp('angle1', base_angles[1])
+    update_tmp('angle2', base_angles[2])
+    update_tmp('angle3', base_angles[3])
+    ctl.Update_Dac()
+
+    best_angle1 = base_angles[1]
+    max_count = -1
+
+    for delta in np.arange(-0.2, 0.21, 0.1):
+        angle1 = base_angles[1] + delta
+        update_tmp('angle1', angle1)
+        ctl.Update_Dac()
+        time.sleep(0.2)
+        sendc(bob, 'get counts')
+        count = rcv_i(bob)
+        if count > max_count:
+            max_count = count
+            best_angle1 = angle1
+
+    angle0 = 0.0
+    angle1 = best_angle1
+    angle2 = -angle1
+    angle3 = 2 * angle1
+
+    update_tmp('angle0', angle0)
+    update_tmp('angle1', angle1)
+    update_tmp('angle2', angle2)
+    update_tmp('angle3', angle3)
+    ctl.Update_Dac()
+
+    sendc(bob, 'done')
+    sendc(conn, 'set_angles_a done')
+
+
+
+
+def adjust_am(conn):
+    sendc(bob, 'adjust_am')
+
+    t = get_tmp()
+    am_tmp = t['am_bias']
+
+    best_am = am_tmp
+    lowest_qber = None
+
+    for delta in [-0.05, 0, 0.05]:
+        am_test = round(am_tmp + delta, 2)
+        ctl.Set_Am_Bias(am_test)
+        time.sleep(0.5)
+
+        prev_qber = ctl.read_last_qber()
+        while True:
+            qber = ctl.read_last_qber()
+            if qber is not None and qber != prev_qber:
+                break
+            time.sleep(0.1)
+
+        print(f"[INFO] QBER for AM {am_test:.2f}: {qber:.4f}")
+
+        if lowest_qber is None or qber < lowest_qber:
+            lowest_qber = qber
+            best_am = am_test
+
+    print(f"[INFO] Best AM found: {best_am:.2f} with QBER {lowest_qber:.4f}")
+    ctl.Set_Am_Bias(best_am)
+    sendc(bob, 'done')
+    sendc(conn, 'adjust_am done')
+
+
+
+def adjust_soft_gates(conn):
+    sendc(bob, 'adjust_soft_gates')
+
+    while rcvc(bob) == 'get_qber':
+        prev_qber = ctl.read_last_qber()
+        qber = prev_qber
+        while qber == prev_qber:
+            time.sleep(0.5)
+            qber = ctl.read_last_qber()
+        send_d(bob, qber)
+
+    sendc(conn, 'adjust_soft_gates done')
+
+
+
+
+
+
 def start(conn):
     sendc(bob, 'start')
     t = get_tmp()
@@ -697,8 +813,12 @@ functionmap['fd_a'] = fd_a
 functionmap['fd_a_long'] = fd_a_long
 functionmap['fz_a'] = fz_a
 functionmap['fz_b'] = fz_b
+functionmap['set_angles_a'] = set_angles_a
+functionmap['adjust_am'] = adjust_am
+functionmap['adjust_soft_gates'] = adjust_soft_gates
 functionmap['start'] = start
 
+adjust_soft_gates
 
 while True:
     conn, addr = server_socket.accept()  # Accept incoming connection from admin
@@ -714,7 +834,7 @@ while True:
             except ConnectionResetError:
                 print("Client connection was reset. Exiting loop.")
                 break
-            
+
             if command=='':
                 break
 

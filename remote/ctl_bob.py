@@ -81,6 +81,22 @@ def Update_Angles():
     Write_Angles(t['angle0'], t['angle1'], t['angle2'], t['angle3'])
 
 
+
+
+
+def set_Softgate(g0, g1, w):
+    t = get_tmp()
+    command = 1 if t['soft_gate'] == 'off' else 2
+    g0, g1, w = max(0, g0), max(0, g1), max(0, w)
+    t['soft_gate0'] = g0
+    t['soft_gate1'] = g1
+    t['soft_gatew'] = w
+    Time_Calib_Reg(command, t['t0'], 0, g0, w, g1, w)
+
+
+
+
+
 def Update_Softgate():
     t = get_tmp()
     command = 1 if t['soft_gate']=='off' else 2
@@ -184,8 +200,12 @@ def Gen_Gate():
 
 
 def Find_Best_Shift(party):
-    best_shift = cal_lib.Best_Shift(party)
-    cal_lib.plot_shift(party, best_shift)
+    if party == 'alice':
+       gc_comp = cal_lib.find_best_gc_comp('alice') 
+    else:
+       gc_comp = cal_lib.find_best_gc_comp('bob')
+    best_shift = cal_lib.Best_Shift(party,gc_comp)
+    cal_lib.plot_shift(party, best_shift,gc_comp)
     return best_shift
 
     

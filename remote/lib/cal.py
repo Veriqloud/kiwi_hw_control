@@ -7,15 +7,14 @@ from termcolor import colored
 
 HW_CONTROL = '/home/vq-user/hw_control/'
 
-def Shift_Unit(j,party):
+def Shift_Unit(j,party,gc_comp):
     #times_ref_click0=[]
     #times_ref_click1=[]
+    gc_compensation=gc_comp
     if party == 'alice':
         data = np.loadtxt(HW_CONTROL+"data/tdc/pm_a_shift_"+str(j)+".txt",usecols=(2,3,4), dtype=np.int64)
-        gc_compensation=59
     elif party == 'bob':
         data = np.loadtxt(HW_CONTROL+"data/tdc/pm_b_shift_"+str(j)+".txt",usecols=(2,3,4), dtype=np.int64)
-        gc_compensation=61
 
     gc = data[:,0] 
     r = data[:,1]
@@ -56,11 +55,13 @@ def Fre_Est(x,y):
     dominant_frequency = positive_frequencies[np.argmax(positive_power)]
     return dominant_frequency
 
-def Fit_Sine(party):
+
+
+def Fit_Sine(party,gc_comp):
     return_arr = []
     delta_cnt0_arr = []
     for i in range(10):
-        times_ref_click0, times_ref_click1 = Shift_Unit(i,party)
+        times_ref_click0, times_ref_click1 = Shift_Unit(i,party,gc_comp)
         n0, bins0 = np.histogram(times_ref_click0, 64)
         n1, bins1 = np.histogram(times_ref_click1, 64)
         bin_center0 = (bins0[:-1] + bins0[1:])/2
@@ -84,13 +85,13 @@ def Fit_Sine(party):
 
     return return_arr
 
-def Best_Shift(party):
-    return_arr = Fit_Sine(party)
+def Best_Shift(party,gc_comp):
+    return_arr = Fit_Sine(party,gc_comp)
     amp_fre_arr=[]
     print("amp     fre   i")
     for amp,fre,i in return_arr:
-        if (abs(amp) < 1000):
-            if (0.1<fre<5):
+        if (abs(amp) < 1000 and abs(amp) >= 50):
+            if (1.85<fre<5):
                 amp_fre_arr.append(((abs(amp)*fre),i))
                 print(f"{abs(amp):.2f}  {fre:.2f}  {i:.2f}")
     if not amp_fre_arr:
@@ -100,6 +101,10 @@ def Best_Shift(party):
     best_shift = max_ele[1]
     print("Best shift: ", best_shift)
     return best_shift
+
+
+
+
 
 def Find_First_Peak(ref_time_arr):
     y, x = np.histogram(ref_time_arr, bins=np.arange(0,1255, 5)-2.5)
@@ -143,17 +148,28 @@ def Find_First_Peak(ref_time_arr):
     # print("First peak: ",first_peak)
     return int(first_peak)
 
-def plot_shift(party, shift):
+def plot_shift(party, shift,gc_comp):
     if shift is None:
         fig = plt.figure()
         fig.patch.set_facecolor('white')
         plt.axis('off')
-        plt.text(0.5, 0.5, 'Shift None', ha='center', va='center', fontsize=20, color='gray')
-        plt.savefig(f"data/calib_res/{party}_shift.png")
+        plt.text(
+           0.5, 0.6,
+           'No valid shift',
+           ha='center', va='center',
+           fontsize=24, color='red', fontweight='bold'
+        )
+        plt.text(
+           0.5, 0.4,
+           'Amplitude or frequency out of range',
+           ha='center', va='center',
+           fontsize=14, color='gray'
+        )
+        plt.savefig(f"{HW_CONTROL}data/calib_res/{party}_shift.png", dpi=300)
         plt.close()
         return
 
-    times0, times1 = Shift_Unit(shift, party)
+    times0, times1 = Shift_Unit(shift, party,gc_comp)
 
     n0, bins0 = np.histogram(times0, 64)
     n1, bins1 = np.histogram(times1, 64)
@@ -212,3 +228,45 @@ def plot_shift(party, shift):
         print(f"[Error in plot_shift for {party} shift={shift}]: {e}")
 
 # Best_Shift('bob')
+
+def load_gc_amplitudes(j, party, gc_comp):
+    if party == 'alice':
+        data = np.loadtxt(HW_CONTROL+"data/tdc/pm_a_shift_"+str(j)+".txt",usecols=(2,3,4), dtype=np.int64)
+    elif party == 'bob':
+        data = np.loadtxt(HW_CONTROL+"data/tdc/pm_b_shift_"+str(j)+".txt",usecols=(2,3,4), dtype=np.int64)
+    else:
+        raise ValueError("Party must be 'alice' or 'bob'")
+
+    gc = data[:, 0]
+    r = data[:, 1]
+    q_pos = data[:, 2]
+
+    gc0 = (gc[r == 0]*2 + q_pos[r == 0] + gc_comp) % 64
+    n0, _ = np.histogram(gc0, bins=64, range=(0, 64))
+    n0[1::2] = n0[1::2][::-1]
+    return n0
+
+def find_best_gc_comp(party):
+    gc_comp_stats = {}
+
+    for gc_comp in range(64):
+        max_jumps = []
+
+        for i in range(10):
+            histo = load_gc_amplitudes(i, party, gc_comp)
+            diffs = np.abs(np.diff(histo))
+            max_jump = np.max(diffs)
+            max_jumps.append(max_jump)
+
+        avg_max_jump = np.mean(max_jumps)
+        gc_comp_stats[gc_comp] = avg_max_jump
+
+    best_gc_comp = min(gc_comp_stats, key=gc_comp_stats.get)
+    best_avg_jump = gc_comp_stats[best_gc_comp]
+
+    print(f"Best GC_COMP for {party.capitalize()} = {best_gc_comp} (average max jump = {best_avg_jump:.2f})")
+    if best_avg_jump > 60:
+       print(colored(" Low visibility: average max jump is high, signal may be noisy", 'yellow', force_color=True))
+
+    return best_gc_comp
+

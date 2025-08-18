@@ -10,6 +10,33 @@ import lib.gen_seq as gen_seq
 from lib.fpga import *
 
 
+LOG_FILE = os.path.expanduser("~/bin/qber_total.log")
+
+def read_last_qber():
+    try:
+        with open(LOG_FILE, 'rb') as f:
+            f.seek(0, os.SEEK_END)
+            pos = f.tell() - 1
+            line = b''
+            while pos >= 0:
+                f.seek(pos)
+                char = f.read(1)
+                if char == b'\n':
+                    if line:
+                        break
+                else:
+                    line = char + line
+                pos -= 1
+            line = line.decode(errors='ignore').strip()
+            if 'total' in line:
+                parts = line.split(':')[-1].split()
+                return float(parts[-1])
+    except Exception as e:
+        print(f"[ERROR] Reading QBER: {e}")
+    return None
+
+
+
 def Set_Vca(voltage):
     if (voltage>5) or (voltage<0):
         print("Voltage out of range. Choose a value between 0 and 5")

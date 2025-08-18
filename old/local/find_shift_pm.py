@@ -11,10 +11,10 @@ def shift_unit(j,party, ):
     times_ref_click1=[]
     if party == 'alice':
         data = np.loadtxt("pm_shift_data/pm_a_shift_"+str(j)+".txt", usecols=(2,3,4), dtype=np.int64)
-        gc_compensation=59
+        gc_compensation=36
     elif party == 'bob':
         data = np.loadtxt("pm_shift_data/pm_b_shift_"+str(j)+".txt", usecols=(2,3,4), dtype=np.int64)
-        gc_compensation=61
+        gc_compensation=62
 
     gc = data[:,0] 
     r = data[:,1]
@@ -161,10 +161,10 @@ def best_shift(party):
 
     plt.subplots_adjust(hspace=0.3, wspace=0.3)
     mng = plt.get_current_fig_manager()
-    mng.full_screen_toggle()
+   # mng.full_screen_toggle()
     plt.tight_layout()
     plt.show()
 
 
-#best_shift('alice')
+best_shift('alice')
 best_shift('bob')

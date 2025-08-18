@@ -143,7 +143,13 @@ while True:
                     count = ctl.diff_counts()
                     send_i(count)
 
-                
+
+            elif command == 'adjust_am':
+                rcvc()
+                print(colored('AM adjusted', 'cyan', force_color=True))
+                rcvc()
+
+
             elif command == 'find_vca':
                 print(colored('find_vca', 'cyan', force_color=True))
                 ctl.Ensure_Spd_Mode('continuous')
@@ -405,7 +411,88 @@ while True:
                 update_tmp('insert_zeros', 'on')
                 ctl.Update_Dac()
                 sendc('ok')
-            
+
+
+
+
+            elif command == 'adjust_soft_gates':
+                t = get_tmp()
+                g0, g1, w = t['soft_gate0'], t['soft_gate1'], t['soft_gatew']
+                best_g0, best_g1, best_w = g0, g1, w
+                lowest_qber = None
+
+                #  gate 0
+                for delta in [-5, 0, 5]:
+                    g0_test = max(0, g0 + delta)
+                    t['soft_gate0'] = g0_test
+                    save_tmp(t)
+                    ctl.set_Softgate(g0_test, g1, w)
+                    sendc('get_qber')
+                    qber = rcv_d()
+                    print(f"[TEST] g0={g0_test}, g1={g1}, w={w}, QBER={qber}")
+                    if lowest_qber is None or qber < lowest_qber:
+                        lowest_qber, best_g0 = qber, g0_test
+
+                t['soft_gate0'] = best_g0
+                save_tmp(t)
+                ctl.set_Softgate(best_g0, g1, w)
+
+                #  gate 1
+                for delta in [-5, 0, 5]:
+                    g1_test = max(0, g1 + delta)
+                    t['soft_gate1'] = g1_test
+                    save_tmp(t)
+                    ctl.set_Softgate(best_g0, g1_test, w)
+                    sendc('get_qber')
+                    qber = rcv_d()
+                    print(f"[TEST] g0={best_g0}, g1={g1_test}, w={w}, QBER={qber}")
+                    if qber < lowest_qber:
+                        lowest_qber, best_g1 = qber, g1_test
+
+                t['soft_gate1'] = best_g1
+                save_tmp(t)
+                ctl.set_Softgate(best_g0, best_g1, w)
+
+                #  w
+                for delta in [-5, 0, 5]:
+                    w_test = max(0, w + delta)
+                    t['soft_gatew'] = w_test
+                    save_tmp(t)
+                    ctl.set_Softgate(best_g0, best_g1, w_test)
+                    sendc('get_qber')
+                    qber = rcv_d()
+                    print(f"[TEST] g0={best_g0}, g1={best_g1}, w={w_test}, QBER={qber}")
+                    if qber < lowest_qber:
+                        lowest_qber, best_w = qber, w_test
+
+                t['soft_gatew'] = best_w
+                save_tmp(t)
+                ctl.set_Softgate(best_g0, best_g1, best_w)
+
+                sendc('ok')
+
+
+
+
+
+            elif command == 'set_angles_a':
+                t = get_tmp()
+                t['feedback'] = 'on'
+                t['soft_gate'] = 'on'
+                t['insert_zeros'] = 'off'
+                save_tmp(t)
+                ctl.Write_To_Fake_Rng(gen_seq.seq_rng_zeros())
+                ctl.Update_Softgate()
+                ctl.Update_Dac()
+                time.sleep(0.3)
+
+                ctl.Ensure_Spd_Mode('continuous')
+                while rcvc() == 'get counts':
+                    count = ctl.diff_counts()
+                    send_i(count)
+
+
+
             elif command == 'start':
                 print(colored('start', 'cyan', force_color=True))
                 t['pm_mode'] = 'true_rng'
