@@ -145,9 +145,10 @@ while True:
 
 
             elif command == 'adjust_am':
-                rcvc()
-                print(colored('AM adjusted', 'cyan', force_color=True))
-                rcvc()
+ #               rcvc()
+ #               print(colored('AM adjusted', 'cyan', force_color=True))
+               print(colored('doing nothing', 'cyan', force_color=True))
+#               rcvc()
 
 
             elif command == 'find_vca':
@@ -422,7 +423,7 @@ while True:
                 lowest_qber = None
 
                 #  gate 0
-                for delta in [-5, 0, 5]:
+                for delta in [-3, 0, 3]:
                     g0_test = max(0, g0 + delta)
                     t['soft_gate0'] = g0_test
                     save_tmp(t)
@@ -438,7 +439,7 @@ while True:
                 ctl.set_Softgate(best_g0, g1, w)
 
                 #  gate 1
-                for delta in [-5, 0, 5]:
+                for delta in [-3, 0, 3]:
                     g1_test = max(0, g1 + delta)
                     t['soft_gate1'] = g1_test
                     save_tmp(t)
@@ -454,7 +455,7 @@ while True:
                 ctl.set_Softgate(best_g0, best_g1, w)
 
                 #  w
-                for delta in [-5, 0, 5]:
+                for delta in [-3, 0, 3]:
                     w_test = max(0, w + delta)
                     t['soft_gatew'] = w_test
                     save_tmp(t)

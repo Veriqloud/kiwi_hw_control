@@ -749,7 +749,7 @@ def adjust_am(conn):
 
     print(f"[INFO] Best AM found: {best_am:.2f} with QBER {lowest_qber:.4f}")
     ctl.Set_Am_Bias(best_am)
-    sendc(bob, 'done')
+#    sendc(bob, 'done')
     sendc(conn, 'adjust_am done')
 
 
