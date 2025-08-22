@@ -100,6 +100,9 @@ parser.add_argument("--full_init", action="store_true",
 parser.add_argument("--command", type=str, nargs="*", 
                         help="pass commands (see doc for list of commands)")
 
+parser.add_argument("--monitoring", action="store_true",
+                    help=" monitoring loop")
+
 
 args = parser.parse_args()
 
@@ -118,6 +121,8 @@ def interact(command):
         exit()
 
 
+
+
 if args.full_init:
     interact('init')
     interact('sync_gc')
@@ -126,6 +131,8 @@ if args.full_init:
     interact('find_am2_bias')
     interact('pol_bob')
     interact('find_vca_4000')
+#    interact('loop_find_gates')
+#    interact('qdistance')
     interact('loop_find_gates')
     interact('fs_b')
     interact('fs_a')
@@ -136,6 +143,11 @@ if args.full_init:
     interact('fz_a')
     interact('fz_b')
     interact('start')
+
+if args.monitoring:
+    for _ in range(3):
+        interact('adjust_soft_gates')
+        interact('adjust_am')
 
 
 elif args.command is not None:

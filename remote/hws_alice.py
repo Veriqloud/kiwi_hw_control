@@ -268,7 +268,7 @@ def find_vca(conn, limit=3000):
     bias_1 = d['am_bias']
     bias_2 = d['am_bias_2']
     if limit==3000 :
-       ctl.Set_Am_Bias(bias_1 + 0.3)
+       ctl.Set_Am_Bias(bias_1 + 1)
        ctl.Set_Am_Bias_2(bias_2 + 0.3)
     count = 0
     while  (count < limit) and (vca <= 4.8) :
