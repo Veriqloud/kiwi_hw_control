@@ -84,14 +84,15 @@ def Update_Angles():
 
 
 
-def set_Softgate(g0, g1, w):
+def set_Softgate(g0, g1, w0, w1):
     t = get_tmp()
     command = 1 if t['soft_gate'] == 'off' else 2
-    g0, g1, w = max(0, g0), max(0, g1), max(0, w)
+    g0, g1, w0, w1 = max(0, g0), max(0, g1), max(0, w0), max(0, w1)
     t['soft_gate0'] = g0
     t['soft_gate1'] = g1
-    t['soft_gatew'] = w
-    Time_Calib_Reg(command, t['t0'], 0, g0, w, g1, w)
+    t['soft_gatew0'] = w0
+    t['soft_gatew1'] = w1
+    Time_Calib_Reg(command, t['t0'], 0, g0, w0, g1, w1)
 
 
 
@@ -946,6 +947,8 @@ def init_apply_default():
     t['soft_gate0'] = d['soft_gate0']
     t['soft_gate1'] = d['soft_gate1']
     t['soft_gatew'] = d['soft_gatew']
+    t['w1'] = d['w1']
+    t['w0'] = d['w0']
     t['t0'] = d['t0']
     t['deadtime_cont'] = d['deadtime_cont']
     t['deadtime_gated'] = d['deadtime_gated']
@@ -976,6 +979,8 @@ def init_rst_default():
     d['soft_gate0'] = 28
     d['soft_gate1'] = 542
     d['soft_gatew'] = 40
+    d['w1'] = 40
+    d['w0'] = 40
     d['t0'] = 0
     d['deadtime_cont'] = 20
     d['deadtime_gated'] = 15
@@ -1017,6 +1022,8 @@ def init_rst_tmp():
     t['soft_gate0'] = 0
     t['soft_gate1'] = 0
     t['soft_gatew'] = 0
+    t['w1'] = 0
+    t['w0'] = 0
     t['t0'] = 0
     t['fiber_delay_mod'] = 0
     t['fiber_delay_long'] = 0

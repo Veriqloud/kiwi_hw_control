@@ -130,7 +130,7 @@ if args.full_init:
     interact('loop_find_am_bias')
     interact('find_am2_bias')
     interact('pol_bob')
-    interact('find_vca_4000')
+    interact('vca_per_95')
 #    interact('loop_find_gates')
 #    interact('qdistance')
     interact('loop_find_gates')

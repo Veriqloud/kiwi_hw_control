@@ -264,34 +264,45 @@ def find_vca(conn, limit=3000):
     update_tmp('am_mode', 'double')
     ctl.Update_Dac()
     d = get_default()
-    vca = d['vca']
     bias_1 = d['am_bias']
     bias_2 = d['am_bias_2']
-    if limit==3000 :
-       ctl.Set_Am_Bias(bias_1 + 1)
-       ctl.Set_Am_Bias_2(bias_2 + 0.3)
-    count = 0
-    while  (count < limit) and (vca <= 4.8) :
-        vca = round(vca + 0.2, 2)
-        ctl.Set_Vca(round(vca, 2))
-        time.sleep(0.2)
-        sendc(bob, 'get counts')
-        count = rcv_i(bob)
-        print(count)
+    vca = d['vca']
+
+    for offset in [0.3, 2.0, -2.0]:
+        if limit == 3000:
+            ctl.Set_Am_Bias(bias_1 + offset)
+            ctl.Set_Am_Bias_2(bias_2 + offset)
+
+        count = 0
+        vca = d['vca']
+
+        while (count < limit) and (vca <= 4.8):
+            vca = round(vca + 0.2, 2)
+            ctl.Set_Vca(vca)
+            time.sleep(0.2)
+            sendc(bob, 'get counts')
+            count = rcv_i(bob)
+            print(count)
+
+        if count >= limit:
+            break
 
     if count >= limit:
         m = colored(f"success, {vca}V / {count} cts \n", "green", force_color=True)
         print(m)
-
     else:
         m = colored(f"fail, {vca}V / {count} cts \n", "red", force_color=True)
         print(m)
+
     update_tmp('vca_calib', vca)
     update_default('vca', max(vca-1, 0))
     ctl.Set_Am_Bias(bias_1)
     ctl.Set_Am_Bias_2(bias_2)
     sendc(bob, 'done')
     sendc(conn, 'find_vca '+m)
+
+
+
 
 
 def find_am_bias(conn, range_val=0.5, sendresult=True):
@@ -741,13 +752,13 @@ def adjust_am(conn):
                 break
             time.sleep(0.1)
 
-        print(f"[INFO] QBER for AM {am_test:.2f}: {qber:.4f}")
+        print(f" QBER for AM {am_test:.2f}: {qber:.4f}")
 
         if lowest_qber is None or qber < lowest_qber:
             lowest_qber = qber
             best_am = am_test
 
-    print(f"[INFO] Best AM found: {best_am:.2f} with QBER {lowest_qber:.4f}")
+    print(f" Best AM found: {best_am:.2f} with QBER {lowest_qber:.4f}")
     ctl.Set_Am_Bias(best_am)
 #    sendc(bob, 'done')
     sendc(conn, 'adjust_am done')

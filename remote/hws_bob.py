@@ -418,8 +418,8 @@ while True:
 
             elif command == 'adjust_soft_gates':
                 t = get_tmp()
-                g0, g1, w = t['soft_gate0'], t['soft_gate1'], t['soft_gatew']
-                best_g0, best_g1, best_w = g0, g1, w
+                g0, g1, w0, w1 = t['soft_gate0'], t['soft_gate1'], t['w0'], t['w1']
+                best_g0, best_g1, best_w0, best_w1 = g0, g1, w0, w1
                 lowest_qber = None
 
                 #  gate 0
@@ -427,48 +427,64 @@ while True:
                     g0_test = max(0, g0 + delta)
                     t['soft_gate0'] = g0_test
                     save_tmp(t)
-                    ctl.set_Softgate(g0_test, g1, w)
+                    ctl.set_Softgate(g0_test, g1, w0, w1)
                     sendc('get_qber')
                     qber = rcv_d()
-                    print(f"[TEST] g0={g0_test}, g1={g1}, w={w}, QBER={qber}")
+                    print(f" g0={g0_test}, g1={g1}, w0={w0}, w1={w1}, QBER={qber}")
                     if lowest_qber is None or qber < lowest_qber:
                         lowest_qber, best_g0 = qber, g0_test
 
                 t['soft_gate0'] = best_g0
                 save_tmp(t)
-                ctl.set_Softgate(best_g0, g1, w)
+                ctl.set_Softgate(best_g0, g1, w0, w1)
 
                 #  gate 1
                 for delta in [-3, 0, 3]:
                     g1_test = max(0, g1 + delta)
                     t['soft_gate1'] = g1_test
                     save_tmp(t)
-                    ctl.set_Softgate(best_g0, g1_test, w)
+                    ctl.set_Softgate(best_g0, g1_test, w0, w1)
                     sendc('get_qber')
                     qber = rcv_d()
-                    print(f"[TEST] g0={best_g0}, g1={g1_test}, w={w}, QBER={qber}")
+                    print(f" g0={best_g0}, g1={g1_test}, w0={w0}, w1={w1}, QBER={qber}")
                     if qber < lowest_qber:
                         lowest_qber, best_g1 = qber, g1_test
 
                 t['soft_gate1'] = best_g1
                 save_tmp(t)
-                ctl.set_Softgate(best_g0, best_g1, w)
+                ctl.set_Softgate(best_g0, best_g1, w0, w1)
 
-                #  w
+                #  w0
                 for delta in [-3, 0, 3]:
-                    w_test = max(0, w + delta)
-                    t['soft_gatew'] = w_test
+                    w0_test = max(0, w0 + delta)
+                    t['soft_gatew0'] = w0_test
                     save_tmp(t)
-                    ctl.set_Softgate(best_g0, best_g1, w_test)
+                    ctl.set_Softgate(best_g0, best_g1, w0_test, w1)
                     sendc('get_qber')
                     qber = rcv_d()
-                    print(f"[TEST] g0={best_g0}, g1={best_g1}, w={w_test}, QBER={qber}")
+                    print(f" g0={best_g0}, g1={best_g1}, w0={w0_test}, w1={w1}, QBER={qber}")
                     if qber < lowest_qber:
-                        lowest_qber, best_w = qber, w_test
+                        lowest_qber, best_w0 = qber, w0_test
 
-                t['soft_gatew'] = best_w
+                t['soft_gatew0'] = best_w0
                 save_tmp(t)
-                ctl.set_Softgate(best_g0, best_g1, best_w)
+                ctl.set_Softgate(best_g0, best_g1, best_w0, w1)
+
+                #  w1
+                for delta in [-3, 0, 3]:
+                    w1_test = max(0, w1 + delta)
+                    t['soft_gatew1'] = w1_test
+                    save_tmp(t)
+                    ctl.set_Softgate(best_g0, best_g1, best_w0, w1_test)
+                    sendc('get_qber')
+                    qber = rcv_d()
+                    print(f" g0={best_g0}, g1={best_g1}, w0={best_w0}, w1={w1_test}, QBER={qber}")
+                    if qber < lowest_qber:
+                        lowest_qber, best_w1 = qber, w1_test
+
+                t['soft_gatew1'] = best_w1
+                save_tmp(t)
+                ctl.set_Softgate(best_g0, best_g1, best_w0, best_w1)
 
                 sendc('ok')
 
