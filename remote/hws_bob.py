@@ -457,7 +457,7 @@ while True:
                 #  w0
                 for delta in [-3, 0, 3]:
                     w0_test = max(0, w0 + delta)
-                    t['soft_gatew0'] = w0_test
+                    t['w0'] = w0_test
                     save_tmp(t)
                     ctl.set_Softgate(best_g0, best_g1, w0_test, w1)
                     sendc('get_qber')
@@ -466,14 +466,14 @@ while True:
                     if qber < lowest_qber:
                         lowest_qber, best_w0 = qber, w0_test
 
-                t['soft_gatew0'] = best_w0
+                t['w0'] = best_w0
                 save_tmp(t)
                 ctl.set_Softgate(best_g0, best_g1, best_w0, w1)
 
                 #  w1
                 for delta in [-3, 0, 3]:
                     w1_test = max(0, w1 + delta)
-                    t['soft_gatew1'] = w1_test
+                    t['w1'] = w1_test
                     save_tmp(t)
                     ctl.set_Softgate(best_g0, best_g1, best_w0, w1_test)
                     sendc('get_qber')
@@ -482,7 +482,7 @@ while True:
                     if qber < lowest_qber:
                         lowest_qber, best_w1 = qber, w1_test
 
-                t['soft_gatew1'] = best_w1
+                t['w1'] = best_w1
                 save_tmp(t)
                 ctl.set_Softgate(best_g0, best_g1, best_w0, best_w1)
 
