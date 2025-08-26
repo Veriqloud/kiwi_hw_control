@@ -141,7 +141,7 @@ def set(args):
         sendc(args.soft_gate_filter)
     elif args.soft_gates:
         sendc('set_soft_gates')
-        for i in range(3):
+        for i in range(4):
             send_i(args.soft_gates[i])
     elif args.feedback:
         sendc('set_feedback')
@@ -281,8 +281,8 @@ parser_set.add_argument("--spd_eff", choices=['10', '20', '30'],
                         help="detection efficiency in percent; strongly recommended: 20")
 parser_set.add_argument("--soft_gate_filter", choices=['off', 'on'], 
                         help="filter events through time gates")
-parser_set.add_argument("--soft_gates", nargs=3, type=int, 
-                        metavar=['gate0 gate1 width'],
+parser_set.add_argument("--soft_gates", nargs=4, type=int, 
+                        metavar=['gate0 gate1 w0 w1'],
                         help="set gate positions and width")
 parser_set.add_argument("--pm_mode", choices=['seq64', 'seq64tight', 'fake_rng', 'true_rng', 'off'],
                         help="fixed periodic sequece, fake rng or real rng")
