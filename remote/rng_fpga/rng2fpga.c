@@ -11,6 +11,7 @@
 #include <errno.h>
 #include <signal.h>
 #include <fcntl.h>
+#include <time.h>
 
 
 // write a zeros to the fpga upon exit
@@ -33,8 +34,13 @@ void sigint_handler (int signum) {
 
 //Main
 int main(){
+    time_t t = time(NULL);
+    struct tm tm = *localtime(&t);
+    printf("%d-%02d-%02d %02d:%02d:%02d\n", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+    fflush(stdout);
+
 	//printf("Open SwiftPro RNG device! \n");
-	int fd = open("/dev/ttyACM0", O_RDWR | O_NOCTTY);
+	int fd = open("/dev/ttyRNG0", O_RDWR | O_NOCTTY);
 	if (fd < 0){
 		printf("Could not open the USB! \n");
 		return 1;
@@ -129,8 +135,14 @@ int main(){
                 fprintf(stderr, "unable to write to errorfile\n");
             }
             fclose(errorfile);
-            //printf("RNG ERROR: %d\n", error);
-
+            printf("RNG ERROR. closing and reopening device %d\n", error);
+            fflush(stdout);
+	        close(fd);
+            int fd = open("/dev/ttyRNG0", O_RDWR | O_NOCTTY);
+            if (fd < 0){
+                printf("Could not reopen the USB! \n");
+                return 1;
+            }
         } 
 		ret_write = write(fpga_fd, rbytes, 16000);
         if (ret_write!=16000){
