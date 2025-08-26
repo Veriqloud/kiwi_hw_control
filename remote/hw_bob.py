@@ -182,7 +182,9 @@ while True:
                 t = get_tmp()
                 t['soft_gate0'] = rcv_i()
                 t['soft_gate1'] = rcv_i()
-                t['soft_gatew'] = rcv_i()
+   #             t['soft_gatew'] = rcv_i()
+                t['w0'] = rcv_i()
+                t['w1'] = rcv_i()
                 save_tmp(t)
                 ctl.Update_Softgate()
             elif command == 'set_feedback':

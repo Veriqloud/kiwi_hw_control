@@ -455,38 +455,132 @@ while True:
                 ctl.set_Softgate(best_g0, best_g1, w0, w1)
 
                 #  w0
-                for delta in [-3, 0, 3]:
-                    w0_test = max(0, w0 + delta)
-                    t['w0'] = w0_test
-                    save_tmp(t)
-                    ctl.set_Softgate(best_g0, best_g1, w0_test, w1)
-                    sendc('get_qber')
-                    qber = rcv_d()
-                    print(f" g0={best_g0}, g1={best_g1}, w0={w0_test}, w1={w1}, QBER={qber}")
-                    if qber < lowest_qber:
-                        lowest_qber, best_w0 = qber, w0_test
+#                for delta in [-3, 0, 3]:
+#                    w0_test = max(0, w0 + delta)
+#                    t['w0'] = w0_test
+#                    save_tmp(t)
+#                    ctl.set_Softgate(best_g0, best_g1, w0_test, w1)
+#                    sendc('get_qber')
+#                    qber = rcv_d()
+#                    print(f" g0={best_g0}, g1={best_g1}, w0={w0_test}, w1={w1}, QBER={qber}")
+#                    if qber < lowest_qber:
+#                        lowest_qber, best_w0 = qber, w0_test
 
-                t['w0'] = best_w0
-                save_tmp(t)
-                ctl.set_Softgate(best_g0, best_g1, best_w0, w1)
+#                t['w0'] = best_w0
+#                save_tmp(t)
+#                ctl.set_Softgate(best_g0, best_g1, best_w0, w1)
 
                 #  w1
-                for delta in [-3, 0, 3]:
-                    w1_test = max(0, w1 + delta)
-                    t['w1'] = w1_test
-                    save_tmp(t)
-                    ctl.set_Softgate(best_g0, best_g1, best_w0, w1_test)
-                    sendc('get_qber')
-                    qber = rcv_d()
-                    print(f" g0={best_g0}, g1={best_g1}, w0={best_w0}, w1={w1_test}, QBER={qber}")
-                    if qber < lowest_qber:
-                        lowest_qber, best_w1 = qber, w1_test
+#                for delta in [-3, 0, 3]:
+#                    w1_test = max(0, w1 + delta)
+#                    t['w1'] = w1_test
+#                    save_tmp(t)
+#                    ctl.set_Softgate(best_g0, best_g1, best_w0, w1_test)
+#                    sendc('get_qber')
+#                    qber = rcv_d()
+#                    print(f" g0={best_g0}, g1={best_g1}, w0={best_w0}, w1={w1_test}, QBER={qber}")
+#                    if qber < lowest_qber:
+#                        lowest_qber, best_w1 = qber, w1_test
 
-                t['w1'] = best_w1
-                save_tmp(t)
-                ctl.set_Softgate(best_g0, best_g1, best_w0, best_w1)
+#                t['w1'] = best_w1
+#                save_tmp(t)
+#                ctl.set_Softgate(best_g0, best_g1, best_w0, best_w1)
 
                 sendc('ok')
+
+
+
+
+
+
+            elif command == 'set_soft_gates':
+                t = get_tmp()
+#                t['pm_mode'] = 'fake_rng'
+#                t['feedback'] = 'on'
+#                t['soft_gate'] = 'on'
+#                t['insert_zeros'] = 'off'
+                save_tmp(t)
+                ctl.Write_To_Fake_Rng(gen_seq.seq_rng_random())
+                ctl.Update_Softgate()
+                ctl.Update_Dac()
+                time.sleep(0.3)
+
+                d = get_default()
+                g0, g1, w0, w1 = d['soft_gate0'], d['soft_gate1'], d['w0'], d['w1']
+
+                print(f"Initial values: g0={g0}, g1={g1}, w0={w0}, w1={w1}")
+
+                best_g0, best_g1, best_w0, best_w1 = g0, g1, w0, w1
+                max_count = 0
+
+                print("Step 1: optimizing g0")
+                for delta in range(-10, 11, 3):
+                    g0_test = max(0, g0 + delta)
+                    ctl.set_Softgate(g0_test, g1, w0, w1)
+                    time.sleep(0.2)
+                    count = ctl.counts_fast()[1]
+                    print(f"   g0={g0_test}, count1={count}")
+                    if count > max_count:
+                        max_count = count
+                        best_g0 = g0_test
+
+                print(f"Best g0={best_g0}, max_count={max_count}")
+
+                max_count = 0
+                print("Step 2: optimizing g1")
+                for delta in range(-10, 11, 3):
+                    g1_test = max(0, g1 + delta)
+                    ctl.set_Softgate(best_g0, g1_test, w0, w1)
+                    time.sleep(0.2)
+                    count = ctl.counts_fast()[2]
+                    print(f"   g1={g1_test}, count2={count}")
+                    if count > max_count:
+                        max_count = count
+                        best_g1 = g1_test
+
+                print(f"Best g1={best_g1}, max_count={max_count}")
+
+                counts = ctl.counts_fast()
+                print(f"Step 3: initial counts: c1={counts[1]}, c2={counts[2]}")
+
+                if counts[1] > counts[2]:
+                    i = 0
+                else:
+                    i = 1
+                print(f"Decision: adjust w{i}")
+
+                for delta in range(0, 11, 2):
+                    if i == 1:
+                        w1_test = max(0, w1 - delta)
+                        ctl.set_Softgate(best_g0, best_g1, best_w0, w1_test)
+                        time.sleep(0.2)
+                        counts = ctl.counts_fast()
+                        print(f"   w1={w1_test}, c1={counts[1]}, c2={counts[2]}")
+                        if abs(counts[1] - counts[2]) <= 50:
+                            best_w1 = w1_test
+                            print(f"Best w1={best_w1}")
+                            break
+                    else:
+                        w0_test = max(0, w0 - delta)
+                        ctl.set_Softgate(best_g0, best_g1, w0_test, best_w1)
+                        time.sleep(0.2)
+                        counts = ctl.counts_fast()
+                        print(f"   w0={w0_test}, c1={counts[1]}, c2={counts[2]}")
+                        if abs(counts[1] - counts[2]) <= 50:
+                            best_w0 = w0_test
+                            print(f"Best w0={best_w0}")
+                            break
+
+                t = get_tmp()
+                t['soft_gate0'], t['soft_gate1'] = best_g0, best_g1
+                t['w0'], t['w1'] = best_w0, best_w1
+                save_tmp(t)
+
+                ctl.set_Softgate(best_g0, best_g1, best_w0, best_w1)
+                print(f"Final values: g0={best_g0}, g1={best_g1}, w0={best_w0}, w1={best_w1}")
+                sendc('set_soft_gates_done')
+
+
 
 
 
