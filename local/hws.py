@@ -142,6 +142,7 @@ if args.full_init:
     interact('fd_a_long')
     interact('fz_a')
     interact('fz_b')
+#    interact('set_soft_gates')
     interact('start')
 
 if args.monitoring:
