@@ -78,6 +78,18 @@ KERNEL=="xdma0_h2c_2", MODE="0666"
 KERNEL=="xdma0_h2c_3", MODE="0666"
 ~~~~
 
+to make symlink with a fixed name to the usb RNG add the following line to /etc/udev/rules.d/usb.rules
+
+```
+SUBSYSTEM=="tty", ATTRS{idVendor}=="1fc9", ATTRS{idProduct}=="8111", SYMLINK+="ttyRNG0", MODE="0666", GROUP="vq-user"
+```
+
+and on Bob for the APD:
+
+```
+SUBSYSTEM=="tty", ATTRS{idVendor}=="04d8", ATTRS{idProduct}=="f7b1", SYMLINK+="ttyAPD0", MODE="0660", GROUP="vq-user"
+```
+
 add vq-user to dialout group and reload the rules. Reboot!
 ```
 sudo usermod -aG dialout vq-user
