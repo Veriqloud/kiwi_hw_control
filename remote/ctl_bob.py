@@ -86,12 +86,8 @@ def Update_Angles():
 
 def set_Softgate(g0, g1, w0, w1):
     t = get_tmp()
-    command = 1 if t['soft_gate'] == 'off' else 2
+    command = 1 if t['soft_gate']=='off' else 2
     g0, g1, w0, w1 = max(0, g0), max(0, g1), max(0, w0), max(0, w1)
-    t['soft_gate0'] = g0
-    t['soft_gate1'] = g1
-    t['soft_gatew0'] = w0
-    t['soft_gatew1'] = w1
     Time_Calib_Reg(command, t['t0'], 0, g0, w0, g1, w1)
 
 
@@ -104,7 +100,9 @@ def Update_Softgate():
     g0 = t['soft_gate0']
     g1 = t['soft_gate1']
     w = t['soft_gatew']
-    Time_Calib_Reg(command, t['t0'], 0, g0, w, g1, w)
+    w0 = t['w0']
+    w1 = t['w1']
+    Time_Calib_Reg(command, t['t0'], 0, g0, w0, g1, w1)
             
 
 def Set_Pol(ch, vol):

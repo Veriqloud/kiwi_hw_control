@@ -764,7 +764,6 @@ def adjust_am(conn):
     sendc(conn, 'adjust_am done')
 
 
-
 def adjust_soft_gates(conn):
     sendc(bob, 'adjust_soft_gates')
 
@@ -777,6 +776,27 @@ def adjust_soft_gates(conn):
         send_d(bob, qber)
 
     sendc(conn, 'adjust_soft_gates done')
+
+
+
+
+def set_soft_gates(conn):
+    t = get_tmp()
+#    pm_mode = t['pm_mode']
+
+#    t['pm_mode'] = 'fake_rng'
+    save_tmp(t)
+    ctl.Write_To_Fake_Rng(gen_seq.seq_rng_random())
+    ctl.Update_Dac()
+    time.sleep(0.2)
+    sendc(bob, 'set_soft_gates')
+
+    rcvc(bob)
+#    t['pm_mode'] = pm_mode
+    save_tmp(t)
+    ctl.Update_Dac()
+
+    sendc(conn, 'set_soft_gates_done')
 
 
 
@@ -827,6 +847,7 @@ functionmap['fz_b'] = fz_b
 functionmap['set_angles_a'] = set_angles_a
 functionmap['adjust_am'] = adjust_am
 functionmap['adjust_soft_gates'] = adjust_soft_gates
+functionmap['set_soft_gates'] = set_soft_gates
 functionmap['start'] = start
 
 adjust_soft_gates
