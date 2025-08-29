@@ -10,7 +10,6 @@ install ubuntu-server 22.4
 - partition standard with one full partition (no lvm)
 - copy .bashrc
 
-don't wait for second network on boot: add `optional: true` to `/etc/netplan/01-netcfg.yaml` to skip waiting at boot if no network is connected. 
 
 Install some packages
 
@@ -23,21 +22,27 @@ python3 -m pip install --upgrade termcolor --break-system-packages
 ~~~~
 
 
-Network: we have two network interfaces managed by netplan. Make sure `/etc/netplan/name.yaml` looks something like this:
+Network: we have two network interfaces managed by netplan. Make sure `/etc/netplan/01-somename.yaml` looks something like this:
 
 ```
 network:
   version: 2
   renderer: networkd
   ethernets:
-    enp0s31f6:
+    eth_client:
+      match:
+        macaddress: 9c:6b:00:62:82:fc
       dhcp4: true
       optional: true
-    enp3s0:
+      set-name: eth_client
+    eth_wrs:
       dhcp4: false
       addresses:
-        - 192.168.10.11/24
+        - 192.168.10.12/24
       optional: true
+      match:
+        macaddress: 9c:6b:00:62:82:fd
+      set-name: eth_wrs
 ```
 
 then update with `sudo netplan apply`. check with `ip ad`.
