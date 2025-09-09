@@ -214,6 +214,21 @@ check_status.sh     # make sure they are up
 
 logfiles are in ~/log/
 
+adjust wait-online for waiting until the networks are up
+
+```.bash
+sudo systemctl edit systemd-networkd-wait-online.service
+```
+
+add the lines
+
+```.bash
+[Service]
+ExecStart=
+ExecStart=/usr/lib/systemd/systemd-networkd-wait-online --interface=eth_wrs --interface=eth_client
+```
+
+
 
 
 Create the second service decoy_rng similar to the rng.service on Alice when she use decoy state.
