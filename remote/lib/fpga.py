@@ -286,8 +286,8 @@ def Set_Ltc():
 
 def Sync_Ltc():
     #Reset sync counter
-    Write(0x12000 + 24, 0x1)
-    Write(0x12000 + 24, 0x0)
+    write(0x12000, 24, 1)
+    write(0x12000, 24, 0)
     time.sleep(0.1)
     #Send sync trigger
     write(0x12000, [0, 0], [0, 1])
