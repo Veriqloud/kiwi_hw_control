@@ -285,6 +285,11 @@ def Set_Ltc():
     reg_file.close()
 
 def Sync_Ltc():
+    #Reset sync counter
+    Write(0x12000 + 24, 0x1)
+    Write(0x12000 + 24, 0x0)
+    time.sleep(0.1)
+    #Send sync trigger
     write(0x12000, [0, 0], [0, 1])
     time.sleep(1.2)
     write(0x12000, 0, 0)
