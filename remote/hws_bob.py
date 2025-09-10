@@ -455,36 +455,36 @@ while True:
                 ctl.set_Softgate(best_g0, best_g1, w0, w1)
 
                 #  w0
-#                for delta in [-3, 0, 3]:
-#                    w0_test = max(0, w0 + delta)
-#                    t['w0'] = w0_test
-#                    save_tmp(t)
-#                    ctl.set_Softgate(best_g0, best_g1, w0_test, w1)
-#                    sendc('get_qber')
-#                    qber = rcv_d()
-#                    print(f" g0={best_g0}, g1={best_g1}, w0={w0_test}, w1={w1}, QBER={qber}")
-#                    if qber < lowest_qber:
-#                        lowest_qber, best_w0 = qber, w0_test
+                for delta in [-3, 0, 3]:
+                    w0_test = max(25, w0 + delta)
+                    t['w0'] = w0_test
+                    save_tmp(t)
+                    ctl.set_Softgate(best_g0, best_g1, w0_test, w1)
+                    sendc('get_qber')
+                    qber = rcv_d()
+                    print(f" g0={best_g0}, g1={best_g1}, w0={w0_test}, w1={w1}, QBER={qber}")
+                    if qber < lowest_qber:
+                        lowest_qber, best_w0 = qber, w0_test
 
-#                t['w0'] = best_w0
-#                save_tmp(t)
-#                ctl.set_Softgate(best_g0, best_g1, best_w0, w1)
+                t['w0'] = best_w0
+                save_tmp(t)
+                ctl.set_Softgate(best_g0, best_g1, best_w0, w1)
 
                 #  w1
-#                for delta in [-3, 0, 3]:
-#                    w1_test = max(0, w1 + delta)
-#                    t['w1'] = w1_test
-#                    save_tmp(t)
-#                    ctl.set_Softgate(best_g0, best_g1, best_w0, w1_test)
-#                    sendc('get_qber')
-#                    qber = rcv_d()
-#                    print(f" g0={best_g0}, g1={best_g1}, w0={best_w0}, w1={w1_test}, QBER={qber}")
-#                    if qber < lowest_qber:
-#                        lowest_qber, best_w1 = qber, w1_test
+                for delta in [-3, 0, 3]:
+                    w1_test = max(25, w1 + delta)
+                    t['w1'] = w1_test
+                    save_tmp(t)
+                    ctl.set_Softgate(best_g0, best_g1, best_w0, w1_test)
+                    sendc('get_qber')
+                    qber = rcv_d()
+                    print(f" g0={best_g0}, g1={best_g1}, w0={best_w0}, w1={w1_test}, QBER={qber}")
+                    if qber < lowest_qber:
+                        lowest_qber, best_w1 = qber, w1_test
 
-#                t['w1'] = best_w1
-#                save_tmp(t)
-#                ctl.set_Softgate(best_g0, best_g1, best_w0, best_w1)
+                t['w1'] = best_w1
+                save_tmp(t)
+                ctl.set_Softgate(best_g0, best_g1, best_w0, best_w1)
 
                 sendc('ok')
 

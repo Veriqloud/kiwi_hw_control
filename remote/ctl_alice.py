@@ -257,13 +257,13 @@ def init_rst_tmp():
 #    Ddr_Data_Init()
 
 def init_all():
+    init_rst_tmp()
+    init_rst_default()
+    init_apply_default()
     init_ltc()
     init_sync()
     init_fda()
     init_sda()
     decoy_reset()
-    init_rst_tmp()
-    init_rst_default()
-    init_apply_default()
 
 

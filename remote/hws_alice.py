@@ -191,15 +191,31 @@ def qdistance(conn):
         time.sleep(0.2)
         sendc(bob, 'get counts')
         diff_count = rcv_i(bob)
-        print(f"[refined] qdistance={qd:.3f} -> counts={diff_count}")
+        print(f"qdistance={qd:.3f} -> counts={diff_count}")
         if diff_count > max_count:
             max_count = diff_count
             refined_q = qd
 
-    update_tmp('qdistance', refined_q)
-    update_default('qdistance', refined_q)
+    fine_q = refined_q
+    max_count = 0
+    fine_start = max(0.0, refined_q - 0.02)
+    fine_end = min(1.0, refined_q + 0.021)
+
+    for qd in np.arange(fine_start, fine_end, 0.01):
+        update_tmp('qdistance', qd)
+        ctl.Update_Dac()
+        time.sleep(0.2)
+        sendc(bob, 'get counts')
+        diff_count = rcv_i(bob)
+        print(f"qdistance={qd:.3f} -> counts={diff_count}")
+        if diff_count > max_count:
+            max_count = diff_count
+            fine_q = qd
+
+    update_tmp('qdistance', fine_q)
+    update_default('qdistance', fine_q)
     ctl.Update_Dac()
-    msg = colored(f"{refined_q:.3f} / {max_count} counts", "green")
+    msg = colored(f"{fine_q:.3f} / {max_count} counts", "green")
     print(msg)
     sendc(bob, 'done')
     sendc(conn, 'qdistance done')
