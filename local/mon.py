@@ -346,6 +346,13 @@ elif args.status:
             click1_s = colored(click1, 'yellow')
         else:
             click1_s = colored(click1, 'green')
+        ingates = round((click0 + click1)*100 / total)
+        if 50 < ingates < 75:
+            ingates_s = colored(str(ingates)+'%', 'yellow')
+        elif ingates < 50:
+            ingates_s = colored(str(ingates)+'%', 'red')
+        else:
+            ingates_s = colored(str(ingates)+'%', 'green')
 
         # spd temp
         if (count%100 == 0):
@@ -402,7 +409,7 @@ elif args.status:
                 ]
         table2 = [
                 ["initial counts (1/0.1s)", first_total, first_click0, first_click1],
-                ["current counts (1/0.1s)", total_s, click0_s, click1_s],
+                ["current counts (1/0.1s)", total_s, click0_s, click1_s, ingates_s],
                 ["spd temp", temp_s, "", "", "update in "+str(100-count%100)],
                 ["gc time (s)", round(gc_time,2)],
                 ["gc A-B diff time (ms)", gc_diff_time_ms],
