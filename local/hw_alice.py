@@ -217,7 +217,7 @@ parser_set.add_argument("--am_shift", type=int, metavar=("steps"),
 parser_set.add_argument("--pm_shift", type=int, metavar=("steps"), 
                         help="time shift signal for phase modulator in steps of 1.25ns")
 parser_set.add_argument("--qdistance", type=float, metavar="value", 
-                        help="fine tune double pulse separation; float [0,0.5]; good value is 0.08")
+                        help="fine tune double pulse separation; float [-1,1]; good value is 0.08")
 parser_set.add_argument("--pm_mode", choices=['seq64', 'seq64tight', 'fake_rng', 'true_rng', 'off'],
                         help="fixed periodic sequece, fake rng or real rng")
 parser_set.add_argument("--angles", nargs=4, type=float,
