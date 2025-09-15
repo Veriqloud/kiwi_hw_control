@@ -19,7 +19,7 @@ def connect_to_bob(use_localhost=False):
     if use_localhost:
         with open(ports_for_localhost_file, 'r') as f:
             ports_for_localhost = json.load(f)
-        port = ports_for_localhost['hw_bob']
+        port = ports_for_localhost['mon_bob']
         host = 'localhost'
     else:
         with open(network_file, 'r') as f:
@@ -35,7 +35,7 @@ def connect_to_alice(use_localhost=False):
     if use_localhost:
         with open(ports_for_localhost_file, 'r') as f:
             ports_for_localhost = json.load(f)
-        port = ports_for_localhost['hw_alice']
+        port = ports_for_localhost['mon_alice']
         host = 'localhost'
     else:
         with open(network_file, 'r') as f:
@@ -346,7 +346,10 @@ elif args.status:
             click1_s = colored(click1, 'yellow')
         else:
             click1_s = colored(click1, 'green')
-        ingates = round((click0 + click1)*100 / total)
+        if total == 0:
+            ingates = 0
+        else:
+            ingates = round((click0 + click1)*100 / total)
         if 50 < ingates < 75:
             ingates_s = colored(str(ingates)+'%', 'yellow')
         elif ingates < 50:

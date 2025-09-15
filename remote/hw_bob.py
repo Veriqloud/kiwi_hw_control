@@ -159,8 +159,8 @@ while True:
                 update_tmp('insert_zeros', mode)
                 ctl.Update_Dac()
             elif command == 'set_pm_shift':
-                shelift = rcv_i()
-                update_tmp('pm_shift', shelift)
+                shift = rcv_i()
+                update_tmp('pm_shift', shift)
                 ctl.Update_Dac()
             elif command == 'set_zero_pos':
                 pos = rcv_i()

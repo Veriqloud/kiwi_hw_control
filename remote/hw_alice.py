@@ -156,13 +156,17 @@ while True:
                 mode = rcvc()
                 update_tmp('insert_zeros', mode)
                 ctl.Update_Dac()
-            elif command == 'set_pm_shelift':
-                shelift = rcv_i()
-                update_tmp('pm_shift', shelift)
+            elif command == 'set_pm_shift':
+                print("waiting for value")
+                shift = rcv_i()
+                print("received value")
+                update_tmp('pm_shift', shift)
+                print("updated value")
                 ctl.Update_Dac()
+                print("updated dac")
             elif command == 'set_am_shift':
-                shelift = rcv_i()
-                update_tmp('am_shift', shelift)
+                shift = rcv_i()
+                update_tmp('am_shift', shift)
                 ctl.Update_Dac()
             elif command == 'set_am_mode':
                 mode = rcvc()

@@ -122,7 +122,9 @@ def set(args):
         sendc(args.insert_zeros)
     elif args.pm_shift is not None:
         sendc('set_pm_shift')
+        print("sending value")
         send_i(args.pm_shift)
+        print("sending done")
     elif args.am_shift is not None:
         sendc('set_am_shift')
         send_i(args.am_shift)
