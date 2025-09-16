@@ -92,7 +92,7 @@ SUBSYSTEM=="tty", ATTRS{idVendor}=="1fc9", ATTRS{idProduct}=="8111", SYMLINK+="t
 and on Bob for the APD:
 
 ```
-SUBSYSTEM=="tty", ATTRS{idVendor}=="04d8", ATTRS{idProduct}=="f7b1", SYMLINK+="ttyAPD0", MODE="0660", GROUP="vq-user"
+SUBSYSTEM=="usb", ATTRS{idVendor}=="04d8", ATTRS{idProduct}=="f7b1", SYMLINK+="usbAPD0", MODE="0660", GROUP="vq-user"
 ```
 
 add vq-user to dialout group and reload the rules. Reboot!
