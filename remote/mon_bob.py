@@ -91,6 +91,31 @@ def handle_client(conn, addr):
             if not command:
                 print(f"[-] Disconnected: {addr}")
                 break
+            
+            elif command == 'get_link':
+                with open('/tmp/errorflag.txt', 'r') as f:
+                    s = f.read()
+                    if s == 'error':
+                        sendc(conn, s)
+                        continue
+                with open('/tmp/calibrating.txt', 'r') as f:
+                    s = f.read()
+                    if s == 'calibrating':
+                        sendc(conn, s)
+                        continue
+                sendc(conn, "probably online")
+
+
+                    
+
+            elif command == 'set_error':
+                with open('/tmp/errorflag.txt', 'w') as f:
+                    f.write('error')
+            
+            elif command == 'clear_error':
+                with open('/tmp/errorflag.txt', 'w') as f:
+                    f.write('clear')
+
             elif command == 'get_counts':
                 c = ctl.counts_fast()
                 for i in range(3):

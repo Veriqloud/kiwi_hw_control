@@ -761,9 +761,9 @@ def adjust_am(conn):
         ctl.Set_Am_Bias(am_test)
         time.sleep(0.5)
 
-        prev_qber = ctl.read_last_qber()
+        prev_qber = ctl.read_data_qber()[2]
         while True:
-            qber = ctl.read_last_qber()
+            qber = ctl.read_data_qber()[2]
             if qber is not None and qber != prev_qber:
                 break
             time.sleep(0.1)
@@ -784,11 +784,11 @@ def adjust_soft_gates(conn):
     sendc(bob, 'adjust_soft_gates')
 
     while rcvc(bob) == 'get_qber':
-        prev_qber = ctl.read_last_qber()
+        prev_qber = ctl.read_data_qber()[2]
         qber = prev_qber
         while qber == prev_qber:
             time.sleep(0.5)
-            qber = ctl.read_last_qber()
+            qber = ctl.read_data_qber()[2]
         send_d(bob, qber)
 
     sendc(conn, 'adjust_soft_gates done')
@@ -817,6 +817,45 @@ def set_soft_gates(conn):
 
 
 
+def adjust_angles_a(conn):
+    sendc(bob, 'adjust_angles_a')
+
+    t = get_tmp()
+    angle3 = t['angle3']
+
+    while True:
+        update_tmp('angle3', angle3)
+        ctl.Update_Dac()
+        time.sleep(0.2)
+
+        try:
+            v41 = ctl.read_data_qber()[1]
+            print(v41)
+        except:
+            continue
+
+        if v41 is None:
+            continue
+
+        if 0.95 <= v41 <= 1.05:
+            break
+        elif v41 < 0.95:
+            angle3 += 0.1
+        elif v41 > 1.05:
+            angle3 -= 0.1
+
+    angle1 = angle3 / 2
+    angle2 = -angle3 / 2
+
+    update_tmp('angle1', angle1)
+    update_tmp('angle2', angle2)
+    update_tmp('angle3', angle3)
+    ctl.Update_Dac()
+
+    sendc(conn, 'adjust_angles_a done')
+
+
+
 
 
 def start(conn):
@@ -829,6 +868,15 @@ def start(conn):
     rcvc(bob)
     sendc(conn, 'start done')
 
+
+
+def set_flag_calibrating():
+    with open('/tmp/calibrating.txt', 'w') as f:
+        f.write('calibrating')
+
+def clear_flag_calibrating():
+    with open('/tmp/calibrating.txt', 'w') as f:
+        f.write('not calibrating')
 
 
 
@@ -862,11 +910,11 @@ functionmap['fz_a'] = fz_a
 functionmap['fz_b'] = fz_b
 functionmap['set_angles_a'] = set_angles_a
 functionmap['adjust_am'] = adjust_am
+functionmap['adjust_angles_a'] = adjust_angles_a
 functionmap['adjust_soft_gates'] = adjust_soft_gates
 functionmap['set_soft_gates'] = set_soft_gates
 functionmap['start'] = start
 
-adjust_soft_gates
 
 while True:
     conn, addr = server_socket.accept()  # Accept incoming connection from admin
@@ -886,6 +934,7 @@ while True:
             if command=='':
                 break
 
+            set_flag_calibrating()
             print(colored(command+' ...\n', 'blue', force_color=True))
             if command.startswith('find_vca_'):
                 limit = int(command.split('_')[-1])
@@ -905,6 +954,8 @@ while True:
                     continue
 
             print(colored('... '+command+' done \n', 'blue', force_color=True))
+            
+            clear_flag_calibrating()
 
 
     except KeyboardInterrupt:

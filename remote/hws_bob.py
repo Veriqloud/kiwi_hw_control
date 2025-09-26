@@ -33,6 +33,14 @@ server_socket.bind((host, port))
 server_socket.listen()
 
 
+def set_flag_calibrating():
+    with open('/tmp/calibrating.txt', 'w') as f:
+        f.write('calibrating')
+
+def clear_flag_calibrating():
+    with open('/tmp/calibrating.txt', 'w') as f:
+        f.write('not calibrating')
+
 print(f"Server listening on {host}:{port}")
 
 while True:
@@ -108,9 +116,11 @@ while True:
             try:
                 # Receive command from client
                 command = rcvc()
+                set_flag_calibrating()
             except ConnectionResetError:
                 print("Client connection was reset. Exiting loop.")
                 break
+
 
             if command == 'init':
                 ctl.init_all()
@@ -149,6 +159,9 @@ while True:
  #               print(colored('AM adjusted', 'cyan', force_color=True))
                print(colored('doing nothing', 'cyan', force_color=True))
 #               rcvc()
+
+            elif command == 'adjust_angles_a':
+               print(colored('doing nothing', 'cyan', force_color=True))
 
 
             elif command == 'find_vca':
@@ -616,6 +629,8 @@ while True:
             elif not command:
                 print("Client disconnected.")
                 break  # Exit loop if the client closes the connection
+        
+            clear_flag_calibrating()
 
 
     except KeyboardInterrupt:
