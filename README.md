@@ -34,9 +34,10 @@ Each machine has two network interfaces:
 
 Ips and ports are defined in a single file `config/qlineX/network.json` and propaged with `gen_config` to all the other programs.
 
+Contributing
+------------
 
-
-
+Please check out our [contributing guide](CONTRIBUTING.md) if you're interested in contributing.
 
 
 
