@@ -8,6 +8,9 @@ import struct
 import os
 
 
+if 'QLINE_CONFIG_DIR' not in os.environ:
+    exit("please set QLINE_CONFIG_DIR")
+
 network_file = os.path.join(os.environ['QLINE_CONFIG_DIR'], 'network.json')
 ports_for_localhost_file = os.path.join(os.environ['QLINE_CONFIG_DIR'], 'ports_for_localhost.json')
 
@@ -131,9 +134,9 @@ if args.full_init:
     interact('find_am2_bias')
     interact('pol_bob')
     interact('vca_per_95')
-#    interact('loop_find_gates')
-#    interact('qdistance')
     interact('loop_find_gates')
+    #interact('qdistance')
+    #interact('loop_find_gates')
     interact('fs_b')
     interact('fs_a')
     interact('fd_b')

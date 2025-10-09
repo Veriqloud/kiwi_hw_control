@@ -9,6 +9,19 @@ usage() {
     exit 1
 }
 
+if [ -z "$QLINE_CONFIG_DIR" ]; then
+    echo "Please set QLINE_CONFIG_DIR"
+    exit
+fi
+if [ -z "$SSH_ALICE" ]; then
+    echo "Please set SSH_ALICE"
+    exit
+fi
+if [ -z "$SSH_BOB" ]; then
+    echo "Please set SSH_BOB"
+    exit
+fi
+
 gc(){
     cd ../gc/target/release
     ssh $Alice "mkdir -p server"

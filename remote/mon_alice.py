@@ -164,6 +164,22 @@ def handle_client(conn, addr):
                 r = subprocess.run("ip ad | grep 192.168.10", shell=True).returncode
                 send_i(conn, r)
 
+            elif command == 'get_node_stats':
+                try:
+                    with open("/tmp/node_stats.csv", "r") as f:
+                        for line in f:
+                            pass
+                        data = line.split(";")
+                        key_length = int(data[0])
+                        qber = float(data[1])
+                        print(key_length, qber)
+                        send_i(conn, key_length)
+                        send_d(conn, qber)
+                except:
+                    send_i(conn, 0)
+                    send_d(conn, 0)
+
+
 
 
 

@@ -106,6 +106,15 @@ def rcv_data(socket):
     return m
 
 
+def update_errorflag():
+    global errorflag
+    if errorflag==1:
+        sendc(alice, 'set_error')
+        sendc(bob, 'set_error')
+    else:
+        sendc(alice, 'clear_error')
+        sendc(bob, 'clear_error')
+
 
 def get_counts():
     sendc(bob, 'get_counts')
@@ -121,15 +130,18 @@ def get_gates():
     return h
 
 def rng_status(socket):
+    global errorflag
     sendc(socket, 'get_rng_status')
     rng_status = rcv_i(socket)
     if rng_status==0:
         rng_s = colored('ok', 'green')
     else:
         rng_s = colored(rng_status, 'red')
+        errorflag = 1
     return rng_s
 
 def fifo_status(socket):
+    global errorflag
     sendc(socket, 'get_fifo_status')
     vfifo_f = rcv_i(socket)
     gc_out_f = rcv_i(socket)
@@ -148,9 +160,11 @@ def fifo_status(socket):
         fifo_s = colored('ok', 'green')
     else:
         fifo_s = colored(fifo_s, 'red')
+        errorflag = 1
     return fifo_s
 
 def server_status(socket):
+    global errorflag
     sendc(socket, 'get_server_status')
     hw = rcv_i(socket)
     hws = rcv_i(socket)
@@ -169,18 +183,22 @@ def server_status(socket):
         server_s = colored('ok', 'green')
     else:
         server_s = colored(server_s, 'yellow')
+        errorflag = 1
     return server_s
 
 def get_pci_status(socket):
+    global errorflag
     sendc(socket, 'get_pci_status')
     m = rcvc(socket)
     if m=='ok':
         xilinx_s = colored(m, 'green')
     else:
         xilinx_s = colored(m, 'red')
+        errorflag = 1
     return xilinx_s
 
 def get_wrs_ip_status():
+    global errorflag
     sendc(alice, 'get_wrs_ip_status')
     sendc(bob, 'get_wrs_ip_status')
     r_alice = rcv_i(alice)
@@ -189,14 +207,17 @@ def get_wrs_ip_status():
         status_ip_alice = colored('ok', 'green')
     else:
         status_ip_alice = colored('no ip on wrs network', 'red')
+        errorflag = 1
     if r_bob==0:
         status_ip_bob = colored('ok', 'green')
     else:
         status_ip_bob = colored('no ip on wrs network', 'red')
+        errorflag = 1
     return status_ip_alice, status_ip_bob
 
 
 def check_chip_status(command):
+    global errorflag
     sendc(alice, command)
     sendc(bob, command)
     r_alice = rcv_i(alice)
@@ -205,11 +226,29 @@ def check_chip_status(command):
         ltc_alice  = colored('ok', 'green')
     else: 
         ltc_alice  = colored('error', 'red')
+        errorflag = 1
     if r_bob:
         ltc_bob  = colored('ok', 'green')
     else: 
         ltc_bob  = colored('error', 'red')
+        errorflag = 1
     return ltc_alice, ltc_bob
+
+def get_node_stats():
+    global last_update_time 
+    global last_key_length 
+    global last_key_rate
+    sendc(alice, "get_node_stats")
+    key_length = rcv_i(alice)
+    if key_length != last_key_length:
+        now = time.time()
+        key_rate  = key_length/(now-last_update_time)
+        last_key_length = key_length
+        last_update_time = time.time()
+        last_key_rate = key_rate
+    qber = rcv_d(alice)
+    return last_key_rate, qber
+
 
 
 
@@ -222,6 +261,7 @@ parser.add_argument("--use_localhost", action="store_true",
 parser.add_argument("--status", action="store_true", help="print status")
 parser.add_argument("--counts", action="store_true", help="counts per 0.1s")
 parser.add_argument("--gates", action="store_true", help="plot gates")
+parser.add_argument("--link", action="store_true", help="get link status")
 
 args = parser.parse_args()
 
@@ -286,6 +326,18 @@ if args.counts:
         #    break
         time.sleep(0.1)
 
+elif args.link:
+    sendc(alice, 'get_link')
+    sendc(bob, 'get_link')
+    link_a = rcvc(alice)
+    link_b = rcvc(bob)
+    if link_a=='error' or link_b=='error':
+        link_status = 'error'
+    elif link_a=='calibrating' or link_b=='calibrating':
+        link_status = 'calibrating'
+    else:
+        link_status = 'online'
+    print("link status:", link_status)
 
 elif args.gates:
     close_flag = 0
@@ -314,8 +366,15 @@ elif args.gates:
 elif args.status:
     firstrun = True
     count = 0
+    
+    last_key_length = 0
+    last_update_time  = 0
+    last_key_rate = 0
 
     while 1:
+        global errorflag
+        errorflag = 0
+
         # rng 
         rng_alice = rng_status(alice)
         rng_bob = rng_status(bob)
@@ -380,6 +439,7 @@ elif args.status:
         gc_diff_time = gc_diff / 40e6
         if abs(gc_diff_time) > 0.1:
             gc_diff_time_ms = colored(round(gc_diff_time*1000,2), 'red')
+            errorflag = 1
         else:
             gc_diff_time_ms = colored(round(gc_diff_time*1000,2), 'green')
 
@@ -392,6 +452,7 @@ elif args.status:
         # wrs ip status
         wrs_ip_status_alice, wrs_ip_status_bob = get_wrs_ip_status()
 
+        key_rate, qber = get_node_stats()
             
 
 
@@ -418,14 +479,22 @@ elif args.status:
                 ["gc A-B diff time (ms)", gc_diff_time_ms],
                 ]
         
-        print("\033[2J", tabulate(table2, tablefmt="plain"), "\n\n", tabulate(table1, tablefmt="plain", headers=header1))
+        table3 = [
+                ["qber [%]", round(qber*100, 2)],
+                ["key rate [bit/s]", round(key_rate)],
+                ]
+
+        print("\033[2J", tabulate(table2, tablefmt="plain"), "\n\n", tabulate(table1, tablefmt="plain", headers=header1), "\n\n", tabulate(table3, tablefmt="plain"))
+
+
+
+
+        update_errorflag()
+
+
         time.sleep(1)
         firstrun = False
         count += 1
-
-
-
-
 
 
 
