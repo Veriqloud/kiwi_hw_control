@@ -19,8 +19,8 @@ You need the relevant part of the hardware running or an adequate emulator. Remo
 
 ## Community
 - Be respectful, inclusive, and constructive.
-- Follow our [Code of Conduct](#).
-- Consult the [Governance](#) to understand community roles.
+- Follow our [Code of Conduct](https://github.com/Veriqloud/kiwi_doc/blob/master/CODE_OF_CONDUCT.md).
+- Consult the [Governance](https://github.com/Veriqloud/kiwi_doc/blob/master/GOVERNANCE.md) to understand community roles.
 
 ## License
 By contributing, you agree that your contributions will be licensed under the project’s [LICENSE](LICENCE.txt).
