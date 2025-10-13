@@ -99,7 +99,10 @@ fn connect_to_bob(ip_bob: &str) -> TcpStream {
                         thread::sleep(time::Duration::from_millis(1000));
                         continue
                     },
-                    _ => panic!("{}", e),
+                    _ => {
+                        println!("connect_to_bob ERROR: {}\nexiting program!", e);
+                        std::process::exit(1);
+                    },
                 }
             }
         }

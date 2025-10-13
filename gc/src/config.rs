@@ -134,6 +134,8 @@ pub struct ConfigFifoBob {
     pub gc_file_path: String,
     #[serde(default = "ConfigFifoBob::default_click_result_file_path")]
     pub click_result_file_path: String,
+    #[serde(default = "ConfigFifoBob::default_gcuser_file_path")]
+    pub gcuser_file_path: String,
 }
 
 impl ConfigFifoBob {
@@ -147,6 +149,9 @@ impl ConfigFifoBob {
 
     fn default_click_result_file_path() -> String {
         "/home/vq-user/qline/result.f".to_string()
+    }
+    fn default_gcuser_file_path() -> String {
+        "".to_string()
     }
 }
 
@@ -203,6 +208,7 @@ mod test {
                     gcr_file_path: "/tmp/gc_bob_gcr.fifo".to_string(),
                     gc_file_path: "/tmp/gc_bob_gc.fifo".to_string(),
                     click_result_file_path: "/tmp/gc_bob_click_result.fifo".to_string(),
+                    gcuser_file_path: "/tmp/gcuser_bob.fifo".to_string(),
                 },
             }),
             current_hw_parameters_file_path: "../config/bob_hw_params.txt".to_string(),

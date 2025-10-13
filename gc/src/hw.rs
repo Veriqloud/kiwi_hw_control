@@ -249,6 +249,17 @@ pub fn write_gc_to_alice(gc: [u64; BATCHSIZE], alice: &mut TcpStream) -> std::io
     Ok(())
 }
 
+// write gc to userfifo
+pub fn write_gc_to_user(gc: [u64; BATCHSIZE], file: &mut File) -> std::io::Result<()> {
+    let mut buf: [u8; BATCHSIZE * 8] = [0; BATCHSIZE * 8];
+    for i in 0..BATCHSIZE {
+        let gcbuf = gc[i].to_le_bytes();
+        buf[i * 8..(i + 1) * 8].copy_from_slice(&gcbuf);
+    }
+    file.write_all(&buf)?;
+    Ok(())
+}
+
 // read gc coming from Bob
 pub fn read_gc_from_bob(bob: &mut TcpStream) -> std::io::Result<[u64; BATCHSIZE]> {
     let mut buf: [u8; BATCHSIZE * 8] = [0; BATCHSIZE * 8];

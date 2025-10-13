@@ -5,8 +5,7 @@ use std::str::FromStr;
 use tracing_subscriber::fmt::writer::MakeWriterExt;
 use uuid::Uuid;
 use gc::hw::{
-    init_ddr, process_gcr_stream, sync_at_pps, write_gc_to_alice, write_gc_to_fpga,
-    CONFIG,
+    init_ddr, process_gcr_stream, sync_at_pps, write_gc_to_alice, write_gc_to_fpga, write_gc_to_user, CONFIG
 };
 use std::fs::OpenOptions;
 use std::io::prelude::*;
@@ -28,6 +27,7 @@ fn send_gc(alice: &mut TcpStream) -> std::io::Result<()> {
     let gcr_path = &CONFIG.get().unwrap().bob_config().fifo.gcr_file_path;
     let gcw_path = &CONFIG.get().unwrap().bob_config().fifo.gc_file_path;
     let result_path = &CONFIG.get().unwrap().bob_config().fifo.click_result_file_path;
+    let gcuser_path = &CONFIG.get().unwrap().bob_config().fifo.gcuser_file_path;
 
     tracing::info!("[gc-bob] Opening GCR FIFO for reading: {}", gcr_path);
     let mut file_gcr = OpenOptions::new()
@@ -59,8 +59,19 @@ fn send_gc(alice: &mut TcpStream) -> std::io::Result<()> {
         .open(result_path)
         .expect("opening result fifo\n");
 
-    let mut i = 0;
+    let mut option_file_gcuser = 
+        if gcuser_path == ""{
+            None
+        } else {
+            tracing::info!("[gc-bob] Opening Gcuser FIFO for writing: {}", gcuser_path);
+            let file_gcuser = OpenOptions::new()
+                .write(true)
+                .open(gcuser_path)
+                .expect("opening result fifo\n");
+            Some(file_gcuser)
+        };
 
+    let mut i = 0;
     loop {
         let (gc, result) = process_gcr_stream(&mut file_gcr)?;
         if (i % 100) == 0 {
@@ -69,6 +80,12 @@ fn send_gc(alice: &mut TcpStream) -> std::io::Result<()> {
         write_gc_to_alice(gc, alice)?;
         write_gc_to_fpga(gc, &mut file_gcw)?;
         file_result.write(&result)?;
+        match option_file_gcuser.as_mut(){
+            Some(file_gcuser) => {
+                write_gc_to_user(gc, file_gcuser)?;
+            },
+            None => {}
+        }
         i = i + 1;
     }
 }
@@ -143,6 +160,7 @@ fn main() -> std::io::Result<()> {
 
     let bob_config = CONFIG.get().unwrap().bob_config();
     let click_result_path = &bob_config.fifo.click_result_file_path;
+    let gcuser_path = &bob_config.fifo.gcuser_file_path;
 
     // delete and remake fifo file for result values
     tracing::info!("[gc-bob] Ensuring Click Result FIFO exists at: {}", click_result_path);
@@ -155,6 +173,21 @@ fn main() -> std::io::Result<()> {
         Path::new(click_result_path.as_str()),
         nix::sys::stat::Mode::from_bits(0o644).unwrap(),
     )?;
+    
+    // delete and remake fifo file for gcuser
+    if gcuser_path != "" {
+        tracing::info!("[gc-bob] Ensuring GCuser FIFO exists at: {}", gcuser_path);
+        std::fs::remove_file(gcuser_path)
+        .unwrap_or_else(|e| match e.kind() {
+            std::io::ErrorKind::NotFound => (),
+            _ => panic!("{}", e),
+        });
+        nix::unistd::mkfifo(
+            Path::new(gcuser_path.as_str()),
+            nix::sys::stat::Mode::from_bits(0o644).unwrap(),
+        )?;
+    }
+
 
     let listen_addr = &bob_config.network.ip_gc;
 
