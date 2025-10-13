@@ -10,9 +10,7 @@ Thank you for your interest in contributing to this project! Your contributions 
   - If you have write access, create a feature branch directly in the main repository and submit a pull request.
 
 ## Development Setup
-- **Tools:** List the required tools (e.g., Vivado for FPGA, KiCad for PCB, Python/Rust for scripts).
-- **Dependencies:** Mention any dependencies or libraries.
-- **Testing:** Describe how to test changes (e.g., simulation, hardware testing, or script execution).
+You need the relevant part of the hardware running or an adequate emulator. Remote access to the QKD system will be available in the future depending on the project. 
 
 ## Code Style
 - Follow consistent naming conventions and coding standards.
