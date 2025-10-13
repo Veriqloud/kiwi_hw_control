@@ -112,7 +112,8 @@ fn main() {
                         gcr_file_path: "/tmp/gc_bob_gcr.fifo".to_string(),
                         gc_file_path: "/tmp/gc_bob_gc.fifo".to_string(),
                         click_result_file_path: "/tmp/gc_bob_click_result.fifo".to_string(),
-                        gcuser_file_path: "/tmp/gcuser.fifo".to_string(),
+                        //gcuser_file_path: "/tmp/gcuser.fifo".to_string(),
+                        gcuser_file_path: "".to_string(),
                     },
                 }),
                 current_hw_parameters_file_path: std::fs::canonicalize(&cli.output_path_bob)
@@ -205,7 +206,8 @@ fn main() {
                         gcr_file_path: "/dev/xdma0_c2h_1".to_string(),
                         gc_file_path: "/dev/xdma0_h2c_0".to_string(),
                         click_result_file_path: "/home/vq-user/click_result.fifo".to_string(),
-                        gcuser_file_path: "/tmp/gcuser.fifo".to_string(),
+                        //gcuser_file_path: "/tmp/gcuser.fifo".to_string(),
+                        gcuser_file_path: "".to_string(),
                     },
                 }),
                 current_hw_parameters_file_path: "/home/vq-user/hw_control/config/tmp.txt"
