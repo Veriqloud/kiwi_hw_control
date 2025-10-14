@@ -150,7 +150,7 @@ impl ConfigFifoBob {
     fn default_click_result_file_path() -> String {
         "/home/vq-user/qline/result.f".to_string()
     }
-    fn default_gcuser_file_path() -> String {
+    pub fn default_gcuser_file_path() -> String {
         "".to_string()
     }
 }
