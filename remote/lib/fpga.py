@@ -368,7 +368,7 @@ def Set_Sda_Config():
 
 
 def Get_Sda_Config():
-    file = open(HW_CONFIG+'registers/sda/Dac81408_setting.txt','r')
+    file = open(HW_CONFIG+'registers/sda/Dac81408_Expect.txt','r')
     print("Monitoring sda readback configuration registers")
     print("addr\texp\tret\tmatch")
     for l in file.readlines():
