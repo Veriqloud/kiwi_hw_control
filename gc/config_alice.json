@@ -6,11 +6,11 @@
         "gc_file_path": "/tmp/gc_alice_gc.fifo"
       },
       "network": {
-        "ip_gc": "localhost:14002"
+        "ip_gc": "127.0.0.1:53275"
       }
     }
   },
-  "current_hw_parameters_file_path": "/home/crentist/Documents/Projets_Veriqloud/kiwi_hw_control/gc/gc_conf_alice/hw_params.txt",
+  "current_hw_parameters_file_path": "/tmp/hw_params_alice.txt",
   "fpga_start_socket_path": "/tmp/fpga_alice",
-  "log_level": "INFO"
+  "log_level": "Info"
 }
