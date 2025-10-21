@@ -138,7 +138,8 @@ fn ddr_data_init() {
     xdma_write(16, 0, 0x12000);
     thread::sleep(time::Duration::from_millis(100));
     xdma_write(16, 1, 0x12000);
-    thread::sleep(time::Duration::from_millis(100));
+    // sleep to give the simulator some time to reset the fifos
+    thread::sleep(time::Duration::from_millis(500));
 }
 
 // reset and start ddr stuff
@@ -189,6 +190,7 @@ pub fn sync_at_pps() {
     xdma_write(24, 0, 0x1000);
     xdma_write(24, 1, 0x1000);
     //thread::sleep(time::Duration::from_secs(1));
+
 }
 
 // separate gc from result bit; return as integers
