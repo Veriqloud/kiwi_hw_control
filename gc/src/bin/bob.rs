@@ -107,9 +107,7 @@ fn handle_alice(alice: &mut TcpStream) -> std::io::Result<()> {
                         sync_at_pps();
                         send_gc(alice)?;
                         tracing::info!("[gc-bob] Finished sending GC stream.");
-                    } //HwControl::SendGc => {
-                      //}
-                      //_ => {println!("WARNING: this message should not have been received {:?}", message)}
+                    } 
                 }
             }
             Err(err) => {

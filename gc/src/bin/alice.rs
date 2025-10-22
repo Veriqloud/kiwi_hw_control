@@ -63,7 +63,6 @@ fn recv_gc(bob: &mut TcpStream, rx: &Receiver<Request>, debug_mode: bool) -> std
         match rx.try_recv() {
             Ok(m) => match m {
                 Request::Stop => {
-                    //tx.send(Response::Done).expect("sending message through c2");
                     return Ok(());
                 }
                 _ => {}
@@ -83,7 +82,6 @@ fn recv_gc(bob: &mut TcpStream, rx: &Receiver<Request>, debug_mode: bool) -> std
             writeln!(file_gc_debug, "{}", strings.join("\n"))?;
         }
     }
-    //thread::sleep(time::Duration::from_millis(100));
 }
 
 fn connect_to_bob(ip_bob: &str) -> TcpStream {
