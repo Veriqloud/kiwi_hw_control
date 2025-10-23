@@ -138,6 +138,7 @@ compile driver and install
 ~~~~.bash
 git clone https://github.com/Xilinx/dma_ip_drivers.git
 cd XDMA/linux-kernel/xdma/
+sudo make clean
 sudo make install
 ~~~~
 
