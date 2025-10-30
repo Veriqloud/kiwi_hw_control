@@ -8,13 +8,18 @@ import lib.gen_seq as gen_seq
 from lib.fpga import get_tmp, save_tmp, update_tmp, update_default, Set_t0, get_default, Sync_Gc, get_gc
 from termcolor import colored
 
+from pathlib import Path
+
 
 HW_CONTROL = '/home/vq-user/hw_control/'
 
 qlinepath = '../'
 
 networkfile = qlinepath+'config/network.json'
-connection_logfile = qlinepath+'log/ip_connections_to_hardware_system.log'
+connection_logfile = '/tmp/log/ip_connections_to_hardware_system.log'
+
+# make sure /tmp/log/ existists
+Path("/tmp/log").mkdir(exist_ok=True)
 
 
 # get ip from config/network.json
@@ -42,6 +47,7 @@ def clear_flag_calibrating():
         f.write('not calibrating')
 
 print(f"Server listening on {host}:{port}")
+
 
 while True:
     conn, addr = server_socket.accept()  # Accept incoming connection

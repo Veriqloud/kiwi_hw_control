@@ -11,8 +11,8 @@ RestartSec=10
 StartLimitBurst=5
 User=vq-user
 WorkingDirectory=/home/vq-user/server
-StandardOutput=append:/home/vq-user/log/hw.log
-StandardError=append:/home/vq-user/log/hw.log
+StandardOutput=append:/tmp/log/hw.log
+StandardError=append:/tmp/log/hw.log
 
 [Install] 
 WantedBy=multi-user.target

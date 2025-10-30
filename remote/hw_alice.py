@@ -10,13 +10,17 @@ import struct
 from lib.fpga import update_tmp, save_tmp, get_tmp, get_gc, get_ltc_info, get_sda_info, get_fda_info
 import lib.gen_seq as gen_seq
 from tabulate import tabulate
+from pathlib import Path
 
 HW_CONTROL = '/home/vq-user/hw_control/'
 
 qlinepath = '../'
 
 networkfile = qlinepath+'config/network.json'
-connection_logfile = qlinepath+'log/ip_connections_to_hardware.log'
+connection_logfile = '/tmp/log/ip_connections_to_hardware.log'
+
+# make sure /tmp/log/ existists
+Path("/tmp/log").mkdir(exist_ok=True)
 
 
 # get ip from config/network.json

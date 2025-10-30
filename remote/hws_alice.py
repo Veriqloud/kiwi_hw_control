@@ -7,6 +7,7 @@ from lib.fpga import get_tmp, save_tmp, update_tmp, update_default, get_default,
 import lib.gen_seq as gen_seq
 from termcolor import colored
 import numpy as np
+from pathlib import Path
 
 ####### convenient send and receive commands ########
 
@@ -93,7 +94,10 @@ def rcv_data(socket):
 qlinepath = '../'
 
 networkfile = qlinepath+'config/network.json'
-connection_logfile = qlinepath+'log/ip_connections_to_hardware_system.log'
+connection_logfile = '/tmp/log/ip_connections_to_hardware_system.log'
+
+# make sure /tmp/log/ existists
+Path("/tmp/log").mkdir(exist_ok=True)
 
 with open(networkfile, 'r') as f:
     network = json.load(f)
@@ -914,6 +918,7 @@ functionmap['adjust_angles_a'] = adjust_angles_a
 functionmap['adjust_soft_gates'] = adjust_soft_gates
 functionmap['set_soft_gates'] = set_soft_gates
 functionmap['start'] = start
+
 
 
 while True:

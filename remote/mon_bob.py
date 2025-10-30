@@ -9,6 +9,7 @@ import lib.gen_seq as gen_seq
 from lib.fpga import get_arrival_time, ddr_status2, get_gc, get_ltc_info, get_sda_info, get_fda_info
 import numpy as np, pickle
 import subprocess
+from pathlib import Path
 
 import ctl_bob as ctl
 
@@ -17,9 +18,9 @@ HW_CONTROL = '/home/vq-user/hw_control/'
 qlinepath = '/home/vq-user/'
 
 networkfile = qlinepath+'config/network.json'
-connection_logfile = qlinepath+'log/ip_connections_to_mon.log'
-mon_logfile = qlinepath+'log/mon.log'
-rng_errorfile = qlinepath+'rng_fpga/errorflag'
+connection_logfile = '/tmp/log/ip_connections_to_mon.log'
+mon_logfile = '/tmp/log/mon.log'
+rng_errorfile = '/tmp/rng_errorflag'
 
 
 ####### convenient send and receive commands ########
@@ -186,6 +187,9 @@ def handle_client(conn, addr):
 
 
 def main():
+
+    # make sure /tmp/log/ existists
+    Path("/tmp/log").mkdir(exist_ok=True)
 
     # get ip from config/network.json
     with open(networkfile, 'r') as f:

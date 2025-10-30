@@ -12,13 +12,17 @@ import lib.gen_seq as gen_seq
 import pickle   # serialize numpy data
 import numpy as np
 from tabulate import tabulate
+from pathlib import Path
 
 HW_CONTROL = '/home/vq-user/hw_control/'
 
 qlinepath = '../'
 
 networkfile = qlinepath+'config/network.json'
-connection_logfile = qlinepath+'log/ip_connections_to_hardware.log'
+connection_logfile = '/tmp/log/ip_connections_to_hardware.log'
+
+# make sure /tmp/log/ existists
+Path("/tmp/log").mkdir(exist_ok=True)
 
 
 # get ip from config/network.json

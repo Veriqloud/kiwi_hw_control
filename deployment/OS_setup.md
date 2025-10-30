@@ -213,7 +213,7 @@ sudo systemctl enable rng.service
 check_status.sh     # make sure they are up
 ```
 
-logfiles are in ~/log/
+logfiles are in /tmp/log/
 
 adjust wait-online for waiting until the networks are up
 

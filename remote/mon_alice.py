@@ -9,6 +9,7 @@ import lib.gen_seq as gen_seq
 from lib.fpga import get_arrival_time, ddr_status2, get_gc, get_ltc_info, get_sda_info, get_fda_info
 import numpy as np, pickle
 import subprocess
+from pathlib import Path
 
 import ctl_alice as ctl
 
@@ -184,6 +185,9 @@ def handle_client(conn, addr):
 
 
 def main():
+    
+    # make sure /tmp/log/ existists
+    Path("/tmp/log").mkdir(exist_ok=True)
 
     # get ip from config/network.json
     with open(networkfile, 'r') as f:
