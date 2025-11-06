@@ -11,7 +11,7 @@ import matplotlib.pylab as plt, numpy as np
 import pickle
 from tabulate import tabulate
 
-network_file = os.path.join(os.environ['QLINE_CONFIG_DIR'], 'network.json')
+network_file = os.path.join(os.environ['QLINE_CONFIG_DIR'], 'alice/network.json')
 ports_for_localhost_file = os.path.join(os.environ['QLINE_CONFIG_DIR'], 'ports_for_localhost.json')
 
 

@@ -10,7 +10,7 @@ import os
 import pickle
 import matplotlib.pylab as plt, numpy as np
 
-network_file = os.path.join(os.environ['QLINE_CONFIG_DIR'], 'network.json')
+network_file = os.path.join(os.environ['QLINE_CONFIG_DIR'], 'bob/network.json')
 ports_for_localhost_file = os.path.join(os.environ['QLINE_CONFIG_DIR'], 'ports_for_localhost.json')
 
 
@@ -162,6 +162,9 @@ def set(args):
             send_d(args.pol_bias[i])
     elif args.optimize_pol:
         sendc('set_optimize_pol')
+    elif args.tune_deadtime:
+        sendc('set_tune_deadtime')
+        rcvc()
 
 def get(args):
     if args.info:
@@ -321,6 +324,8 @@ parser_set.add_argument("--angles", nargs=4, type=float,
                         help="float [-1,1]")
 parser_set.add_argument("--pm_shift", type=int, metavar=("steps"), 
                         help="time shift signal for phase modulator in steps of 1.25ns")
+parser_set.add_argument("--tune_deadtime", action="store_true", 
+                        help="increase or decrease the deadtime until some optimum")
 
 
 

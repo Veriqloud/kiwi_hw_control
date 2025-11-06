@@ -7,10 +7,14 @@ edition = "2024"
 serde_json = "1.0.132"
 serde = { version = "1.0.213", features = ["derive"] }
 clap = { version = "4.5.32", features = ["derive"] }
+libp2p = { version = "0.56", features = ["identify", "rsa"] }
 
 gc = {path = "../../gc"}
 qber = {path = "../../qber"}
-simulator_configs = {git = "ssh://git@github.com/Veriqloud/hw_sim.git", branch = "master", package = "configs" }
+simulator_configs = {git = "ssh://git@github.com/Veriqloud/hw_sim.git", branch = "master", package="configs"}
+#km_server_configs = {git = "ssh://git@github.com/Veriqloud/qline_backend.git", branch = "master", package="km-server"}
+km_server_configs = {path = "/home/georg/vqprojects/qline_backend/kms", package="km-server"}
+node = {path = "/home/georg/vqprojects/qline_backend/node", package="node"}
 
 
 

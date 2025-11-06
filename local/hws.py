@@ -11,7 +11,7 @@ import os
 if 'QLINE_CONFIG_DIR' not in os.environ:
     exit("please set QLINE_CONFIG_DIR")
 
-network_file = os.path.join(os.environ['QLINE_CONFIG_DIR'], 'network.json')
+network_file = os.path.join(os.environ['QLINE_CONFIG_DIR'], 'alice/network.json')
 ports_for_localhost_file = os.path.join(os.environ['QLINE_CONFIG_DIR'], 'ports_for_localhost.json')
 
 def connect_to_alice(use_localhost=False):
