@@ -70,6 +70,7 @@ fn handle_alice(alice: &mut TcpStream, config: &BobConfig) -> std::io::Result<()
                 Qber::SendAngles => {
                     files = send_angles(alice, &config, files)?;
                 }
+                Qber::Stop => {return Ok(())}
             },
             Err(err) => {
                 // Distinguish between EOF and other errors if possible

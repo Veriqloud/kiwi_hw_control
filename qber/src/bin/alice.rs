@@ -114,6 +114,7 @@ fn recv_angles(
     bob.write_all(&num.to_le_bytes())?;
 
     for _ in 0..num / 32 {
+
         file_angles.read_exact(&mut aa)?;
         bob.read_exact(&mut ab)?;
 
@@ -232,6 +233,15 @@ fn main() -> std::io::Result<()> {
         file_angles = recv_angles(&mut bob, &config, cli.num, file_angles, debug)?;
         if stop.load(Ordering::SeqCst) { break }
     }
+    let mut stream = UnixStream::connect(&config.command_socket_path).expect(&format!(
+        "could not connect to UnixStream {:?}",
+        &config.command_socket_path
+    ));
+    write_message(&mut stream, Request::Stop)?;
+    let m: Response = read_message(&mut stream)?;
+    println!("message from gc received {:?}", m);
+
+    //write_message(&mut bob, &Qber::SendAngles)?;
 
     Ok(())
 }

@@ -292,7 +292,7 @@ pub fn read_gc_from_bob(bob: &mut TcpStream) -> std::io::Result<([u64; BATCHSIZE
     while len == 0 {
         len = bob.read(&mut buf)?;
         if len == 0 {
-            tracing::info!("[gc] len 0; waiting");
+            tracing::info!("[gc: read_gc_from_bob] len 0; waiting");
             thread::sleep(time::Duration::from_millis(50));
         }
     }
