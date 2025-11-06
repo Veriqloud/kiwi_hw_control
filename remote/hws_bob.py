@@ -144,6 +144,10 @@ while True:
                 gc = get_gc()
                 send_d(gc)
 
+            elif command == 'config_laser':
+                print(colored('doing nothing', 'cyan', force_color=True))
+
+
 
             elif command == 'vca_per':
                 print(colored('vca_per', 'cyan'))

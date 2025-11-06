@@ -128,6 +128,7 @@ def interact(command):
 
 if args.full_init:
     interact('init')
+    interact('config_laser')
     interact('sync_gc')
     interact('find_vca')
     interact('loop_find_am_bias')

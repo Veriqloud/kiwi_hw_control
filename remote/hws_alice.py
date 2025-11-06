@@ -9,6 +9,7 @@ from termcolor import colored
 import numpy as np
 from pathlib import Path
 
+
 ####### convenient send and receive commands ########
 
 def recv_exact(socket, l):
@@ -158,6 +159,27 @@ def compare_gc(conn):
     diff = gc - gc_bob
     difftime = diff/80e6
     sendc(conn, f'gc difference: {diff} ({difftime} s)')
+
+
+
+from ctl_alice import read_laser_coeffs, calc_steinhart_resistance, read_rtact_from_laser, write_laser_config
+
+def config_laser(conn=None, sendresult=True):
+    laser_file = qlinepath + 'hw_control/config/laser.txt'
+    coeffs = read_laser_coeffs(laser_file)
+
+    A, B, C, Temp = coeffs['A'], coeffs['B'], coeffs['C'], coeffs['Temp']
+    Rcalc = calc_steinhart_resistance(A, B, C, Temp)
+    success = write_laser_config(Rcalc)
+    time.sleep(2)
+    Rread = read_rtact_from_laser("/dev/ttylaser")
+
+    if abs(Rcalc - Rread) > 100:
+        print(f"Warning: Rcalc ({Rcalc:.2f}) differs from Rread ({Rread:.2f}) by more than 100 Ω")
+
+    if sendresult and conn:
+        sendc(conn, f"laser_config_done Rcalc={Rcalc:.6f} Rread={Rread}")
+
 
 
 def qdistance(conn):
@@ -917,6 +939,7 @@ functionmap['init'] = init
 functionmap['sync_gc'] = sync_gc
 functionmap['compare_gc'] = compare_gc
 functionmap['vca_per'] = vca_per
+functionmap['config_laser'] = config_laser
 functionmap['qdistance'] = qdistance
 functionmap['find_vca'] = find_vca
 functionmap['find_am_bias'] = find_am_bias
