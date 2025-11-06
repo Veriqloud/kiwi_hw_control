@@ -1,6 +1,9 @@
 use comm::gc_comms::*;
 use comm::qber_comms::*;
 
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+
 use clap::Parser;
 use comm::read_message;
 use comm::write_message;
@@ -15,6 +18,7 @@ use std::path::PathBuf;
 use std::time::Instant;
 
 use qber::config::AliceConfig;
+
 
 #[derive(Parser, Debug)]
 struct Cli {
@@ -209,6 +213,16 @@ fn main() -> std::io::Result<()> {
         "could not connect to UnixStream {:?}",
         &config.command_socket_path
     ));
+
+    // catch ctl-c to send stop before exiting
+    let stop = Arc::new(AtomicBool::new(false));
+    let stop_clone = stop.clone();
+
+    ctrlc::set_handler(move || {
+        stop_clone.store(true, Ordering::SeqCst);
+    }).expect("Error setting Ctrl-C handler");
+
+
     write_message(&mut stream, Request::Start)?;
     let _m: Response = read_message(&mut stream)?;
 
@@ -216,5 +230,16 @@ fn main() -> std::io::Result<()> {
     loop {
         write_message(&mut bob, &Qber::SendAngles)?;
         file_angles = recv_angles(&mut bob, &config, cli.num, file_angles, debug)?;
+        if stop.load(Ordering::SeqCst) { break }
     }
+
+    Ok(())
 }
+
+
+
+
+
+
+
+
