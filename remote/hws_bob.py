@@ -229,6 +229,7 @@ while True:
 
                 lf = ctl.fall_edge(file_off)
                 target = (65-lf) % 312
+#                target = (target - 10) % 312
                 update_tmp('gate_delay', target*40)
                 ctl.Gen_Gate()
                 sendc('done')
@@ -620,6 +621,29 @@ while True:
                 while rcvc() == 'get counts':
                     count = ctl.diff_counts()
                     send_i(count)
+
+
+
+            elif command == 'single_peak':
+                print(colored('single_peak', 'cyan', force_color=True))
+
+                t = get_tmp()
+                soft_gate_init = t['soft_gate']
+                spd_mode_init = t['spd_mode']
+
+                update_tmp('soft_gate', 'off')
+                ctl.Update_Softgate()
+                ctl.Ensure_Spd_Mode('continuous')
+                time.sleep(0.2)
+
+                ctl.Download_Time(10000, 'single_peak')
+                ctl.plot_single_peak()
+                update_tmp('soft_gate', soft_gate_init)
+                ctl.Update_Softgate()
+                ctl.Ensure_Spd_Mode(spd_mode_init)
+
+                sendc('done')
+
 
 
 

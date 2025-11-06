@@ -859,6 +859,30 @@ def adjust_angles_a(conn):
     sendc(conn, 'adjust_angles_a done')
 
 
+def single_peak(conn, sendresult=True):
+    t = get_tmp()
+    am_mode_init = t['am_mode']
+    am2_mode_init = t['am2_mode']
+
+    t['am_mode'] = 'single'
+    t['am2_mode'] = 'off'
+    save_tmp(t)
+    ctl.Update_Dac()
+
+    sendc(bob, 'single_peak')
+    rcvc(bob)
+
+    t['am_mode'] = am_mode_init
+    t['am2_mode'] = am2_mode_init
+    save_tmp(t)
+    ctl.Update_Dac()
+
+    if sendresult:
+        sendc(conn, 'single_peak done')
+
+
+
+
 
 
 
@@ -917,6 +941,7 @@ functionmap['adjust_am'] = adjust_am
 functionmap['adjust_angles_a'] = adjust_angles_a
 functionmap['adjust_soft_gates'] = adjust_soft_gates
 functionmap['set_soft_gates'] = set_soft_gates
+functionmap['single_peak'] = single_peak
 functionmap['start'] = start
 
 
