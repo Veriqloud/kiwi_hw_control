@@ -58,8 +58,8 @@ control(){
 
 config(){
     cd $qline_config_dir
-    rsync -v remote/alice/*.json $Alice:~/config/
-    rsync -v remote/bob/*.json $Bob:~/config/
+    rsync -v alice/*.json $Alice:~/config/
+    rsync -v bob/*.json $Bob:~/config/
     cd -
 }
 
