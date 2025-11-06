@@ -12,6 +12,8 @@ use std::net::TcpStream;
 use std::os::unix::net::UnixStream;
 use std::path::PathBuf;
 
+use std::time::Instant;
+
 use qber::config::AliceConfig;
 
 #[derive(Parser, Debug)]
@@ -88,6 +90,8 @@ fn recv_angles(
                 .expect("opening angle file")
         }
     };
+    let now = Instant::now();
+
     // 4x4 matrix for statistics
     let mut m0: [[u32; 4]; 4] = [[0; 4]; 4];
     let mut m1: [[u32; 4]; 4] = [[0; 4]; 4];
@@ -151,10 +155,14 @@ fn recv_angles(
     let qber = (m0[1][0] + m1[2][0] + m0[0][1] + m1[0][2]) as f64
         / (m0[1][0] + m1[1][0] + m0[2][0] + m1[2][0] + m0[0][1] + m1[0][1] + m0[0][2] + m1[0][2])
             as f64;
+
+    let elapsed_time = now.elapsed();
+    let counts  = (num / 32) * 32;
+
     println!(
-        "counts: {:}
+        "counts: {:} ({:6.0} counts/s )
 {:}",
-        (num / 32) * 32,
+        counts, counts as f64 /elapsed_time.as_secs_f64(),
         QberMatrix(mdiv)
     );
     println!(
