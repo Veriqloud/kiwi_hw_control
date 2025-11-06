@@ -215,66 +215,106 @@ fn gc_for_fpga(gc: u64) -> [u8; 16] {
     return buf;
 }
 
-const BATCHSIZE: usize = 32; // number of clicks to process in one batch
+const BATCHSIZE: usize = 1024; // max number of clicks to process in one batch
 
 // read gcr from fpga and split gc and r
-pub fn process_gcr_stream(file: &mut File) -> std::io::Result<([u64; BATCHSIZE], [u8; BATCHSIZE])> {
+pub fn process_gcr_stream(file: &mut File) -> std::io::Result<([u64; BATCHSIZE], [u8; BATCHSIZE], usize)> {
     let mut buf: [u8; BATCHSIZE * 16] = [0; BATCHSIZE * 16];
-    file.read_exact(&mut buf)?;
+    let mut len = 0;
+    while len == 0 {
+        len = file.read(&mut buf)?;
+        if len == 0 {
+            tracing::warn!("[gc] len = 0; waiting");
+            thread::sleep(time::Duration::from_millis(50));
+        }
+    }
+    let rest = len%16;
+    if rest != 0 {
+        tracing::warn!("[gc] reading gcr: length mod 16 is not zero");
+        let missing_len = 16-rest;
+        let check = file.read(&mut buf[len..len+missing_len])?;
+        if check != missing_len {
+            tracing::error!("[gc] reading gcr: could not read until mod 16");
+        }
+        len = len + check;
+    }
+    let num_clicks = len/16;
     let mut gc: [u64; BATCHSIZE] = [0; BATCHSIZE];
     let mut result: [u8; BATCHSIZE] = [0; BATCHSIZE];
     for i in 0..BATCHSIZE {
         (gc[i], result[i]) = split_gcr(buf[i * 16..i * 16 + 8].try_into().unwrap());
     }
-    Ok((gc, result))
+    if len < 1024 {
+        thread::sleep(time::Duration::from_millis(50));
+    }
+    println!("num clicks: {:?}", num_clicks);
+    Ok((gc, result, num_clicks))
 }
 
 // write gc back to fpga
-pub fn write_gc_to_fpga(gc: [u64; BATCHSIZE], file: &mut File) -> std::io::Result<()> {
+pub fn write_gc_to_fpga(gc: [u64; BATCHSIZE], file: &mut File, num_clicks: usize) -> std::io::Result<()> {
     let mut buf: [u8; BATCHSIZE * 16] = [0; BATCHSIZE * 16];
-    for i in 0..BATCHSIZE {
+    for i in 0..num_clicks {
         let gcbuf = gc_for_fpga(gc[i]);
         buf[i * 16..(i + 1) * 16].copy_from_slice(&gcbuf);
     }
-    file.write_all(&buf)?;
+    file.write_all(&buf[..num_clicks*16])?;
     Ok(())
 }
 
 // write gc to Alice
-pub fn write_gc_to_alice(gc: [u64; BATCHSIZE], alice: &mut TcpStream) -> std::io::Result<()> {
+pub fn write_gc_to_alice(gc: [u64; BATCHSIZE], alice: &mut TcpStream, num_clicks: usize) -> std::io::Result<()> {
     let mut buf: [u8; BATCHSIZE * 8] = [0; BATCHSIZE * 8];
-    for i in 0..BATCHSIZE {
+    for i in 0..num_clicks {
         let gcbuf = gc[i].to_le_bytes();
         buf[i * 8..(i + 1) * 8].copy_from_slice(&gcbuf);
     }
-    alice.write_all(&buf)?;
+    alice.write_all(&buf[..num_clicks*8])?;
     Ok(())
 }
 
 // write gc to userfifo
-pub fn write_gc_to_user(gc: [u64; BATCHSIZE], file: &mut File) -> std::io::Result<()> {
+pub fn write_gc_to_user(gc: [u64; BATCHSIZE], file: &mut File, num_clicks: usize) -> std::io::Result<()> {
     let mut buf: [u8; BATCHSIZE * 8] = [0; BATCHSIZE * 8];
-    for i in 0..BATCHSIZE {
+    for i in 0..num_clicks {
         let gcbuf = gc[i].to_le_bytes();
         buf[i * 8..(i + 1) * 8].copy_from_slice(&gcbuf);
     }
-    file.write_all(&buf)?;
+    file.write_all(&buf[..num_clicks*8])?;
     Ok(())
 }
 
 // read gc coming from Bob
-pub fn read_gc_from_bob(bob: &mut TcpStream) -> std::io::Result<[u64; BATCHSIZE]> {
+pub fn read_gc_from_bob(bob: &mut TcpStream) -> std::io::Result<([u64; BATCHSIZE], usize)> {
     let mut buf: [u8; BATCHSIZE * 8] = [0; BATCHSIZE * 8];
     let mut gc: [u64; BATCHSIZE] = [0; BATCHSIZE];
-    bob.read_exact(&mut buf)?;
-    for i in 0..BATCHSIZE {
+    let mut len = 0;
+    while len == 0 {
+        len = bob.read(&mut buf)?;
+        if len == 0 {
+            tracing::info!("[gc] len 0; waiting");
+            thread::sleep(time::Duration::from_millis(50));
+        }
+    }
+    let rest = len%8;
+    if rest != 0 {
+        tracing::warn!("[gc] reading gc from Bob: length mod 8 is not zero");
+        let missing_len = 8-rest;
+        let check = bob.read(&mut buf[len..len+missing_len])?;
+        if check != missing_len {
+            tracing::error!("[gc] reading gc from Bob: could not read until mod 8");
+        }
+        len = len + check;
+    }
+    let num_clicks = len/8;
+    for i in 0..num_clicks {
         gc[i] = u64::from_le_bytes(
             buf[i * 8..(i + 1) * 8]
                 .try_into()
                 .expect("converting gc from bob to u64"),
         );
     }
-    Ok(gc)
+    Ok((gc, num_clicks))
 }
 
 #[cfg(test)]

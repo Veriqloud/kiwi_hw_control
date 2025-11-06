@@ -73,16 +73,16 @@ fn send_gc(alice: &mut TcpStream) -> std::io::Result<()> {
 
     let mut i = 0;
     loop {
-        let (gc, result) = process_gcr_stream(&mut file_gcr)?;
+        let (gc, result, num_clicks) = process_gcr_stream(&mut file_gcr)?;
         if (i % 100) == 0 {
             tracing::debug!("[gc-bob] GC stream [{}]: gc[0]={}, result[0]={}", i, gc[0], result[0]);
         };
-        write_gc_to_alice(gc, alice)?;
-        write_gc_to_fpga(gc, &mut file_gcw)?;
-        file_result.write(&result)?;
+        write_gc_to_alice(gc, alice, num_clicks)?;
+        write_gc_to_fpga(gc, &mut file_gcw, num_clicks)?;
+        file_result.write_all(&result[..num_clicks])?;
         match option_file_gcuser.as_mut(){
             Some(file_gcuser) => {
-                write_gc_to_user(gc, file_gcuser)?;
+                write_gc_to_user(gc, file_gcuser, num_clicks)?;
             },
             None => {}
         }

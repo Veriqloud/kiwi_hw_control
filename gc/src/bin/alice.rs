@@ -49,8 +49,8 @@ fn recv_gc(bob: &mut TcpStream, rx: &Receiver<Request>, debug_mode: bool) -> std
         let mut vgc: Vec<u64> = Vec::new();
 
         for i in 0..100 {
-            let gc = read_gc_from_bob(bob)?;
-            write_gc_to_fpga(gc, &mut file_gcw)?;
+            let (gc, num_clicks) = read_gc_from_bob(bob)?;
+            write_gc_to_fpga(gc, &mut file_gcw, num_clicks)?;
 
             if debug_mode {
                 vgc.extend_from_slice(&gc);
