@@ -440,6 +440,7 @@ pub fn write_node_config(config_alice: &Config, config_bob: &Config) {
         qtol: config_alice.node.qtol,
         rounds_limit_per_session: 10000000,
         requested_final_key_size: Some(config_alice.kms.default_key_size as usize),
+        hw_read_buf_size: None,
         key_storage: node::StorageVariant::Fifo {
             path: config_alice.file.kms.clone(),
         },
@@ -480,6 +481,7 @@ pub fn write_node_config(config_alice: &Config, config_bob: &Config) {
         qtol: config_bob.node.qtol,
         rounds_limit_per_session: 10000000,
         requested_final_key_size: Some(config_bob.kms.default_key_size as usize),
+        hw_read_buf_size: None,
         key_storage: node::StorageVariant::Fifo {
             path: config_bob.file.kms.clone(),
         },
