@@ -168,9 +168,9 @@ def config_laser(conn=None, sendresult=True):
     laser_file = qlinepath + 'hw_control/config/laser.txt'
     coeffs = read_laser_coeffs(laser_file)
 
-    A, B, C, Temp = coeffs['A'], coeffs['B'], coeffs['C'], coeffs['Temp']
+    A, B, C, Temp, Ilaser= coeffs['A'], coeffs['B'], coeffs['C'], coeffs['Temp'],coeffs['Ilaser']
     Rcalc = calc_steinhart_resistance(A, B, C, Temp)
-    success = write_laser_config(Rcalc)
+    success = write_laser_config(Rcalc, Ilaser)
     time.sleep(2)
     Rread = read_rtact_from_laser("/dev/ttylaser")
 

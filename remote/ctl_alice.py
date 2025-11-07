@@ -81,7 +81,7 @@ def read_rtact_from_laser(port="/dev/ttylaser"):
         return None
 
 
-def write_laser_config(Rset, port="/dev/ttylaser"):
+def write_laser_config(Rset,Ilaser,  port="/dev/ttylaser"):
     """
     Write the laser configuration using Rset as rtset.
     """
@@ -91,7 +91,7 @@ def write_laser_config(Rset, port="/dev/ttylaser"):
         config = {
             "ldelay": 1000.0,
             "lason": 1,
-            "ilaser": 236.0,
+            "ilaser": int(Ilaser),
             "ilmax": 400.0,
             "rtset": int(Rset),   # Pass the calculated resistance
             "tecon": 1,

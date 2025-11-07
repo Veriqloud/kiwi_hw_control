@@ -92,19 +92,50 @@ def rcv_data():
 
 
 #create top_level parser
-parser = argparse.ArgumentParser()
 
-parser.add_argument("--use_localhost", action="store_true", 
-                    help="connect to localhost instead of ip from network.json; e.g. when port forwarding")
+parser = argparse.ArgumentParser(
+    description="""
 
-parser.add_argument("--full_init", action="store_true", 
-                         help="reset and calibrate")
+Options:
+--use_localhost : connect to localhost instead of the IP from network.json (useful for port forwarding)
+--full_init     : reset and calibrate the system
+--command       : execute one or more specific commands
+--monitoring    : run the monitoring loop
 
-parser.add_argument("--command", type=str, nargs="*", 
-                        help="pass commands (see doc for list of commands)")
+Available commands for --command:
+init                : initialize the FPGA
+sync_gc             : synchronize GC
+compare_gc          : verify the synchronization
+vca_per             : configure VCA percentage
+config_laser        : configure the laser, read and compare resistances
+qdistance           : measure qdistance
+find_vca_nbrcount   : find VCA with a specified number of counts (0–4500 or more up to 6000; default: 3000)
+find_am_bias        : find AM bias
+verify_am_bias      : verify AM bias
+loop_find_am_bias   : loop to find AM bias
+loop_find_gates     : loop to find gates
+find_am2_bias       : find second AM bias
+pol_bob             : Optimize Bob’s polarization controller
+ad                  : adjust the gate delay
+find_sp             : find single peak
+verify_gates        : verify gates
+fs_a                : find PM shift for Alice
+fs_b                : find PM shift for Bob
+fd_a                : find delay for Alice
+fd_b                : find delay for Bob
+fd_a_long           : find delay long for Alice
+fd_b_long           : find delay long for Bob
+fz_a                : find zero position for Alice
+fz_b                : find zero position for Bob
+adjust_am           : adjust AM
+adjust_soft_gates   : adjust soft gates after calibration
+set_soft_gates      : set soft gates during calibration
+single_peak         : plot the 'single peak' histogram and generate an image stored in calib_res
+start               : start the system
+""",
+    formatter_class=argparse.RawTextHelpFormatter
+)
 
-parser.add_argument("--monitoring", action="store_true",
-                    help=" monitoring loop")
 
 
 args = parser.parse_args()
