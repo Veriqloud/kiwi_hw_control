@@ -91,11 +91,11 @@ def rcv_data():
 
 
 
-#create top_level parser
+import argparse
 
+# create top_level parser
 parser = argparse.ArgumentParser(
     description="""
-
 Options:
 --use_localhost : connect to localhost instead of the IP from network.json (useful for port forwarding)
 --full_init     : reset and calibrate the system
@@ -109,13 +109,13 @@ compare_gc          : verify the synchronization
 vca_per             : configure VCA percentage
 config_laser        : configure the laser, read and compare resistances
 qdistance           : measure qdistance
-find_vca_nbrcount   : find VCA with a specified number of counts (0–4500 or more up to 6000; default: 3000)
+find_vca_nbrcount   : find VCA with a specified number of counts (0–4500 or up to 6000; default: 3000)
 find_am_bias        : find AM bias
 verify_am_bias      : verify AM bias
 loop_find_am_bias   : loop to find AM bias
 loop_find_gates     : loop to find gates
 find_am2_bias       : find second AM bias
-pol_bob             : Optimize Bob’s polarization controller
+pol_bob             : optimize Bob's polarization controller
 ad                  : adjust the gate delay
 find_sp             : find single peak
 verify_gates        : verify gates
@@ -136,9 +136,23 @@ start               : start the system
     formatter_class=argparse.RawTextHelpFormatter
 )
 
+# add the actual arguments
+parser.add_argument("--use_localhost", action="store_true",
+                    help="connect to localhost instead of IP from network.json; e.g., for port forwarding")
 
+parser.add_argument("--full_init", action="store_true",
+                    help="reset and calibrate the system")
 
+parser.add_argument("--command", type=str, nargs="+",
+                    help="execute one or more commands (see description above)")
+
+parser.add_argument("--monitoring", action="store_true",
+                    help="run monitoring loop")
+
+# parse arguments
 args = parser.parse_args()
+
+
 
 connect_to_alice(args.use_localhost)
 
