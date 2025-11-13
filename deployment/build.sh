@@ -100,6 +100,7 @@ install(){
 
     cp -v ../gc/target/release/alice $bin/gc_alice
     cp -v ../gc/target/release/bob $bin/gc_bob
+    cp -v ../gc/target/release/controller $bin/gc_controller
     
     cp -v ../qber/target/release/alice $bin/qber_alice
     cp -v ../qber/target/release/bob $bin/qber_bob

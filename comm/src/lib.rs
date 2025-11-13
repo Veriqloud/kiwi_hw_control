@@ -9,8 +9,8 @@ pub mod gc_comms {
         Start,
         #[strum(serialize = "2")]
         Stop,
-        #[strum(serialize = "3")]
-        DebugOn,
+        //#[strum(serialize = "3")]
+        //DebugOn,
     }
 
     /// From gc_client to node
@@ -30,6 +30,7 @@ pub mod qber_comms {
     #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq)]
     pub enum Qber {
         SendAngles = 4,
+        Stop = 5,
     }
 }
 

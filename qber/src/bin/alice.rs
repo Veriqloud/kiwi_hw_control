@@ -1,8 +1,9 @@
 use comm::gc_comms::*;
 use comm::qber_comms::*;
 
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+//use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Mutex;
+//use std::sync::Arc;
 
 use clap::Parser;
 use comm::read_message;
@@ -18,6 +19,9 @@ use std::path::PathBuf;
 use std::time::Instant;
 
 use qber::config::AliceConfig;
+    
+// catch ctl-c and store it here; then propagate the stop and exit all threads
+static STOP: Mutex<bool> = Mutex::new(false);
 
 
 #[derive(Parser, Debug)]
@@ -205,23 +209,19 @@ fn main() -> std::io::Result<()> {
             _ => panic!("{}", e),
         });
 
-        let mut gc_socket = Unixgc_socket::connect(&config.command_socket_path)
-            .expect("could not connect to Unixgc_socket");
+        let mut gc_socket = UnixStream::connect(&config.command_socket_path)
+            .expect("could not connect to UnixStream");
         write_message(&mut gc_socket, Request::DebugOn)?;
         let _m: Response = read_message(&mut gc_socket)?;
     }
 
-    let mut gc_socket = Unixgc_socket::connect(&config.command_socket_path).expect(&format!(
-        "could not connect to Unixgc_socket {:?}",
+    let mut gc_socket = UnixStream::connect(&config.command_socket_path).expect(&format!(
+        "could not connect to UnixStream {:?}",
         &config.command_socket_path
     ));
 
-    // catch ctl-c to send stop before exiting
-    let stop = Arc::new(AtomicBool::new(false));
-    let stop_clone = stop.clone();
-
     ctrlc::set_handler(move || {
-        stop_clone.store(true, Ordering::SeqCst);
+        *STOP.lock().unwrap() = true;
     }).expect("Error setting Ctrl-C handler");
 
 
@@ -236,8 +236,8 @@ fn main() -> std::io::Result<()> {
             break 
         }
     }
-    let mut gc_socket = Unixgc_socket::connect(&config.command_socket_path).expect(&format!(
-        "could not connect to Unixgc_socket {:?}",
+    let mut gc_socket = UnixStream::connect(&config.command_socket_path).expect(&format!(
+        "could not connect to UnixStream {:?}",
         &config.command_socket_path
     ));
     write_message(&mut gc_socket, Request::Stop)?;

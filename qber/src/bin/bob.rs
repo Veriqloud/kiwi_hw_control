@@ -23,17 +23,17 @@ struct Cli {
 }
 
 
+// send all the angles
 fn send_angles(
     alice: &mut TcpStream,
     config: &BobConfig,
     files: Option<FileDescriptors>,
 ) -> std::io::Result<Option<FileDescriptors>> {
+
     // reuse file descriptors if already opened earlier
     let mut fd = match files {
         Some(fd) => fd,
         None => {
-            //println!("[qber-bob] Opening Angle FIFO for reading: {}", &config.angle_file_path);
-            //println!("[qber-bob] Opening Click Result FIFO for reading: {}", &config.click_result_file_path);
             let fd = FileDescriptors {
                 angles: OpenOptions::new()
                     .read(true)
@@ -47,6 +47,7 @@ fn send_angles(
             fd
         }
     };
+
     // angles stream is 128bit = 64 angles
     let mut buf: [u8; 4] = [0; 4];
     alice.read_exact(&mut buf)?; // This reads a raw u32, not a length-prefixed bincode message

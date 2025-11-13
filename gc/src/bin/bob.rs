@@ -22,6 +22,8 @@ struct Cli {
     logs_location: String,
 }
 
+
+
 // read the gcr stream, split gcr, write gc to Alice and r to fifo
 fn send_gc(alice: &mut TcpStream) -> std::io::Result<()> {
     let gcr_path = &CONFIG.get().unwrap().bob_config().fifo.gcr_file_path;

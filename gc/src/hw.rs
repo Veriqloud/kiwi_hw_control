@@ -158,12 +158,11 @@ pub fn init_ddr(alice: bool) {
         fiber_delay
     };
 
-    println!("decoy delay: {:?}", decoy_delay);
     // we have to add 64 to the delay due to some latency in the fpga
     ddr_data_reg(4, fiber_delay, decoy_delay, 50000);
     ddr_data_reg(3, fiber_delay, decoy_delay, 50000);
     ddr_data_init();
-    println!("init ddr done");
+    tracing::info!("init ddr done");
 }
 
 // wait for the syncronization pulse (pps)
@@ -171,6 +170,7 @@ pub fn wait_for_pps() {
     loop {
         let pps = xdma_read(PPS_ADDRESS, PPS_OFFSET);
         if pps == 1 {
+            tracing::info!("got first pps");
             return;
         };
     }
@@ -178,6 +178,7 @@ pub fn wait_for_pps() {
 
 // syncronize at next pps
 pub fn sync_at_pps() {
+    tracing::info!("will start at next pps");
     // start to write
     xdma_write(0, 0, 0x1000);
     xdma_write(0, 1, 0x1000);
@@ -300,15 +301,7 @@ pub fn read_gc_from_bob(bob: &mut TcpStream) -> std::io::Result<([u64; BATCHSIZE
     let mut buf: [u8; BATCHSIZE * 8] = [0; BATCHSIZE * 8];
     let mut gc: [u64; BATCHSIZE] = [0; BATCHSIZE];
 
-    // wait if nothing is there
-    let mut len = 0;
-    while len == 0 {
-        len = bob.read(&mut buf)?;
-        if len == 0 {
-            tracing::info!("[gc: read_gc_from_bob] len 0; waiting");
-            thread::sleep(time::Duration::from_millis(50));
-        }
-    }
+    let mut len = bob.read(&mut buf)?;
 
     // make sure len is aligned to the incoding
     let rest = len%8;
