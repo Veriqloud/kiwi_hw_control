@@ -77,6 +77,7 @@ impl fmt::Display for Line {
     }
 }
 
+// receive angles from Bob in a loop
 fn recv_angles(
     bob: &mut TcpStream,
     config: &AliceConfig,
@@ -204,14 +205,14 @@ fn main() -> std::io::Result<()> {
             _ => panic!("{}", e),
         });
 
-        let mut stream = UnixStream::connect(&config.command_socket_path)
-            .expect("could not connect to UnixStream");
-        write_message(&mut stream, Request::DebugOn)?;
-        let _m: Response = read_message(&mut stream)?;
+        let mut gc_socket = Unixgc_socket::connect(&config.command_socket_path)
+            .expect("could not connect to Unixgc_socket");
+        write_message(&mut gc_socket, Request::DebugOn)?;
+        let _m: Response = read_message(&mut gc_socket)?;
     }
 
-    let mut stream = UnixStream::connect(&config.command_socket_path).expect(&format!(
-        "could not connect to UnixStream {:?}",
+    let mut gc_socket = Unixgc_socket::connect(&config.command_socket_path).expect(&format!(
+        "could not connect to Unixgc_socket {:?}",
         &config.command_socket_path
     ));
 
@@ -224,21 +225,23 @@ fn main() -> std::io::Result<()> {
     }).expect("Error setting Ctrl-C handler");
 
 
-    write_message(&mut stream, Request::Start)?;
-    let _m: Response = read_message(&mut stream)?;
+    write_message(&mut gc_socket, Request::Start)?;
+    let _m: Response = read_message(&mut gc_socket)?;
 
     let mut file_angles: Option<File> = None;
     loop {
         write_message(&mut bob, &Qber::SendAngles)?;
         file_angles = recv_angles(&mut bob, &config, cli.num, file_angles, debug)?;
-        if stop.load(Ordering::SeqCst) { break }
+        if stop.load(Ordering::SeqCst) { 
+            break 
+        }
     }
-    let mut stream = UnixStream::connect(&config.command_socket_path).expect(&format!(
-        "could not connect to UnixStream {:?}",
+    let mut gc_socket = Unixgc_socket::connect(&config.command_socket_path).expect(&format!(
+        "could not connect to Unixgc_socket {:?}",
         &config.command_socket_path
     ));
-    write_message(&mut stream, Request::Stop)?;
-    let m: Response = read_message(&mut stream)?;
+    write_message(&mut gc_socket, Request::Stop)?;
+    let m: Response = read_message(&mut gc_socket)?;
     println!("message from gc received {:?}", m);
 
     //write_message(&mut bob, &Qber::SendAngles)?;

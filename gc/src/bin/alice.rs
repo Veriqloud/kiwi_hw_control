@@ -31,6 +31,7 @@ struct Cli {
     logs_location: String,
 }
 
+// receive gc from Bob
 fn recv_gc(bob: &mut TcpStream, rx: &Receiver<Request>, debug_mode: bool) -> std::io::Result<()> {
     let mut file_gcw = OpenOptions::new()
         .write(true)
@@ -107,7 +108,8 @@ fn connect_to_bob(ip_bob: &str) -> TcpStream {
     }
 }
 
-fn handle_bob(rx: Receiver<Request>, tx: Sender<Response>, ip_bob: &str) {
+// interact with gc_bob
+fn handle_bob(tx: Sender<Response>, rx: Receiver<Request>,ip_bob: &str) {
     tracing::info!("connecting to Bob...");
     let mut bob =  connect_to_bob(&ip_bob);
     tracing::info!("connected to Bob");
@@ -126,6 +128,7 @@ fn handle_bob(rx: Receiver<Request>, tx: Sender<Response>, ip_bob: &str) {
                     .expect("sending message through c2\n");
             }
             Request::Start => {
+                // reset and init on Alice and Bob
                 bob.send(HwControl::InitDdr).expect("sending to Bob\n");
                 init_ddr(true);
                 tx.send(Response::Done)
@@ -134,7 +137,7 @@ fn handle_bob(rx: Receiver<Request>, tx: Sender<Response>, ip_bob: &str) {
                 bob.send(HwControl::SyncAtPps).expect("sending to Bob\n");
                 sync_at_pps();
                 tracing::info!("files opened");
-                // loop until Stop
+
                 match recv_gc(&mut bob, &rx, debug_mode) {
                     Ok(()) => {
                         tx.send(Response::Done)
@@ -161,7 +164,10 @@ fn handle_bob(rx: Receiver<Request>, tx: Sender<Response>, ip_bob: &str) {
     }
 }
 
+// listen on the startstop socket and pass the message to handle_bob
+// then pass the response back to the socket
 fn handle_control(tx: Sender<Request>, rx: Receiver<Response>) {
+
     // remove unix socket if it exists
     std::fs::remove_file(
         CONFIG
@@ -189,9 +195,11 @@ fn handle_control(tx: Sender<Request>, rx: Receiver<Response>) {
     for stream in listener.incoming() {
         match stream {
             Ok(mut stream) => {
+                // pass the message to manage_bob
                 let message: Request = read_message(&mut stream).expect("recv\n");
                 tx.send(message)
                     .expect("sending message through  channel\n");
+                // receive response and pass to stream
                 let m = rx.recv().unwrap();
                 write_message(&mut stream, m).expect("sending message\n");
             }
@@ -242,12 +250,13 @@ fn main() -> std::io::Result<()> {
     );
 
     loop {
+        // use channels to communicate between two threads
         let (c1_tx, c1_rx) = channel();
         let (c2_tx, c2_rx) = channel();
         let thread_join_handle = thread::spawn(move || {
             handle_bob(
-                c1_rx,
                 c2_tx,
+                c1_rx,
                 &CONFIG.get().unwrap().alice_config().network.ip_gc,
             )
         });

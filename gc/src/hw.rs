@@ -218,9 +218,13 @@ fn gc_for_fpga(gc: u64) -> [u8; 16] {
 const BATCHSIZE: usize = 1024; // max number of clicks to process in one batch
 
 // read gcr from fpga and split gc and r
+// read whatever is there and process it
 pub fn process_gcr_stream(file: &mut File) -> std::io::Result<([u64; BATCHSIZE], [u8; BATCHSIZE], usize)> {
+
     let mut buf: [u8; BATCHSIZE * 16] = [0; BATCHSIZE * 16];
     let mut len = 0;
+
+    // keep reading if there is nothing
     while len == 0 {
         len = file.read(&mut buf)?;
         if len == 0 {
@@ -228,6 +232,8 @@ pub fn process_gcr_stream(file: &mut File) -> std::io::Result<([u64; BATCHSIZE],
             thread::sleep(time::Duration::from_millis(50));
         }
     }
+
+    // make sure we are aligned to the 16 byte encoding of the gc
     let rest = len%16;
     if rest != 0 {
         tracing::warn!("[gc] reading gcr: length mod 16 is not zero");
@@ -244,12 +250,16 @@ pub fn process_gcr_stream(file: &mut File) -> std::io::Result<([u64; BATCHSIZE],
     for i in 0..BATCHSIZE {
         (gc[i], result[i]) = split_gcr(buf[i * 16..i * 16 + 8].try_into().unwrap());
     }
+
+    // sleep once if the count rate is low
     if len < 1024 {
         thread::sleep(time::Duration::from_millis(50));
     }
+
     println!("num clicks: {:?}", num_clicks);
     Ok((gc, result, num_clicks))
 }
+
 
 // write gc back to fpga
 pub fn write_gc_to_fpga(gc: [u64; BATCHSIZE], file: &mut File, num_clicks: usize) -> std::io::Result<()> {
@@ -285,9 +295,12 @@ pub fn write_gc_to_user(gc: [u64; BATCHSIZE], file: &mut File, num_clicks: usize
 }
 
 // read gc coming from Bob
+// similar to proces_gcr_stream
 pub fn read_gc_from_bob(bob: &mut TcpStream) -> std::io::Result<([u64; BATCHSIZE], usize)> {
     let mut buf: [u8; BATCHSIZE * 8] = [0; BATCHSIZE * 8];
     let mut gc: [u64; BATCHSIZE] = [0; BATCHSIZE];
+
+    // wait if nothing is there
     let mut len = 0;
     while len == 0 {
         len = bob.read(&mut buf)?;
@@ -296,6 +309,8 @@ pub fn read_gc_from_bob(bob: &mut TcpStream) -> std::io::Result<([u64; BATCHSIZE
             thread::sleep(time::Duration::from_millis(50));
         }
     }
+
+    // make sure len is aligned to the incoding
     let rest = len%8;
     if rest != 0 {
         tracing::warn!("[gc] reading gc from Bob: length mod 8 is not zero");
@@ -306,6 +321,7 @@ pub fn read_gc_from_bob(bob: &mut TcpStream) -> std::io::Result<([u64; BATCHSIZE
         }
         len = len + check;
     }
+    
     let num_clicks = len/8;
     for i in 0..num_clicks {
         gc[i] = u64::from_le_bytes(
