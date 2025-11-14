@@ -23,6 +23,9 @@ fn main() -> std::io::Result<()> {
         .expect("could not connect to UnixStream");
 
     write_message(&mut stream, Request::Start)?;
+    let m: Response = read_message(&mut stream)?;
+    println!("message received {:?}", m);
+
     thread::sleep(time::Duration::from_secs(cli.time));
     write_message(&mut stream, Request::Stop)?;
 

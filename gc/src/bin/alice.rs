@@ -51,12 +51,20 @@ fn recv_gc(bob: &mut TcpStream) -> std::io::Result<()> {
         );
     tracing::info!("[gc-alice] gcw file opened");
 
+    let mut zero_click_counter = 0;
+
     while *RUNNING.lock().unwrap() {
         let (gc, num_clicks) = read_gc_from_bob(bob)?;
         if num_clicks == 0 {
-            tracing::info!("[gc-alice] read_gc_from_bob len 0; waiting");
+            // 1 sec timeout for connection to bob
+            if zero_click_counter > 20 {
+                panic!("timeout read_gc_from_bob")
+            }
+            tracing::warn!("[gc-alice] read_gc_from_bob len 0; waiting");
             thread::sleep(time::Duration::from_millis(50));
+            zero_click_counter += 1;
         } else {
+            zero_click_counter = 0;
             write_gc_to_fpga(gc, &mut file_gcw, num_clicks)?;
         }
     }
@@ -160,7 +168,6 @@ fn main() -> std::io::Result<()> {
         tracing::info!("[gc-alice] control socket created");
 
         for stream in control_socket.incoming() {
-            tracing::info!("[gc-alice] waiting for message on control socket");
             let mut bob = connect_to_bob(&CONFIG.get().unwrap().alice_config().network.ip_gc);
             match stream {
                 Ok(mut stream) => {
@@ -169,6 +176,7 @@ fn main() -> std::io::Result<()> {
                     // wait for start message
                     match message {
                         Request::Start => {
+                            tracing::info!("[gc-alice] got start message");
                             // init Alice and Bob
                             bob.send(HwControl::InitDdr).expect("sending to Bob\n");
                             init_ddr(true);
@@ -185,19 +193,40 @@ fn main() -> std::io::Result<()> {
                     }
                     // receive gc in a separate thread
                     *RUNNING.lock().unwrap() = true;
-                    let thread_join_handle = thread::spawn(move || {
+                    let thread_join_handle = 
+                        thread::Builder::new().name("recv_gc".to_string()).spawn(move || {
                         recv_gc(&mut bob).expect("recv_gc returned an error");
-                    });
+                    }).expect("building thread");
 
                     // wait for stop message
-                    let message: Request = read_message(&mut stream).expect("recv\n");
-                    match message {
-                        Request::Stop => {
-                            *RUNNING.lock().unwrap() = false;
+                    println!("waiting for message");
+
+                    match read_message(&mut stream) {
+                        Ok(message) => {
+                            match message {
+                                Request::Stop => {
+                                    tracing::info!("[gc-alice] got stop message");
+                                    *RUNNING.lock().unwrap() = false;
+                                    write_message(&mut stream, Response::Done)
+                                        .expect("sending message through control socket");
+                                }
+                                _ => {
+                                    write_message(&mut stream, Response::DidNothing)
+                                        .expect("sending message through control socket");
+                                }
+                            }
                         }
-                        _ => {
-                            write_message(&mut stream, Response::DidNothing)
-                                .expect("sending message through control socket");
+                        // recover from Eof error due to disconnected controller
+                        Err(e) => {
+                            match e.kind() {
+                                std::io::ErrorKind::UnexpectedEof => {
+                                    // terminate thread recv_gc
+                                    *RUNNING.lock().unwrap() = false;
+                                    thread::sleep(time::Duration::from_millis(100));
+                                    break
+                                }
+                                _ => panic!("{}", e)
+                            }
                         }
                     }
 
@@ -210,6 +239,7 @@ fn main() -> std::io::Result<()> {
                     break;
                 }
             }
+            tracing::info!("[gc-alice] waiting for message on control socket");
         }
 
     }

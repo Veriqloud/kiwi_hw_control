@@ -30,7 +30,6 @@ pub mod qber_comms {
     #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq)]
     pub enum Qber {
         SendAngles = 4,
-        Stop = 5,
     }
 }
 
