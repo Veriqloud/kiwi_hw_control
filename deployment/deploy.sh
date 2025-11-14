@@ -47,6 +47,7 @@ control(){
     rsync -v hw_alice.py hws_alice.py ctl_alice.py mon_alice.py $Alice:~/hw_control/
     rsync -v lib/*.py $Alice:~/hw_control/lib/
     rsync -v alice_server/*.py $Alice:~/server/
+    rsync -v lib/laser/* $Alice:~/hw_control/lib/laser/
 
     rsync -v hw_bob.py ctl_bob.py hws_bob.py mon_bob.py $Bob:~/hw_control/
     rsync -v lib/*.py $Bob:~/hw_control/lib/

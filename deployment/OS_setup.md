@@ -63,11 +63,17 @@ to make usb devices user accessible add the following lines to `/etc/udev/rules.
 
 for the RNG 
 
-`SUBSYSTEM=="usb", ATTRS{idVendor}=="1fc9", ATTRS{idProduct}=="8111", MODE="0660", GROUP="vq-user"`
+
+`SUBSYSTEM=="tty", ATTRS{idVendor}=="1fc9", ATTRS{idProduct}=="8111", MODE="0666", GROUP="vq-user", SYMLINK+="ttyRNG0"`
 
 for the APD
 
-`SUBSYSTEM=="usb", ATTRS{idVendor}=="04d8", ATTRS{idProduct}=="f7b1", MODE="0660", GROUP="vq-user"`
+`SUBSYSTEM=="usb", ATTRS{idVendor}=="04d8", ATTRS{idProduct}=="f7b1", MODE="0660", GROUP="vq-user", SYMLINK+="usbAPD0"`
+
+fot the LASER
+
+`SUBSYSTEM=="tty", ATTRS{idVendor}=="0403", ATTRS{idProduct}=="6014", MODE="0666", GROUP="vq-user", SYMLINK+="ttylaser"`
+
 
 to make xdma user accessible add the following lines to `/etc/udev/rules.d/xdma.rules` 
 

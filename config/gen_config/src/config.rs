@@ -161,7 +161,7 @@ pub fn write_gc_config_alice(config: &Config){
     let gc_conf = gc::config::Configuration {
         player: gc::config::QlinePlayer::Alice(gc::config::AliceConfig {
             network: gc::config::ConfigNetwork {
-                ip_gc: config.ip.bob.clone() + ":" + &config.port.gc.to_string(),
+                ip_gc: config.ip.bob_wrs.clone() + ":" + &config.port.gc.to_string(),
             },
             fifo: gc::config::ConfigFifoAlice {
                 command_socket_path: config.file.startstop.clone(),
@@ -179,7 +179,7 @@ pub fn write_gc_config_bob(config: &Config){
     let gc_conf = gc::config::Configuration {
         player: gc::config::QlinePlayer::Bob(gc::config::BobConfig {
             network: gc::config::ConfigNetwork {
-                ip_gc: config.ip.bob.clone() + ":" + &config.port.gc.to_string(),
+                ip_gc: config.ip.bob_wrs.clone() + ":" + &config.port.gc.to_string(),
             },
             fifo: gc::config::ConfigFifoBob {
                 gcr_file_path: config.file.gcr.clone(),
@@ -198,7 +198,7 @@ pub fn write_gc_config_bob(config: &Config){
 // qber
 pub fn write_qber_config_alice(config: &Config){
     let qber_conf = qber::config::AliceConfig {
-        ip_bob: config.ip.bob.clone() + ":" + &config.port.qber.to_string(),
+        ip_bob: config.ip.bob_wrs.clone() + ":" + &config.port.qber.to_string(),
         angle_file_path: config.file.angle.clone(),
         command_socket_path: config.file.startstop.clone(),
     };
@@ -207,7 +207,7 @@ pub fn write_qber_config_alice(config: &Config){
 
 pub fn write_qber_config_bob(config: &Config){
     let qber_conf = qber::config::BobConfig {
-        ip_listen: config.ip.bob.clone() + ":" + &config.port.qber.to_string(),
+        ip_listen: config.ip.bob_wrs.clone() + ":" + &config.port.qber.to_string(),
         angle_file_path: config.file.angle.clone(),
         click_result_file_path: config.file.result.clone(),
     };
@@ -440,6 +440,7 @@ pub fn write_node_config(config_alice: &Config, config_bob: &Config) {
         qtol: config_alice.node.qtol,
         rounds_limit_per_session: 10000000,
         requested_final_key_size: Some(config_alice.kms.default_key_size as usize),
+        hw_read_buf_size: None,
         key_storage: node::StorageVariant::Fifo {
             path: config_alice.file.kms.clone(),
         },
@@ -480,6 +481,7 @@ pub fn write_node_config(config_alice: &Config, config_bob: &Config) {
         qtol: config_bob.node.qtol,
         rounds_limit_per_session: 10000000,
         requested_final_key_size: Some(config_bob.kms.default_key_size as usize),
+        hw_read_buf_size: None,
         key_storage: node::StorageVariant::Fifo {
             path: config_bob.file.kms.clone(),
         },

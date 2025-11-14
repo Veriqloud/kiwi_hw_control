@@ -9,6 +9,7 @@ from termcolor import colored
 import numpy as np
 from pathlib import Path
 
+
 ####### convenient send and receive commands ########
 
 def recv_exact(socket, l):
@@ -158,6 +159,27 @@ def compare_gc(conn):
     diff = gc - gc_bob
     difftime = diff/80e6
     sendc(conn, f'gc difference: {diff} ({difftime} s)')
+
+
+
+from ctl_alice import read_laser_coeffs, calc_steinhart_resistance, read_rtact_from_laser, write_laser_config
+
+def config_laser(conn=None, sendresult=True):
+    laser_file = qlinepath + 'hw_control/config/laser.txt'
+    coeffs = read_laser_coeffs(laser_file)
+
+    A, B, C, Temp, Ilaser= coeffs['A'], coeffs['B'], coeffs['C'], coeffs['Temp'],coeffs['Ilaser']
+    Rcalc = calc_steinhart_resistance(A, B, C, Temp)
+    success = write_laser_config(Rcalc, Ilaser)
+    time.sleep(2)
+    Rread = read_rtact_from_laser("/dev/ttylaser")
+
+    if abs(Rcalc - Rread) > 100:
+        print(f"Warning: Rcalc ({Rcalc:.2f}) differs from Rread ({Rread:.2f}) by more than 100 Ω")
+
+    if sendresult and conn:
+        sendc(conn, f"laser_config_done Rcalc={Rcalc:.6f} Rread={Rread}")
+
 
 
 def qdistance(conn):
@@ -859,6 +881,30 @@ def adjust_angles_a(conn):
     sendc(conn, 'adjust_angles_a done')
 
 
+def single_peak(conn, sendresult=True):
+    t = get_tmp()
+    am_mode_init = t['am_mode']
+    am2_mode_init = t['am2_mode']
+
+    t['am_mode'] = 'single'
+    t['am2_mode'] = 'off'
+    save_tmp(t)
+    ctl.Update_Dac()
+
+    sendc(bob, 'single_peak')
+    rcvc(bob)
+
+    t['am_mode'] = am_mode_init
+    t['am2_mode'] = am2_mode_init
+    save_tmp(t)
+    ctl.Update_Dac()
+
+    if sendresult:
+        sendc(conn, 'single_peak done')
+
+
+
+
 
 
 
@@ -893,6 +939,7 @@ functionmap['init'] = init
 functionmap['sync_gc'] = sync_gc
 functionmap['compare_gc'] = compare_gc
 functionmap['vca_per'] = vca_per
+functionmap['config_laser'] = config_laser
 functionmap['qdistance'] = qdistance
 functionmap['find_vca'] = find_vca
 functionmap['find_am_bias'] = find_am_bias
@@ -917,6 +964,7 @@ functionmap['adjust_am'] = adjust_am
 functionmap['adjust_angles_a'] = adjust_angles_a
 functionmap['adjust_soft_gates'] = adjust_soft_gates
 functionmap['set_soft_gates'] = set_soft_gates
+functionmap['single_peak'] = single_peak
 functionmap['start'] = start
 
 

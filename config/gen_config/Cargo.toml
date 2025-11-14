@@ -12,9 +12,8 @@ libp2p = { version = "0.56", features = ["identify", "rsa"] }
 gc = {path = "../../gc"}
 qber = {path = "../../qber"}
 simulator_configs = {git = "ssh://git@github.com/Veriqloud/hw_sim.git", branch = "master", package="configs"}
-#km_server_configs = {git = "ssh://git@github.com/Veriqloud/qline_backend.git", branch = "master", package="km-server"}
-km_server_configs = {path = "/home/georg/vqprojects/qline_backend/kms", package="km-server"}
-node = {path = "/home/georg/vqprojects/qline_backend/node", package="node"}
+km_server_configs = {git = "ssh://git@github.com/Veriqloud/qline_backend.git", branch = "master", package="km-server"}
+node = {git = "ssh://git@github.com/Veriqloud/qline_backend.git", package="node"}
 
 
 

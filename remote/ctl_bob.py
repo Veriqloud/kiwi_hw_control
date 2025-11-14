@@ -794,7 +794,32 @@ def verify_gate_double(input_file, input_file2, gate0, gate1, width, binstep=2, 
     else:
         return "fail"
 
+def plot_single_peak():
+    names = [HW_CONTROL + 'data/tdc/single_peak.txt']
+    hist = []
+    bins = np.arange(0, 1251, 2) - 1
 
+    for name in names:
+        t = np.loadtxt(name, usecols=1)
+        t = t % 1250
+        h, _ = np.histogram(t, bins=bins)
+        hist.append(h)
+
+    plt.figure(figsize=(10,5))
+    for h in hist:
+        plt.plot(bins[:-1]+1, h, color='red')
+
+    plt.axvline(625, color='black')
+
+    plt.ylim(0)
+    plt.xlabel('Time bins')
+    plt.ylabel('Counts')
+    plt.title('Single Peak Measurement')
+    plt.grid(True)
+
+    pic = HW_CONTROL + 'data/calib_res/single_peak.png'
+    plt.savefig(pic)
+    plt.close()
 
 #----------MONITORING REGISTERS-------------------
 #Read back monitoring signal

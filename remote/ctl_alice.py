@@ -12,28 +12,114 @@ from lib.fpga import *
 
 LOG_FILE = os.path.expanduser("~/bin/qber_total.log")
 
-def read_last_qber():
+
+
+
+def read_data_qber():
     try:
-        with open(LOG_FILE, 'rb') as f:
-            f.seek(0, os.SEEK_END)
-            pos = f.tell() - 1
-            line = b''
-            while pos >= 0:
-                f.seek(pos)
-                char = f.read(1)
-                if char == b'\n':
-                    if line:
-                        break
-                else:
-                    line = char + line
-                pos -= 1
-            line = line.decode(errors='ignore').strip()
-            if 'total' in line:
-                parts = line.split(':')[-1].split()
-                return float(parts[-1])
+        with open(LOG_FILE, 'r') as f:
+            lines = f.readlines()
+        for line in reversed(lines):
+            line = line.strip()
+            if not line or line.startswith("val41"):
+                continue
+            parts = line.split(',')
+            if len(parts) < 3:
+                continue
+            try:
+                v41 = float(parts[0])
+                v14 = float(parts[1])
+                qber = float(parts[2])
+                return [v41, v14, qber]
+            except:
+                continue
     except Exception as e:
-        print(f"[ERROR] Reading QBER: {e}")
+        print(f"[ERROR] Reading QBER data: {e}")
     return None
+
+
+#################### Config_laser #####################
+from math import exp
+from lib.laser.koheron_control import Controller
+
+
+def read_laser_coeffs(filepath):
+    coeffs = {}
+    try:
+        with open(filepath, 'r') as f:
+            for line in f:
+                parts = line.split()
+                if len(parts) == 2:
+                    key, val = parts
+                    coeffs[key] = float(val)
+    except FileNotFoundError:
+        print(f"File not found: {filepath}")
+    except Exception as e:
+        print(f"Error reading laser coefficients: {e}")
+    return coeffs
+
+
+def calc_steinhart_resistance(A, B, C, TempC):
+    try:
+        T = TempC + 273.15  # Convert °C to Kelvin
+        x = (1 / C) * (A - 1 / T)
+        y = ((B / (3 * C)) ** 3 + (x / 2) ** 2) ** 0.5
+        R = exp((y - (x / 2)) ** (1 / 3.0) - (y + (x / 2)) ** (1 / 3.0))
+        return R
+    except Exception as e:
+        print(f"Error computing resistance: {e}")
+        return None
+
+
+def read_rtact_from_laser(port="/dev/ttylaser"):
+    try:
+        ctl = Controller(port=port)
+        rtact = ctl.get("rtact")
+        return float(rtact)
+    except Exception as e:
+        print(f"Error reading rtact: {e}")
+        return None
+
+
+def write_laser_config(Rset,Ilaser,  port="/dev/ttylaser"):
+    """
+    Write the laser configuration using Rset as rtset.
+    """
+    try:
+        ctl = Controller(port=port)
+
+        config = {
+            "ldelay": 1000.0,
+            "lason": 1,
+            "ilaser": int(Ilaser),
+            "ilmax": 400.0,
+            "rtset": int(Rset),   # Pass the calculated resistance
+            "tecon": 1,
+            "pgain": 10.0,
+            "igain": 0.4,
+            "dgain": 0.0,
+            "tilim": 0.5,
+            "vtmin": -1,
+            "vtmax": 1,
+            "tprot": 1,
+            "vldauto": 1
+        }
+
+        for param in config:
+            ctl.set(param, config[param])
+
+        # Optional: automatically save the configuration
+        ctl.set("save")
+
+        return True  # success
+
+    except Exception as e:
+        print(f"Error writing laser config: {e}")
+        return False
+
+
+#######################################################
+
 
 
 
