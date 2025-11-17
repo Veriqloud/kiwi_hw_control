@@ -92,9 +92,6 @@ fn recv_angles(
         .expect("opening angle file");
 
 
-    // 4x4 matrix for statistics
-    let mut m0: [[u32; 4]; 4] = [[0; 4]; 4];
-    let mut m1: [[u32; 4]; 4] = [[0; 4]; 4];
 
     // angles stream is 128bit = 32 angles;
     let mut aa: [u8; BATCHSIZE/2] = [0; BATCHSIZE/2];
@@ -108,6 +105,9 @@ fn recv_angles(
     //bob.write_all(&num.to_le_bytes())?;
 
     loop {
+        // 4x4 matrix for statistics
+        let mut m0: [[u32; 4]; 4] = [[0; 4]; 4];
+        let mut m1: [[u32; 4]; 4] = [[0; 4]; 4];
         let now = Instant::now();
         for _ in 0..num / BATCHSIZE as u32 {
             if *STOP.lock().unwrap() {

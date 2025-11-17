@@ -4,7 +4,7 @@ use std::io::prelude::*;
 use std::net::TcpStream;
 use std::sync::OnceLock;
 use std::{thread, time};
-
+use std::time::{Instant};
 use crate::config::Configuration;
 
 pub const PPS_ADDRESS: usize = 48;
@@ -216,18 +216,23 @@ fn gc_for_fpga(gc: u64) -> [u8; 16] {
     return buf;
 }
 
-const BATCHSIZE: usize = 1024; // max number of clicks to process in one batch
+pub const BATCHSIZE: usize = 256; // max number of clicks to process in one batch
 
 // read gcr from fpga and split gc and r
-// read whatever is there and process it
-pub fn process_gcr_stream(file: &mut File) -> std::io::Result<([u64; BATCHSIZE], [u8; BATCHSIZE], usize)> {
+// the number of clicks read is read_length
+pub fn process_gcr_stream(file: &mut File, read_length: usize) -> std::io::Result<([u64; BATCHSIZE], [u8; BATCHSIZE], usize, u128)> {
 
     let mut buf: [u8; BATCHSIZE * 16] = [0; BATCHSIZE * 16];
     let mut len = 0;
 
+    let mut elapsed_time = time::Duration::new(0, 0);
     // keep reading if there is nothing
     while len == 0 {
-        len = file.read(&mut buf)?;
+        let now = Instant::now();
+        len = file.read(&mut buf[..read_length*16])?;
+        //len = file.read(&mut buf)?;
+        elapsed_time = now.elapsed();
+        //println!("elapsed time {:?}", elapsed_time);
         if len == 0 {
             tracing::warn!("[gc] len = 0; waiting");
             thread::sleep(time::Duration::from_millis(50));
@@ -252,13 +257,8 @@ pub fn process_gcr_stream(file: &mut File) -> std::io::Result<([u64; BATCHSIZE],
         (gc[i], result[i]) = split_gcr(buf[i * 16..i * 16 + 8].try_into().unwrap());
     }
 
-    // sleep once if the count rate is low
-    if len < 1024 {
-        thread::sleep(time::Duration::from_millis(50));
-    }
-
-    println!("num clicks: {:?}", num_clicks);
-    Ok((gc, result, num_clicks))
+    //println!("num clicks: {:?}", num_clicks);
+    Ok((gc, result, num_clicks, elapsed_time.as_millis()))
 }
 
 

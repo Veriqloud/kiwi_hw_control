@@ -12,6 +12,8 @@ use std::io::prelude::*;
 use std::net::{TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
 
+use gc::hw::BATCHSIZE;
+
 #[derive(Parser)]
 struct Cli {
     /// Path to the configuration file
@@ -74,8 +76,23 @@ fn send_gc(alice: &mut TcpStream) -> std::io::Result<()> {
         };
 
     let mut i = 0;
+    let mut read_length = 1;
     loop {
-        let (gc, result, num_clicks) = process_gcr_stream(&mut file_gcr)?;
+        let (gc, result, num_clicks, time_ms) = process_gcr_stream(&mut file_gcr, read_length)?;
+        // keep read time between 10ms and 20ms
+        // 50 ms is the limit above which a reset is requrired
+        if (time_ms < 4) & (read_length<BATCHSIZE/2){
+            read_length = read_length * 2;
+        } else if (time_ms < 10) & (read_length<BATCHSIZE){
+            read_length += 1;
+        } else if (time_ms > 20) & (time_ms < 30) & (read_length>1) {
+            read_length -= 1;
+        } else if time_ms >= 30{
+            read_length = 1;
+            if i>0 {
+                tracing::warn!("[gc-bob] took {:?} ms to read gcr (probably unrecoverable above 50ms)", time_ms);
+            }
+        }
         if (i % 100) == 0 {
             tracing::debug!("[gc-bob] GC stream [{}]: gc[0]={}, result[0]={}", i, gc[0], result[0]);
         };
