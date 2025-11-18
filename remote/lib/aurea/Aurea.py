@@ -4,38 +4,47 @@ from ctypes import *
 import time
 # Import OEM_SPD wrapper file  
 import lib.aurea.SPD_OEM as SPD_OEM
+import os
 
-
-import threading
-aurea_lock = threading.Lock()
-
+LOCKFILE = "/tmp/aurea.lock"
 
 class Aurea():
     def __init__(self):
+
+        
+        # wait for the lockfile to disappear
+        while os.path.isfile(LOCKFILE):
+            # delete the lockfile if it is too old
+            file_age = time.time() - os.path.getmtime(LOCKFILE)
+            if file_age > 10:
+                os.remove(LOCKFILE)
+            time.sleep(1)
+        # lock 
+        open(LOCKFILE, 'a').close()
+
         self.iDev = c_short(0) 
         nDev = c_short()
         devList = []
 
         #def init(self):
             # Scan and open selected device
-        with aurea_lock:
-            devList, nDev = SPD_OEM.listDevices()
-            if nDev == 0:   # if no device detected, wait
-                print("No device connected, waiting...")
-                while nDev == 0:
-                    devList, nDev = SPD_OEM.listDevices()
-                    time.sleep(1)
-            elif nDev > 1:  # if more 1 device detected, select target
-                print("Found " + str(nDev) + " device(s) :")
-                for i in range(nDev):
-                    print(" -" + str(i) + ": " + devList[i])
-                self.iDev = int(input("Select device to open (0 to n):")) 
+        devList, nDev = SPD_OEM.listDevices()
+        if nDev == 0:   # if no device detected, wait
+            print("No device connected, waiting...")
+            while nDev == 0:
+                devList, nDev = SPD_OEM.listDevices()
+                time.sleep(1)
+        elif nDev > 1:  # if more 1 device detected, select target
+            print("Found " + str(nDev) + " device(s) :")
+            for i in range(nDev):
+                print(" -" + str(i) + ": " + devList[i])
+            self.iDev = int(input("Select device to open (0 to n):")) 
 
-            # Open device
-            if SPD_OEM.openDevice(self.iDev) < 0:
-                input(" -> Failed to open device, press enter to quit !")
-                return 0    
-            print("Device correctly opened")
+        # Open device
+        if SPD_OEM.openDevice(self.iDev) < 0:
+            input(" -> Failed to open device, press enter to quit !")
+            return 0    
+        print("Device correctly opened")
 
 
     def mode(self, choice):
@@ -43,38 +52,35 @@ class Aurea():
         if choice == 'gated' : val = 1
         elif choice == 'continuous': val = 0
         # else: print('Non-existing mode')
-        with aurea_lock:
-          ret=SPD_OEM.setDetectionMode(self.iDev, val)
+        ret=SPD_OEM.setDetectionMode(self.iDev, val)
         if ret<0: print(" -> failed\n")
         else: print(" set mode to " + choice + " done\n")
 
 
     def deadtime(self, val):
-        with aurea_lock:
-            #val = float(input("Enter deadtime to set (in us): "))
-            ret = SPD_OEM.setDeadtime(self.iDev, val)
+        #val = float(input("Enter deadtime to set (in us): "))
+        ret = SPD_OEM.setDeadtime(self.iDev, val)
         if ret < 0: print(" -> failed\n")
         else: print(" set deadtime " + str(val) + " us done\n")
     
     def temp(self):
         #val = float(input("Enter deadtime to set (in us): "))
-        with aurea_lock:
-            ret, temp = SPD_OEM.getBodySocketTemp(self.iDev)
+        ret, temp = SPD_OEM.getBodySocketTemp(self.iDev)
         return temp
 
 
     def effi(self, val):
         #val = int(input("Enter efficiency to set (in %): "))
-        with aurea_lock:
-          ret=SPD_OEM.setEfficiency(self.iDev, val)
+        ret=SPD_OEM.setEfficiency(self.iDev, val)
         if ret<0: print(" -> failed\n")
         else: print(" set efficiency " + str(val) + "(%) done\n")
 
     def close(self):
-        with aurea_lock:
-          ret = SPD_OEM.closeDevice(self.iDev)
+        ret = SPD_OEM.closeDevice(self.iDev)
         if ret<0: print(" -> failed\n")
         else: print(" Device correctly closed ")
+        # remove the lock file
+        os.remove(LOCKFILE)
 
 
 if __name__=="__main__":
@@ -98,4 +104,3 @@ if __name__=="__main__":
     if args.mode is not None:
         aurea.mode(args.mode)
   
-    aurea.close()

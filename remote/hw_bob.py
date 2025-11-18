@@ -237,6 +237,44 @@ while True:
                 ctl.Update_Pol()
             elif command == 'set_optimize_pol':
                 ctl.Polarisation_Control()
+            elif command == 'set_tune_deadtime':
+                t = get_tmp()
+                dt = t['deadtime_gated']
+                maxcounts = 1./dt/10*1e6
+                c = ctl.counts_single()[0]
+                if c > maxcounts*0.6:
+                    # reduce deadtime
+                    print("reducing deadtime")
+                    if dt <=4:
+                        sendc("deadtime at limit: 4us")
+                    else:
+                        new_dt = dt//2
+                        if new_dt < 4:
+                            new_dt = 4
+                        aurea = ctl.Aurea()
+                        aurea.deadtime(new_dt)
+                        aurea.close()
+                        update_tmp('deadtime_gated', new_dt)
+                        sendc("deadtime reduced")
+                elif c < maxcounts*0.3:
+                    # increase deadtime
+                    print("increasing deadtime")
+                    if dt >= 64:
+                        sendc("deadtime at limit: 64us")
+                    else:
+                        new_dt = dt*2
+                        if new_dt > 64:
+                            new_dt = 64
+                        aurea = ctl.Aurea()
+                        aurea.deadtime(new_dt)
+                        aurea.close()
+                        update_tmp('deadtime_gated', new_dt)
+                        sendc("deadtime increased")
+                else:
+                        sendc("deadtime is fine")
+
+
+                
             
             elif command == 'get_info':
                 with open(HW_CONTROL+'config/tmp.txt') as f:
