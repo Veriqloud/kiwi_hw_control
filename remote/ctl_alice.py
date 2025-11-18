@@ -122,13 +122,31 @@ def write_laser_config(Rset,Ilaser,  port="/dev/ttylaser"):
 
 
 
-
 def Set_Vca(voltage):
+    t = get_tmp()
+    vcai=t['vca']
+    vcao=voltage
     if (voltage>5) or (voltage<0):
         print("Voltage out of range. Choose a value between 0 and 5")
         exit()
-    Set_vol(7, voltage)
+
+    if (vcao - vcai) > -0.6:
+        Set_vol(7, vcao)
+        update_tmp('vca', vcao)
+        return
+
+    step=10
+    delta = (vcao - vcai) / step
+
+    for i in range(1, step + 1):
+        v = vcai + delta * i
+        Set_vol(7, v)
+        time.sleep(0.05)
+    update_tmp('vca', vcao)
     update_tmp('vca', voltage)
+
+
+
 
 def Set_Am_Bias(voltage):
     Set_vol(5, voltage)
