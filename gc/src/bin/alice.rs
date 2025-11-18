@@ -5,15 +5,21 @@ use gc::comm::{Comm, HwControl};
 use gc::config::Configuration;
 use gc::hw::{CONFIG, init_ddr, read_gc_from_bob, sync_at_pps, wait_for_pps, write_gc_to_fpga};
 use std::fs::OpenOptions;
-use std::io::Write;
+//use std::io::Write;
 use std::net::TcpStream;
 use std::os::unix::net::UnixListener;
 use std::path::PathBuf;
 use std::str::FromStr;
-use std::sync::mpsc::{Receiver, Sender, TryRecvError, channel};
+//use std::sync::mpsc::{Receiver, Sender, TryRecvError, channel};
 use std::{thread, time};
 use tracing_subscriber::fmt::writer::MakeWriterExt;
 use uuid::Uuid;
+
+use std::sync::Mutex;
+
+
+// for stopping threads
+static RUNNING: Mutex<bool> = Mutex::new(false);
 
 #[derive(Parser)]
 struct Cli {
@@ -31,7 +37,8 @@ struct Cli {
     logs_location: String,
 }
 
-fn recv_gc(bob: &mut TcpStream, rx: &Receiver<Request>, debug_mode: bool) -> std::io::Result<()> {
+// receive gc from Bob until STOP
+fn recv_gc(bob: &mut TcpStream) -> std::io::Result<()> {
     let mut file_gcw = OpenOptions::new()
         .write(true)
         .open(&CONFIG.get().unwrap().alice_config().fifo.gc_file_path)
@@ -42,46 +49,18 @@ fn recv_gc(bob: &mut TcpStream, rx: &Receiver<Request>, debug_mode: bool) -> std
             )
             .as_str(),
         );
+    tracing::info!("[gc-alice] gcw file opened");
 
-    tracing::debug!(debug_mode = ?debug_mode);
 
-    loop {
-        let mut vgc: Vec<u64> = Vec::new();
-
-        for i in 0..100 {
-            let gc = read_gc_from_bob(bob)?;
-            write_gc_to_fpga(gc, &mut file_gcw)?;
-
-            if debug_mode {
-                vgc.extend_from_slice(&gc);
-            }
-
-            if (i % 1000) == 0 {
-                tracing::debug!("gc[0]: {}", gc[0]);
-            };
-        }
-        match rx.try_recv() {
-            Ok(m) => match m {
-                Request::Stop => {
-                    return Ok(());
-                }
-                _ => {}
-            },
-            Err(e) => match e {
-                TryRecvError::Empty => {}
-                TryRecvError::Disconnected => panic!("rx channel disconnected"),
-            },
-        }
-        if debug_mode {
-            let mut file_gc_debug = OpenOptions::new()
-                .create(true)
-                .append(true)
-                .open("gc.txt")
-                .expect("opening gc.txt\n");
-            let strings: Vec<String> = vgc.iter().map(|n| n.to_string()).collect();
-            writeln!(file_gc_debug, "{}", strings.join("\n"))?;
+    while *RUNNING.lock().unwrap() {
+        let (gc, num_clicks) = read_gc_from_bob(bob)?;
+        if num_clicks == 0 {
+            panic!("timeout read_gc_from_bob")
+        } else {
+            write_gc_to_fpga(gc, &mut file_gcw, num_clicks)?;
         }
     }
+    Ok(())
 }
 
 fn connect_to_bob(ip_bob: &str) -> TcpStream {
@@ -107,61 +86,9 @@ fn connect_to_bob(ip_bob: &str) -> TcpStream {
     }
 }
 
-fn handle_bob(rx: Receiver<Request>, tx: Sender<Response>, ip_bob: &str) {
-    tracing::info!("connecting to Bob...");
-    let mut bob =  connect_to_bob(&ip_bob);
-    tracing::info!("connected to Bob");
-    let mut debug_mode = false;
 
-    loop {
-        match rx.recv().unwrap() {
-            Request::DebugOn => {
-                debug_mode = true;
-                // remove gc.txt if it exists
-                std::fs::remove_file("gc.txt").unwrap_or_else(|e| match e.kind() {
-                    std::io::ErrorKind::NotFound => (),
-                    _ => panic!("{}", e),
-                });
-                tx.send(Response::Done)
-                    .expect("sending message through c2\n");
-            }
-            Request::Start => {
-                bob.send(HwControl::InitDdr).expect("sending to Bob\n");
-                init_ddr(true);
-                tx.send(Response::Done)
-                    .expect("sending message through c2\n");
-                wait_for_pps();
-                bob.send(HwControl::SyncAtPps).expect("sending to Bob\n");
-                sync_at_pps();
-                tracing::info!("files opened");
-                // loop until Stop
-                match recv_gc(&mut bob, &rx, debug_mode) {
-                    Ok(()) => {
-                        tx.send(Response::Done)
-                            .expect("sending message through c2\n");
-                        bob = TcpStream::connect(&ip_bob).expect("could not connect to stream\n");
-                        continue;
-                    }
-                    Err(e) => match e.kind() {
-                        std::io::ErrorKind::UnexpectedEof => {
-                            tracing::warn!("Unexpected Eof; reconnecting to Bob");
-                            bob =
-                                TcpStream::connect(&ip_bob).expect("could not connect to stream\n");
-                            continue;
-                        }
-                        _ => panic!("interaction with bob {}", e),
-                    },
-                }
-            }
-            _ => {
-                tx.send(Response::DidNothing)
-                    .expect("sending message through c2\n");
-            }
-        }
-    }
-}
-
-fn handle_control(tx: Sender<Request>, rx: Receiver<Response>) {
+// create socket for start/stop commands from controller
+fn create_control_socket() -> UnixListener {
     // remove unix socket if it exists
     std::fs::remove_file(
         CONFIG
@@ -175,7 +102,7 @@ fn handle_control(tx: Sender<Request>, rx: Receiver<Response>) {
         std::io::ErrorKind::NotFound => (),
         _ => panic!("{}", e),
     });
-
+    // create unix socket
     let listener = UnixListener::bind(
         CONFIG
             .get()
@@ -185,23 +112,9 @@ fn handle_control(tx: Sender<Request>, rx: Receiver<Response>) {
             .command_socket_path,
     )
     .expect("UnixListener could not bind to address\n");
-
-    for stream in listener.incoming() {
-        match stream {
-            Ok(mut stream) => {
-                let message: Request = read_message(&mut stream).expect("recv\n");
-                tx.send(message)
-                    .expect("sending message through  channel\n");
-                let m = rx.recv().unwrap();
-                write_message(&mut stream, m).expect("sending message\n");
-            }
-            Err(err) => {
-                tracing::error!("Error: {}", err);
-                break;
-            }
-        }
-    }
+    return listener;
 }
+
 
 fn main() -> std::io::Result<()> {
     let cli = Cli::parse();
@@ -230,30 +143,102 @@ fn main() -> std::io::Result<()> {
         .init();
 
     tracing::info!(
-        "Logging initialized with level {:?} to stdout and file {}",
+        "[gc-alice] Logging initialized with level {:?} to stdout and file {}",
         stdout_level,
         format!("{}/{}", &cli.logs_location, &logfile_name)
     );
-    tracing::info!("Loading configuration from: {:?}", &cli.config_path);
+    tracing::info!("[gc-alice] Loading configuration from: {:?}", &cli.config_path);
     tracing::debug!(
-        "Running with configuration: {}",
+        "[gc-alice] Running with configuration: {}",
         serde_json::to_string_pretty(&CONFIG.get().unwrap())
             .unwrap_or_else(|e| format!("Failed to serialize config for logging: {}", e))
     );
 
     loop {
-        let (c1_tx, c1_rx) = channel();
-        let (c2_tx, c2_rx) = channel();
-        let thread_join_handle = thread::spawn(move || {
-            handle_bob(
-                c1_rx,
-                c2_tx,
-                &CONFIG.get().unwrap().alice_config().network.ip_gc,
-            )
-        });
+        *RUNNING.lock().unwrap() = false;
+        let control_socket = create_control_socket();
+        tracing::info!("[gc-alice] control socket created");
 
-        handle_control(c1_tx, c2_rx);
+        for stream in control_socket.incoming() {
+            let mut bob = connect_to_bob(&CONFIG.get().unwrap().alice_config().network.ip_gc);
+            match stream {
+                Ok(mut stream) => {
+                    let message: Request = read_message(&mut stream).expect("recv\n");
 
-        thread_join_handle.join().expect("joining thread\n");
+                    // wait for start message
+                    match message {
+                        Request::Start => {
+                            tracing::info!("[gc-alice] got start message");
+                            // init Alice and Bob
+                            bob.send(HwControl::InitDdr).expect("sending to Bob\n");
+                            init_ddr(true);
+                            write_message(&mut stream, Response::Done)
+                                .expect("sending message through control socket");
+                            wait_for_pps();
+                            bob.send(HwControl::SyncAtPps).expect("sending to Bob\n");
+                            sync_at_pps();
+                        }
+                        _ => {
+                            write_message(&mut stream, Response::DidNothing)
+                                .expect("sending message through control socket");
+                        }
+                    }
+                    // receive gc in a separate thread
+                    *RUNNING.lock().unwrap() = true;
+                    let thread_join_handle = 
+                        thread::Builder::new().name("recv_gc".to_string()).spawn(move || {
+                        recv_gc(&mut bob).expect("recv_gc returned an error");
+                    }).expect("building thread");
+
+                    // wait for stop message
+                    println!("waiting for message");
+
+                    match read_message(&mut stream) {
+                        Ok(message) => {
+                            match message {
+                                Request::Stop => {
+                                    tracing::info!("[gc-alice] got stop message");
+                                    *RUNNING.lock().unwrap() = false;
+                                    write_message(&mut stream, Response::Done)
+                                        .expect("sending message through control socket");
+                                }
+                                _ => {
+                                    write_message(&mut stream, Response::DidNothing)
+                                        .expect("sending message through control socket");
+                                }
+                            }
+                        }
+                        // recover from Eof error due to disconnected controller
+                        Err(e) => {
+                            match e.kind() {
+                                std::io::ErrorKind::UnexpectedEof => {
+                                    // terminate thread recv_gc
+                                    *RUNNING.lock().unwrap() = false;
+                                    thread::sleep(time::Duration::from_millis(100));
+                                    break
+                                }
+                                _ => panic!("{}", e)
+                            }
+                        }
+                    }
+
+                    // finish
+                    thread_join_handle.join().expect("thread join handle");
+
+                }
+                Err(err) => {
+                    tracing::error!("[gc-alice] Error: {}", err);
+                    break;
+                }
+            }
+            tracing::info!("[gc-alice] waiting for message on control socket");
+        }
+
     }
 }
+
+
+
+
+
+

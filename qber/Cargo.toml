@@ -10,3 +10,5 @@ clap = { version = "4.5.32", features = ["derive"] }
 
 comm = { path = "../comm" }
 bincode = { version = "2.0.1", features = ["serde"] }
+
+ctrlc = "3.5.1"

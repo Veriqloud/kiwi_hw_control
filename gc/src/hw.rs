@@ -4,7 +4,7 @@ use std::io::prelude::*;
 use std::net::TcpStream;
 use std::sync::OnceLock;
 use std::{thread, time};
-
+use std::time::{Instant};
 use crate::config::Configuration;
 
 pub const PPS_ADDRESS: usize = 48;
@@ -158,12 +158,11 @@ pub fn init_ddr(alice: bool) {
         fiber_delay
     };
 
-    println!("decoy delay: {:?}", decoy_delay);
     // we have to add 64 to the delay due to some latency in the fpga
     ddr_data_reg(4, fiber_delay, decoy_delay, 50000);
     ddr_data_reg(3, fiber_delay, decoy_delay, 50000);
     ddr_data_init();
-    println!("init ddr done");
+    tracing::info!("init ddr done");
 }
 
 // wait for the syncronization pulse (pps)
@@ -171,6 +170,7 @@ pub fn wait_for_pps() {
     loop {
         let pps = xdma_read(PPS_ADDRESS, PPS_OFFSET);
         if pps == 1 {
+            tracing::info!("got first pps");
             return;
         };
     }
@@ -178,6 +178,7 @@ pub fn wait_for_pps() {
 
 // syncronize at next pps
 pub fn sync_at_pps() {
+    tracing::info!("will start at next pps");
     // start to write
     xdma_write(0, 0, 0x1000);
     xdma_write(0, 1, 0x1000);
@@ -215,66 +216,108 @@ fn gc_for_fpga(gc: u64) -> [u8; 16] {
     return buf;
 }
 
-const BATCHSIZE: usize = 32; // number of clicks to process in one batch
+pub const BATCHSIZE: usize = 256; // max number of clicks to process in one batch
 
 // read gcr from fpga and split gc and r
-pub fn process_gcr_stream(file: &mut File) -> std::io::Result<([u64; BATCHSIZE], [u8; BATCHSIZE])> {
+// the number of clicks read is read_length
+pub fn process_gcr_stream(file: &mut File, read_length: usize) -> std::io::Result<([u64; BATCHSIZE], [u8; BATCHSIZE], usize, u128)> {
+
     let mut buf: [u8; BATCHSIZE * 16] = [0; BATCHSIZE * 16];
-    file.read_exact(&mut buf)?;
+
+    let now = Instant::now();
+    let mut len = file.read(&mut buf[..read_length*16])?;
+    let elapsed_time = now.elapsed();
+    if len == 0 {
+        tracing::error!("[gc] len = 0");
+        let len0_error = std::io::Error::new(std::io::ErrorKind::Other, "Len0");
+        return Err(len0_error)
+    }
+
+    // make sure we are aligned to the 16 byte encoding of the gc
+    let rest = len%16;
+    if rest != 0 {
+        tracing::warn!("[gc] reading gcr: length mod 16 is not zero");
+        let missing_len = 16-rest;
+        let check = file.read(&mut buf[len..len+missing_len])?;
+        if check != missing_len {
+            tracing::error!("[gc] reading gcr: could not read until mod 16");
+        }
+        len = len + check;
+    }
+    let num_clicks = len/16;
     let mut gc: [u64; BATCHSIZE] = [0; BATCHSIZE];
     let mut result: [u8; BATCHSIZE] = [0; BATCHSIZE];
     for i in 0..BATCHSIZE {
         (gc[i], result[i]) = split_gcr(buf[i * 16..i * 16 + 8].try_into().unwrap());
     }
-    Ok((gc, result))
+
+    //println!("num clicks: {:?}", num_clicks);
+    Ok((gc, result, num_clicks, elapsed_time.as_millis()))
 }
 
+
 // write gc back to fpga
-pub fn write_gc_to_fpga(gc: [u64; BATCHSIZE], file: &mut File) -> std::io::Result<()> {
+pub fn write_gc_to_fpga(gc: [u64; BATCHSIZE], file: &mut File, num_clicks: usize) -> std::io::Result<()> {
     let mut buf: [u8; BATCHSIZE * 16] = [0; BATCHSIZE * 16];
-    for i in 0..BATCHSIZE {
+    for i in 0..num_clicks {
         let gcbuf = gc_for_fpga(gc[i]);
         buf[i * 16..(i + 1) * 16].copy_from_slice(&gcbuf);
     }
-    file.write_all(&buf)?;
+    file.write_all(&buf[..num_clicks*16])?;
     Ok(())
 }
 
 // write gc to Alice
-pub fn write_gc_to_alice(gc: [u64; BATCHSIZE], alice: &mut TcpStream) -> std::io::Result<()> {
+pub fn write_gc_to_alice(gc: [u64; BATCHSIZE], alice: &mut TcpStream, num_clicks: usize) -> std::io::Result<()> {
     let mut buf: [u8; BATCHSIZE * 8] = [0; BATCHSIZE * 8];
-    for i in 0..BATCHSIZE {
+    for i in 0..num_clicks {
         let gcbuf = gc[i].to_le_bytes();
         buf[i * 8..(i + 1) * 8].copy_from_slice(&gcbuf);
     }
-    alice.write_all(&buf)?;
+    alice.write_all(&buf[..num_clicks*8])?;
     Ok(())
 }
 
 // write gc to userfifo
-pub fn write_gc_to_user(gc: [u64; BATCHSIZE], file: &mut File) -> std::io::Result<()> {
+pub fn write_gc_to_user(gc: [u64; BATCHSIZE], file: &mut File, num_clicks: usize) -> std::io::Result<()> {
     let mut buf: [u8; BATCHSIZE * 8] = [0; BATCHSIZE * 8];
-    for i in 0..BATCHSIZE {
+    for i in 0..num_clicks {
         let gcbuf = gc[i].to_le_bytes();
         buf[i * 8..(i + 1) * 8].copy_from_slice(&gcbuf);
     }
-    file.write_all(&buf)?;
+    file.write_all(&buf[..num_clicks*8])?;
     Ok(())
 }
 
 // read gc coming from Bob
-pub fn read_gc_from_bob(bob: &mut TcpStream) -> std::io::Result<[u64; BATCHSIZE]> {
+// similar to proces_gcr_stream
+pub fn read_gc_from_bob(bob: &mut TcpStream) -> std::io::Result<([u64; BATCHSIZE], usize)> {
     let mut buf: [u8; BATCHSIZE * 8] = [0; BATCHSIZE * 8];
     let mut gc: [u64; BATCHSIZE] = [0; BATCHSIZE];
-    bob.read_exact(&mut buf)?;
-    for i in 0..BATCHSIZE {
+
+    let mut len = bob.read(&mut buf)?;
+
+    // make sure len is aligned to the incoding
+    let rest = len%8;
+    if rest != 0 {
+        tracing::warn!("[gc] reading gc from Bob: length mod 8 is not zero");
+        let missing_len = 8-rest;
+        let check = bob.read(&mut buf[len..len+missing_len])?;
+        if check != missing_len {
+            tracing::error!("[gc] reading gc from Bob: could not read until mod 8");
+        }
+        len = len + check;
+    }
+    
+    let num_clicks = len/8;
+    for i in 0..num_clicks {
         gc[i] = u64::from_le_bytes(
             buf[i * 8..(i + 1) * 8]
                 .try_into()
                 .expect("converting gc from bob to u64"),
         );
     }
-    Ok(gc)
+    Ok((gc, num_clicks))
 }
 
 #[cfg(test)]
