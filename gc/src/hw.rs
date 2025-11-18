@@ -223,20 +223,14 @@ pub const BATCHSIZE: usize = 256; // max number of clicks to process in one batc
 pub fn process_gcr_stream(file: &mut File, read_length: usize) -> std::io::Result<([u64; BATCHSIZE], [u8; BATCHSIZE], usize, u128)> {
 
     let mut buf: [u8; BATCHSIZE * 16] = [0; BATCHSIZE * 16];
-    let mut len = 0;
 
-    let mut elapsed_time = time::Duration::new(0, 0);
-    // keep reading if there is nothing
-    while len == 0 {
-        let now = Instant::now();
-        len = file.read(&mut buf[..read_length*16])?;
-        //len = file.read(&mut buf)?;
-        elapsed_time = now.elapsed();
-        //println!("elapsed time {:?}", elapsed_time);
-        if len == 0 {
-            tracing::warn!("[gc] len = 0; waiting");
-            thread::sleep(time::Duration::from_millis(50));
-        }
+    let now = Instant::now();
+    let mut len = file.read(&mut buf[..read_length*16])?;
+    let elapsed_time = now.elapsed();
+    if len == 0 {
+        tracing::error!("[gc] len = 0");
+        let len0_error = std::io::Error::new(std::io::ErrorKind::Other, "Len0");
+        return Err(len0_error)
     }
 
     // make sure we are aligned to the 16 byte encoding of the gc

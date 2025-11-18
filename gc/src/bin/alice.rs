@@ -51,20 +51,12 @@ fn recv_gc(bob: &mut TcpStream) -> std::io::Result<()> {
         );
     tracing::info!("[gc-alice] gcw file opened");
 
-    let mut zero_click_counter = 0;
 
     while *RUNNING.lock().unwrap() {
         let (gc, num_clicks) = read_gc_from_bob(bob)?;
         if num_clicks == 0 {
-            // 1 sec timeout for connection to bob
-            if zero_click_counter > 20 {
-                panic!("timeout read_gc_from_bob")
-            }
-            tracing::warn!("[gc-alice] read_gc_from_bob len 0; waiting");
-            thread::sleep(time::Duration::from_millis(50));
-            zero_click_counter += 1;
+            panic!("timeout read_gc_from_bob")
         } else {
-            zero_click_counter = 0;
             write_gc_to_fpga(gc, &mut file_gcw, num_clicks)?;
         }
     }
