@@ -8,8 +8,8 @@ RestartSec=10
 StartLimitBurst=5
 User=vq-user
 WorkingDirectory=/home/vq-user/rng_fpga 
-StandardOutput=append:/tmp/log/rng.log
-StandardError=append:/tmp/log/rng.log
+StandardOutput=append:/home/vq-user/log/rng.log
+StandardError=append:/home/vq-user/log/rng.log
 
 [Install] 
 WantedBy=multi-user.target
