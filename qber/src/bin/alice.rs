@@ -45,10 +45,10 @@ impl fmt::Display for QberMatrix {
         let m = self.0;
         write!(
             f,
-            "{:>6.3}  {:>6.3}  {:>6.3}  {:>6.3}
-{:>6.3}  {:>6.3}  {:>6.3}  {:>6.3}
-{:>6.3}  {:>6.3}  {:>6.3}  {:>6.3}
-{:>6.3}  {:>6.3}  {:>6.3}  {:>6.3}",
+            "{:>6.2}  {:>6.2}  {:>6.2}  {:>6.2}
+{:>6.2}  {:>6.2}  {:>6.2}  {:>6.2}
+{:>6.2}  {:>6.2}  {:>6.2}  {:>6.2}
+{:>6.2}  {:>6.2}  {:>6.2}  {:>6.2}",
             m[0][0],
             m[0][1],
             m[0][2],
@@ -69,15 +69,7 @@ impl fmt::Display for QberMatrix {
     }
 }
 
-// for printing angles to file
-struct Line([u8; 3]);
 
-impl fmt::Display for Line {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let l = self.0;
-        write!(f, "{:}\t{:}\t{:}", l[0], l[1], l[2])
-    }
-}
 
 // receive angles from Bob in a loop
 fn recv_angles(
@@ -92,7 +84,6 @@ fn recv_angles(
         .expect("opening angle file");
 
 
-
     // angles stream is 128bit = 32 angles;
     let mut aa: [u8; BATCHSIZE/2] = [0; BATCHSIZE/2];
     let mut ab: [u8; BATCHSIZE/2] = [0; BATCHSIZE/2];
@@ -100,9 +91,6 @@ fn recv_angles(
     // result stream is 1byte = 1result;
     let mut r: [u8; BATCHSIZE] = [0; BATCHSIZE];
 
-
-    //println!("[qber-alice] Telling qber-bob we want {} clicks.", num);
-    //bob.write_all(&num.to_le_bytes())?;
 
     loop {
         // 4x4 matrix for statistics
@@ -161,8 +149,7 @@ fn recv_angles(
         let counts  = (num / BATCHSIZE as u32) * BATCHSIZE as u32;
 
         println!(
-            "counts: {:} ({:6.0} counts/s )
-    {:}",
+            "counts: {:} ({:6.0} counts/s ) \n{:}",
             counts, counts as f64 /elapsed_time.as_secs_f64(),
             QberMatrix(mdiv)
         );
