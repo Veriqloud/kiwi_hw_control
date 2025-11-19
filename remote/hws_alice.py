@@ -761,11 +761,11 @@ def set_angles_a(conn):
     angle2 = -angle1
     angle3 = 2 * angle1
 
-    update_tmp('angle0', angle0)
-    update_tmp('angle1', angle1)
-    update_tmp('angle2', angle2)
-    update_tmp('angle3', angle3)
-    ctl.Update_Dac()
+#    update_tmp('angle0', angle0)
+#    update_tmp('angle1', angle1)
+#    update_tmp('angle2', angle2)
+#    update_tmp('angle3', angle3)
+#    ctl.Update_Dac()
 
     sendc(bob, 'done')
     sendc(conn, 'set_angles_a done')
@@ -775,35 +775,37 @@ def set_angles_a(conn):
 
 def adjust_am(conn):
     sendc(bob, 'adjust_am')
-
     t = get_tmp()
+    t['pm_mode'] = 'true_rng'
+    t['insert_zeros'] = 'on'
+    save_tmp(t)
+    ctl.Update_Dac()
+
     am_tmp = t['am_bias']
 
     best_am = am_tmp
-    lowest_qber = None
+    best_count = -1
 
-    for delta in [-0.05, 0, 0.05]:
+    for delta in [-0.2, -0.1, 0, 0.1, 0.2]:
         am_test = round(am_tmp + delta, 2)
         ctl.Set_Am_Bias(am_test)
-        time.sleep(0.5)
+        time.sleep(0.2)
+        sendc(bob, 'get counts')
+        count = rcv_i(bob)
 
-        prev_qber = ctl.read_data_qber()[2]
-        while True:
-            qber = ctl.read_data_qber()[2]
-            if qber is not None and qber != prev_qber:
-                break
-            time.sleep(0.1)
+        print(f" Count for AM {am_test:.2f}: {count}")
 
-        print(f" QBER for AM {am_test:.2f}: {qber:.4f}")
-
-        if lowest_qber is None or qber < lowest_qber:
-            lowest_qber = qber
+        if count > best_count:
+            best_count = count
             best_am = am_test
 
-    print(f" Best AM found: {best_am:.2f} with QBER {lowest_qber:.4f}")
+    print(f" Best AM found: {best_am:.2f} with count {best_count}")
     ctl.Set_Am_Bias(best_am)
-#    sendc(bob, 'done')
+
+    sendc(bob, 'done')
     sendc(conn, 'adjust_am done')
+
+
 
 
 def adjust_soft_gates(conn):

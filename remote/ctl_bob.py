@@ -770,7 +770,6 @@ def verify_gate_double(input_file, input_file2, gate0, gate1, width, binstep=2, 
 
     print(f'peak0 = {peak0} at x = {peak0_x}, background0 = {background_max0}')
     print(f'peak1 = {peak1} at x = {peak1_x}, background1 = {background_max1}')
-
     # === PLOT  ===
     plt.figure()
     plt.plot(centers, h2, label=os.path.basename('off'), color='blue', linestyle='--')
@@ -788,11 +787,13 @@ def verify_gate_double(input_file, input_file2, gate0, gate1, width, binstep=2, 
     plt.close()
 
     if peak0 > (background_max0 + 20) and peak1 > (background_max1 + 20):
-        return "success"
+        status = "success"
     elif (peak0 - (background_max0 + 20)) > 200 or (peak1 - (background_max1 + 20)) > 200:
-        return "success"
+        status = "success"
     else:
-        return "fail"
+        status = "fail"
+
+    return status, peak0_x, peak1_x
 
 def plot_single_peak():
     names = [HW_CONTROL + 'data/tdc/single_peak.txt']

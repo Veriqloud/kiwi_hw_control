@@ -165,10 +165,17 @@ while True:
 
 
             elif command == 'adjust_am':
- #               rcvc()
- #               print(colored('AM adjusted', 'cyan', force_color=True))
-               print(colored('doing nothing', 'cyan', force_color=True))
-#               rcvc()
+                print(colored('adjust_am', 'cyan', force_color=True))
+                t['pm_mode'] = 'true_rng'
+                t['insert_zeros'] = 'on'
+                t['feedback'] = 'on'
+                save_tmp(t)
+                ctl.Update_Dac()
+
+                while rcvc() == 'get counts':
+                    time.sleep(0.2)
+                    count = ctl.counts_fast()[1] + ctl.counts_fast()[2]
+                    send_i(count)
 
             elif command == 'adjust_angles_a':
                print(colored('doing nothing', 'cyan', force_color=True))
@@ -233,7 +240,7 @@ while True:
 
                 lf = ctl.fall_edge(file_off)
                 target = (65-lf) % 312
-#                target = (target - 10) % 312
+                target = (target - 10) % 312
                 update_tmp('gate_delay', target*40)
                 ctl.Gen_Gate()
                 sendc('done')
@@ -316,7 +323,21 @@ while True:
                 maxtime = gate1 + width
                 input_file = HW_CONTROL+'data/tdc/verify_gate_double.txt'
                 input_file2 = HW_CONTROL+'data/tdc/verify_gate_off.txt'
-                status = ctl.verify_gate_double(input_file,input_file2, gate0, gate1, width, binstep, maxtime)
+                status, peak0_x, peak1_x = ctl.verify_gate_double(input_file, input_file2, gate0, gate1, width, binstep, maxtime)
+                print(status, peak0_x, peak1_x)
+                if status == "success":
+                    w0 = 30
+                    w1 = 30
+                    pic0 = int(round(peak0_x - (w0 / 2)))
+                    pic1 = int(round(peak1_x - (w1 / 2)))
+
+                    ctl.set_Softgate(pic0, pic1, w0, w1)
+                    t['soft_gate0'] = pic0
+                    t['soft_gate1'] = pic1
+                    t['w0'] = w0
+                    t['w1'] = w1
+                    save_tmp(t)
+
                 pic = HW_CONTROL+"data/calib_res/gate_double.png"
                 with open(pic, 'rb') as f:
                     data = f.read()
