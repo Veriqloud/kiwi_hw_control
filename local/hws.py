@@ -181,8 +181,8 @@ if args.full_init:
     interact('pol_bob')
     interact('vca_per_95')
     interact('loop_find_gates')
-    #interact('qdistance')
-    #interact('loop_find_gates')
+#    interact('qdistance')
+#    interact('loop_find_gates')
     interact('fs_b')
     interact('fs_a')
     interact('fd_b')
@@ -192,6 +192,7 @@ if args.full_init:
     interact('fz_a')
     interact('fz_b')
 #    interact('set_soft_gates')
+    interact('adjust_am')
     interact('start')
 
 if args.monitoring:
