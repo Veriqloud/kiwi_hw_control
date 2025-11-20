@@ -17,7 +17,7 @@ The fpga of Bob writes the gc value of the detection and the result bit of the d
 
 
 
-## Application side workflow
+## Application-side workflow
 
 The application controls the progam gc by connecting to the gc of Alice through a Unix socket. 
 
@@ -38,14 +38,10 @@ A typical workflow is
 
 
 
-Please see doc/scheme.pdf for a schematic about who is sending what to whom.
-
-
-
 
 # Installation
 
-build and copy the executables into `~/bin`. The controller is a simple program to manually send Start/Stop.
+build and copy the executables into `~/bin`. (The controller is a simple program to manually send Start/Stop.)
 
 ```.bash
 cargo build --release
@@ -66,7 +62,7 @@ Generate the config files
 gen_config -c meta_config_for_sim.json -s sim_config.json
 ```
 
-Execute this following bash script. It will run everything in background without any output. 
+Execute the following bash script. It will run `sim+gc` in background without any output and only show the output of `qber_alice`.
 ```.bash
 simulator -c alice/sim.json > /dev/null &
 simulator -c bob/sim.json > /dev/null &
