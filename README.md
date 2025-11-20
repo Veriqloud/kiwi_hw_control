@@ -32,8 +32,6 @@ Each machine has two network interfaces:
 - client side network for communication between Alice/Bob and the client. These can be physically distinct networks for Alice and Bob. The purpose of this network is admin control and client side KMS interaction
 
 
-Ips and ports are defined in a single file `config/qlineX/network.json` and propaged with `gen_config` to all the other programs.
-
 Contributing
 ------------
 
