@@ -13,6 +13,7 @@ text.f3 {font-family:cmsy10;font-size:9.96264px}
 ]]>
 </style>
 <g id='page1'>
+<rect x='-72' y='-72' width='501.86128' height='283.123357' fill='#e1e1db'/>
 <text class='f1' x='65.544856' y='-7.005285' transform='matrix(1 0 0 1 -14.1885 -51.71221)'>Alice</text>
 <text class='f1' x='65.544856' y='-7.005285' transform='matrix(1 0 0 1 214.9981 -51.71221)'>Bob</text>
 <text class='f2' x='65.544856' y='-7.005285' transform='matrix(1 0 0 1 325.6881 30.83749)'><tspan fill='#00f'>gcr.ﬁfo</tspan></text>
