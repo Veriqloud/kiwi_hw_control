@@ -17,3 +17,7 @@ comm/target/
 comm/Cargo.lock
 config/gen_config/target/*
 .aider.*
+
+# Ignore build artifacts for the gen_config crate
+config/gen_config/Cargo.lock
+
