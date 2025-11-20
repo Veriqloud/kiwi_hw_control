@@ -1,4 +1,4 @@
-\documentclass[convert={density=400}]{standalone}
+\documentclass[convert={density=100}]{standalone}
 
 
 \renewcommand{\familydefault}{\sfdefault}
@@ -13,33 +13,33 @@
     \node at (0,2) {\Large Alice};
     \node at (8,2) {\Large Bob};
 
-    \node[color=blue] (gcr) at (12, -1) {/dev/xdma0\_c2h\_0};
-    \node[color=blue] (gcsb) at (8, 1) {/dev/xdma0\_h2c\_0};
+    \node[color=blue] (gcr) at (12, -1) {gcr.fifo};
+    \node[color=blue] (gcsb) at (8, 1) {gc.fifo};
     
-    \node[color=blue] (gcsa) at (0, 1) {/dev/xdma0\_h2c\_0};
-    \node[color=blue] (xdmaa) at (-3.5, 0) {/dev/xdma0\_user};
-    \node[color=blue] (xdmab) at (11.5, 0) {/dev/xdma0\_user};
+    \node[color=blue] (gcsa) at (0, 1) {gc.fifo};
+    \node[color=blue] (xdmaa) at (-3.5, 0) {command.mmap};
+    \node[color=blue] (xdmab) at (11.5, 0) {command.mmap};
 
-    \node(gcc) at (0,-1) {\textbf{gc\_client}};
-    \node(gcs) at (8,-1) {\textbf{gc\_server}};
+    \node(gcc) at (0,-1) {\textbf{gc\_alice}};
+    \node(gcs) at (8,-1) {\textbf{gc\_bob}};
 
-    \draw[<->] (gcc) -- (gcs) node(tcp)[below, midway, align=center]{TCP\\$\rightarrow$ \textcolor{teal}{start} \\$\leftarrow$ \textcolor{magenta}{gc}};
+    \draw[<->] (gcc) -- (gcs) node(tcp)[below, midway, align=center]{TCP\\\textcolor{teal}{Commands} $\rightarrow$ \\$\leftarrow$ \textcolor{magenta}{gc}};
 
     
-    \node(qberc) at (0,-5) [align=center] {\textbf{qber\_client}\\printing qber};
-    \node(qbers) at (8,-5) {\textbf{qber\_server}};
+    \node(qberc) at (0,-5) [align=center] {\textbf{qber\_alice}\\printing qber};
+    \node(qbers) at (8,-5) {\textbf{qber\_bob}};
     
-    \node[color=blue] (aa) at (-4,-5) {/dev/xdma0\_c2h\_3};
+    \node[color=blue] (aa) at (-4,-5) {angles.fifo};
     \draw[->] (aa) -- (qberc) node[midway, above]{\textcolor{magenta}{angles}};
     
-    \node[color=blue] (ab) at (12,-5) {/dev/xdma0\_c2h\_3};
+    \node[color=blue] (ab) at (12,-5) {angles.fifo};
     \draw[->] (ab) -- (qbers) node[midway, above]{\textcolor{magenta}{angles}};
     
-\draw[<->] (qberc) -- (qbers) node[below, midway, align=center]{TCP\\$\rightarrow$ \textcolor{teal}{recv\_angles}\\$\leftarrow$ \textcolor{magenta}{angles + r}};
+\draw[<->] (qberc) -- (qbers) node[below, midway, align=center]{TCP\\ \textcolor{teal}{Commands}$\rightarrow$\\$\leftarrow$ \textcolor{magenta}{angles + r}};
     
-    \draw[<->] (qberc) -- (gcc) node[midway, right, align=left]{path/startstop.s (unix socket) \\ $\uparrow$ \textcolor{teal}{start command}};
+    \draw[<->] (qberc) -- (gcc) node[midway, right, align=left]{command.socket \\ $\uparrow$ \textcolor{teal}{Start/Stop} $\downarrow$ \textcolor{teal}{Done}};
 
-    \node (rf) at (8,-3) {path/result.f (unix fifo)};
+    \node (rf) at (8,-3) {result.fifo};
     
     \draw[->] (gcs) -- (rf) node[midway, right]{\textcolor{magenta}{r}};
     \draw[->] (rf) -- (qbers) node[midway, right]{\textcolor{magenta}{r}};
@@ -51,7 +51,7 @@
     \draw[->] (gcc) -- (xdmaa) node[midway, above, sloped]{\textcolor{teal}{start}};
     \draw[->] (gcs) -- (xdmab) node[midway, above, sloped]{\textcolor{teal}{start}};
 
-    \node at (-3, -7) [align=left]{\hspace{-0.4cm}color coding\\\textcolor{teal}{one byte command}\\\textcolor{magenta}{stream}\\\textcolor{blue}{fpga files}};
+    \node at (-3, -7) [align=left]{\hspace{-0.4cm}color coding\\\textcolor{magenta}{stream}\\\textcolor{blue}{fpga files}};
 
 
 
