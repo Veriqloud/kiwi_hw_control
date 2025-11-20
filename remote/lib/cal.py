@@ -148,25 +148,60 @@ def Find_First_Peak(ref_time_arr):
     # print("First peak: ",first_peak)
     return int(first_peak)
 
+
+
+
+def plot_all_shifts(party, gc_comp=None):
+    if party == 'alice':
+        if gc_comp is None:
+            gc_comp = 36
+    elif party == 'bob':
+        if gc_comp is None:
+            gc_comp = 61
+    else:
+        raise ValueError("party must be 'alice' ou 'bob'")
+
+    fig, axes = plt.subplots(5, 2, figsize=(12, 12))
+    axes = axes.ravel()
+
+    for i in range(10):
+        try:
+            times0, times1 = Shift_Unit(i, party, gc_comp)
+            if len(times0) == 0 and len(times1) == 0:
+                raise ValueError("No data")
+        except Exception as e:
+            print(f"[Warning] Shift {i} for {party} not available: {e}")
+            times0 = np.zeros(64)
+            times1 = np.zeros(64)
+
+        n0, bins0 = np.histogram(times0, 64)
+        n1, bins1 = np.histogram(times1, 64)
+        bin_center0 = (bins0[:-1] + bins0[1:]) / 2
+        bin_center1 = (bins1[:-1] + bins1[1:]) / 2
+
+        n0[1::2] = n0[1::2][::-1]
+        n1[1::2] = n1[1::2][::-1]
+
+        axes[i].scatter(bin_center0, n0, color='blue', s=10, label='r=0')
+        axes[i].scatter(bin_center1, n1, color='orange', s=10, label='r=1')
+        axes[i].set_title(f'Shift {i}')
+        axes[i].set_ylim(0)
+        axes[i].legend(fontsize=8)
+
+    plt.suptitle(f"{party.capitalize()} - 10 shifts (gc_comp {gc_comp})")
+    plt.tight_layout(rect=[0, 0, 1, 0.95])
+    plt.savefig(f"{HW_CONTROL}data/calib_res/{party}_all_shifts.png", dpi=300)
+    plt.show()
+
+
+
+
+
+
+
 def plot_shift(party, shift,gc_comp):
     if shift is None:
-        fig = plt.figure()
-        fig.patch.set_facecolor('white')
-        plt.axis('off')
-        plt.text(
-           0.5, 0.6,
-           'No valid shift',
-           ha='center', va='center',
-           fontsize=24, color='red', fontweight='bold'
-        )
-        plt.text(
-           0.5, 0.4,
-           'Amplitude or frequency out of range',
-           ha='center', va='center',
-           fontsize=14, color='gray'
-        )
-        plt.savefig(f"{HW_CONTROL}data/calib_res/{party}_shift.png", dpi=300)
-        plt.close()
+        plot_all_shifts(party, gc_comp)
         return
 
     times0, times1 = Shift_Unit(shift, party,gc_comp)
