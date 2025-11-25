@@ -141,6 +141,9 @@ def set(args):
         sendc('set_angles')
         for i in range(4):
             send_d(args.angles[i])
+    elif args.decoy_delay is not None:
+        sendc('set_decoy_delay')
+        send_i(args.decoy_delay)
 
 def get(args):
     if args.info:
@@ -231,6 +234,7 @@ parser_set.add_argument("--fake_rng_seq", choices=['off', 'single', 'random', 'a
 parser_set.add_argument("--insert_zeros", choices=['on', 'off'], 
                         help="insert zeros into rng sequence for feedback")
 parser_set.add_argument("--pos",type=int, default=0, help="peak position for single")
+parser_set.add_argument("--decoy_delay",type=int, default=0, help="decoy delay value")
 
 
 

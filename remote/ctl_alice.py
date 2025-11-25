@@ -178,6 +178,45 @@ def Config_Fda():
         check = Get_reg_monitor()
 
 
+def Gen_Decoy():
+    # read delay from tmp.txt
+    # calculate and update corse and fine delays
+    t = get_tmp()
+    delay = t['decoy_delay']
+    timestep = 3.383    # fine delay timestep in ps
+    delay_au = round(delay/timestep)
+    fine_max = 404      # corresponds to 1/3 of coarse delay
+    coarse = delay_au // (fine_max*3)
+    fine0_abs = delay_au % fine_max
+    fine1_abs = int((delay_au%(fine_max*3)) >= fine_max) * fine_max
+    fine2_abs = int((delay_au%(fine_max*3)) >= 2*fine_max) * fine_max
+
+
+    fine0 = fine0_abs - t['decoy_delayf0']
+    direction0 = 1 if fine0 > 0 else 0
+
+    fine1 = fine1_abs - t['decoy_delayf1']
+    direction1 = 1 if fine1 > 0 else 0
+    
+    fine2 = fine2_abs - t['decoy_delayf2']
+    direction2 = 1 if fine2 > 0 else 0
+
+    de_write_delay_master(coarse, abs(fine0), direction0) 
+    de_write_delay_slaves(abs(fine1), direction1, abs(fine2), direction2)
+
+    de_params_en()
+    de_trigger_fine_master()
+    de_trigger_fine_slv1()
+    de_trigger_fine_slv2()
+
+    t['decoy_delayf0'] = fine0_abs
+    t['decoy_delayf1'] = fine1_abs
+    t['decoy_delayf2'] = fine2_abs
+    save_tmp(t)
+
+    print("decoy pulse delay set to", delay/1000, "sn")
+    print(coarse, fine0, fine1, fine2)
+    print(coarse, direction0, direction1, direction2)
 
     
     
@@ -352,9 +391,12 @@ def init_rst_tmp():
     t['fiber_delay_mod'] = 0
     t['fiber_delay'] = 0
     t['fiber_delay_long'] = 0
-    t['decoy_delay'] = 0
     t['zero_pos'] = 0
     t['insert_zeros'] = 'off'
+    t['decoy_delayf0'] = 0
+    t['decoy_delayf1'] = 0
+    t['decoy_delayf2'] = 0
+    t['decoy_delay'] = 0
     save_tmp(t)
 
 #def init_ddr():

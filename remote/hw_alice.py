@@ -192,6 +192,10 @@ while True:
                 t['angle3'] = rcv_d()
                 save_tmp(t)
                 ctl.Update_Angles()
+            elif command == 'set_decoy_delay':
+                delay = rcv_i()
+                update_tmp('decoy_delay',delay)
+                ctl.Gen_Decoy()
             
             elif command == 'get_info':
                 with open(HW_CONTROL+'config/tmp.txt') as f:

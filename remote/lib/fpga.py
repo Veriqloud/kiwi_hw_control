@@ -677,24 +677,15 @@ def ttl_reset():
 def calculate_delay(duty, tune, fine, inc):
     fine_clock_num = fine*16
     transfer = duty<<19|tune<<15|fine_clock_num<<1|inc
-    #transfer_bin = bin(transfer)
-    #transfer_hex = hex(transfer)
-    #print(transfer_bin)
-    #print(transfer_hex)
     return transfer
 
 def write_delay_master(duty, tune, fine, inc):
-    Base_Add = 0x00015000 
     transfer = calculate_delay(duty, tune, fine, inc)
-    write(Base_Add, 4, transfer)
-    # print('delay 0,52ns = 125 taps')
-    #result = Read(Base_Add)  #Read to check AXI
-    #print(result)
+    write(0x15000, 4, transfer)
 
 def write_delay_slaves(fine1, inc1, fine2, inc2):
-    Base_Add = 0x00015000
     transfer = (fine2*16)<<17|inc2<<16|(fine1*16)<<1|inc1
-    write(Base_Add, 0xc, transfer)
+    write(0x15000, 0xc, transfer)
 
 def params_en():
     write(0x15000, [0x8, 0x8], [0,1])
@@ -703,23 +694,21 @@ def trigger_fine_master():
     write(0x15000, [0, 0], [0,1])
     time.sleep(0.02)
     write(0x15000, 0, 0)
-    #print("Trigger master done")
 
 def trigger_fine_slv1():
     write(0x15000, [16, 16], [0,1])
     time.sleep(0.02)
     write(0x15000, 16, 0)
-    #print("Trigger slave1 done")
 
 def trigger_fine_slv2():
     write(0x15000, [20, 20], [0,1])
     time.sleep(0.02)
     write(0x15000, 20, 0)
-    #print("Trigger slave2 done")
 
 
 
 #--------------------------decoy state---------------------------------
+
 
 def decoy_reset():
     write(0x12000, 20, 1)
@@ -744,6 +733,42 @@ def decoy_state(mode):
     #Write rng mode
     write(0x16000, [12, 0, 0], [0, 0, 1])
     #last two are for enable regs values
+
+#---------decoy delay------------------
+
+def de_calculate_delay(fine, inc):
+    fine_clock_num = fine*16
+    transfer = fine_clock_num<<1|inc
+    return transfer
+
+def de_write_delay_master(tune, fine, inc):
+    #Write tune delay
+    write(0x16000, 4, tune)
+    #Write fine delay master 
+    transfer = de_calculate_delay(fine, inc)
+    write(0x16000, 20,transfer)
+
+def de_write_delay_slaves(fine1, inc1, fine2, inc2):
+    transfer = (fine2*16)<<17|inc2<<16|(fine1*16)<<1|inc1
+    write(0x16000, 24, transfer)
+
+def de_params_en():
+    write(0x16000, [0, 0], [0,1])
+
+def de_trigger_fine_master():
+    write(0x16000, [8, 8], [0,1])
+    time.sleep(0.02)
+    write(0x16000, 8, 0)
+
+def de_trigger_fine_slv1():
+    write(0x16000, [8, 8], [0,2])
+    time.sleep(0.02)
+    write(0x16000, 8, 0)
+
+def de_trigger_fine_slv2():
+    write(0x16000, [8, 8], [0,4])
+    time.sleep(0.02)
+    write(0x16000, 8, 0)
 
 
 #-------------------------TDC AND JITTER CLEANER-----------------------
