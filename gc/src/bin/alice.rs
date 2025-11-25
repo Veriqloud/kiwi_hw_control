@@ -56,7 +56,11 @@ fn recv_gc(bob: &mut TcpStream) -> std::io::Result<()> {
     while *RUNNING.lock().unwrap() {
         let (gc, num_clicks) = read_gc_from_bob(bob)?;
         if num_clicks == 0 {
-            panic!("timeout read_gc_from_bob")
+            if CONFIG.get().unwrap().ignore_gcr_timeout {
+                continue
+            } else {
+                panic!("timeout read_gc_from_bob")
+            }
         } else {
             write_gc_to_fpga(gc, &mut file_gcw, num_clicks)?;
         }
