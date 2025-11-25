@@ -157,7 +157,8 @@ impl Config {
 
 
 // gc
-pub fn write_gc_config_alice(config: &Config){
+pub fn write_gc_config_alice(config: &Config, for_sim: bool){
+    let ignore_gcr_timeout = if for_sim {true} else {false};
     let gc_conf = gc::config::Configuration {
         player: gc::config::QlinePlayer::Alice(gc::config::AliceConfig {
             network: gc::config::ConfigNetwork {
@@ -171,11 +172,13 @@ pub fn write_gc_config_alice(config: &Config){
         current_hw_parameters_file_path: config.file.hw_params.clone(),
         fpga_start_socket_path: config.file.fpgareg.clone(),
         log_level: "Info".to_string(),
+        ignore_gcr_timeout: ignore_gcr_timeout,
     };
     gc_conf.save_to_file(&PathBuf::from("alice/gc.json"));
 }
 
-pub fn write_gc_config_bob(config: &Config){
+pub fn write_gc_config_bob(config: &Config, for_sim: bool){
+    let ignore_gcr_timeout = if for_sim {true} else {false};
     let gc_conf = gc::config::Configuration {
         player: gc::config::QlinePlayer::Bob(gc::config::BobConfig {
             network: gc::config::ConfigNetwork {
@@ -191,6 +194,7 @@ pub fn write_gc_config_bob(config: &Config){
         current_hw_parameters_file_path: config.file.hw_params.clone(),
         fpga_start_socket_path: config.file.fpgareg.clone(),
         log_level: "Info".to_string(),
+        ignore_gcr_timeout: ignore_gcr_timeout,
     };
     gc_conf.save_to_file(&PathBuf::from("bob/gc.json"));
 }

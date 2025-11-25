@@ -32,8 +32,10 @@ fn main() {
     // - gen sim conf
     // - put alice and bob into the file names
     // for the hardware, use the same config for alice and bob
+    let mut for_sim = false;
     let (config_alice, config_bob) = match cli.sim {
         Some(sim_path) => {
+            for_sim = true;
             let config_alice = config.append_extension("_alice");
             let config_bob = config.append_extension("_bob");
             config::write_sim_config(&config_alice, &config_bob, sim_path);
@@ -44,8 +46,8 @@ fn main() {
         }
     };
     
-    config::write_gc_config_alice(&config_alice);
-    config::write_gc_config_bob(&config_bob);
+    config::write_gc_config_alice(&config_alice, for_sim);
+    config::write_gc_config_bob(&config_bob, for_sim);
 
     config::write_qber_config_alice(&config_alice);
     config::write_qber_config_bob(&config_bob);

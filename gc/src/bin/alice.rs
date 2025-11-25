@@ -22,6 +22,7 @@ use std::sync::Mutex;
 static RUNNING: Mutex<bool> = Mutex::new(false);
 
 #[derive(Parser)]
+#[command(version, about, long_about = None)]
 struct Cli {
     ///// number of gc to process before stop
     //num: u64,

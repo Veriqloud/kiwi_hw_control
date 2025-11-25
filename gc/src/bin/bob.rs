@@ -15,6 +15,7 @@ use std::path::{Path, PathBuf};
 use gc::hw::BATCHSIZE;
 
 #[derive(Parser)]
+#[command(version, about, long_about = None)]
 struct Cli {
     /// Path to the configuration file
     #[arg(short = 'c', long, default_value_os_t = PathBuf::from("/home/vq-user/config/gc.json"))]
@@ -79,19 +80,24 @@ fn send_gc(alice: &mut TcpStream) -> std::io::Result<()> {
     let mut read_length = 1;
     loop {
         let (gc, result, num_clicks, time_ms) = process_gcr_stream(&mut file_gcr, read_length)?;
-        // keep read time between 6ms and 12ms
-        // 50 ms is the limit above which a reset is requrired
-        if (time_ms < 6) & (read_length<BATCHSIZE){
-            read_length += 1;
-        } else if (time_ms > 12) & (time_ms < 20) & (read_length>1) {
-            read_length -= 1;
-        } else if time_ms >= 20{
-            read_length = 1;
+        if i==0 {
+            println!("read {:?} clicks on gcr stream", num_clicks);
         }
-        if (time_ms >= 50) & (i>0) {
-            tracing::warn!("[gc-bob] took {:?} ms to read gcr (probably unrecoverable above 50ms)", time_ms);
-            let gcr_timout_error = std::io::Error::new(std::io::ErrorKind::Other, "Gcr50msTimeout");
-            return Err(gcr_timout_error)
+        if !&CONFIG.get().unwrap().ignore_gcr_timeout{
+            // keep read time between 6ms and 12ms
+            // 50 ms is the limit above which a reset is requrired
+            if (time_ms < 6) & (read_length<BATCHSIZE){
+                read_length += 1;
+            } else if (time_ms > 12) & (time_ms < 20) & (read_length>1) {
+                read_length -= 1;
+            } else if time_ms >= 20{
+                read_length = 1;
+            }
+            if (time_ms >= 50) & (i>0) {
+                tracing::warn!("[gc-bob] took {:?} ms to read gcr (probably unrecoverable above 50ms)", time_ms);
+                let gcr_timout_error = std::io::Error::new(std::io::ErrorKind::Other, "Gcr50msTimeout");
+                return Err(gcr_timout_error)
+            }
         }
         //} else if (time_ms >= 50) {
         //    let 

@@ -11,6 +11,8 @@ pub struct Configuration {
     pub fpga_start_socket_path: String,
     #[serde(default = "Configuration::default_log_level")]
     pub log_level: String,
+    #[serde(default = "Configuration::default_ignore_gcr_timeout")]
+    pub ignore_gcr_timeout: bool,
 }
 
 impl Configuration {
@@ -81,6 +83,9 @@ impl Configuration {
 
     fn default_log_level() -> String {
         "INFO".to_string()
+    }
+    fn default_ignore_gcr_timeout() -> bool {
+        false
     }
 }
 
