@@ -91,6 +91,7 @@ fn send_gc(alice: &mut TcpStream) -> std::io::Result<()> {
             } else if (time_ms > 12) & (time_ms < 20) & (read_length>1) {
                 read_length -= 1;
             } else if time_ms >= 20{
+                tracing::warn!("[gc-bob] took {:?} ms to read gcr (probably unrecoverable above 50ms)", time_ms);
                 read_length = 1;
             }
             if (time_ms >= 50) & (i>0) {

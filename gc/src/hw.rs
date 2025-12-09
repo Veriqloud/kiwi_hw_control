@@ -1,4 +1,5 @@
 use memmap::MmapOptions;
+//use core::num;
 use std::fs::{File, OpenOptions, read_to_string};
 use std::io::prelude::*;
 use std::net::TcpStream;
@@ -216,7 +217,7 @@ fn gc_for_fpga(gc: u64) -> [u8; 16] {
     return buf;
 }
 
-pub const BATCHSIZE: usize = 256; // max number of clicks to process in one batch
+pub const BATCHSIZE: usize = 128; // max number of clicks to process in one batch
 
 // read gcr from fpga and split gc and r
 // the number of clicks read is read_length
@@ -225,6 +226,7 @@ pub fn process_gcr_stream(file: &mut File, read_length: usize) -> std::io::Resul
     let mut buf: [u8; BATCHSIZE * 16] = [0; BATCHSIZE * 16];
 
     let now = Instant::now();
+    //println!("buflen {:?}", (&mut buf[..read_length*16]).len());
     let mut len = file.read(&mut buf[..read_length*16])?;
     let elapsed_time = now.elapsed();
     if len == 0 {
@@ -244,11 +246,24 @@ pub fn process_gcr_stream(file: &mut File, read_length: usize) -> std::io::Resul
         }
         len = len + check;
     }
-    let num_clicks = len/16;
+    let mut num_clicks = len/16;
+    if num_clicks > read_length {
+        tracing::warn!("num_clicks {:?}; read_length {:?}", num_clicks, read_length);
+        // apparently rust cannot guarantee that read returns the right number of bytes read
+        // in that case we assume that read_length*16 bytes were read
+        num_clicks = read_length;
+    }
     let mut gc: [u64; BATCHSIZE] = [0; BATCHSIZE];
     let mut result: [u8; BATCHSIZE] = [0; BATCHSIZE];
-    for i in 0..BATCHSIZE {
+    //println!("read_length: {:?}, num_clicks: {:?}", read_length, num_clicks);
+    for i in 0..num_clicks {
         (gc[i], result[i]) = split_gcr(buf[i * 16..i * 16 + 8].try_into().unwrap());
+        //if i > 0 {
+        //    if gc[i] - gc[i-1] > 100000 {
+        //        tracing::warn!("[gc] i={:?}; gc[0]: {:?}; gc difference: {:?}", i, gc[0], gc[i] - gc[i-1]);
+        //    }
+        //} 
+        //println!("gc[{:?}]: {:?}", i, gc[i]);
     }
 
     //println!("num clicks: {:?}", num_clicks);
