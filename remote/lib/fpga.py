@@ -1,4 +1,4 @@
-import subprocess, time, mmap, numpy as np
+import subprocess, time, mmap, numpy as np, os
 
 import hw_control.lib.gen_seq as gen_seq
 
@@ -50,6 +50,38 @@ def get_tmp():
                  'angle0', 'angle1', 'angle2', 'angle3', 'vca_calib']
     strlist = ['spd_mode', 'am_mode', 'pm_mode', 'feedback', 'soft_gate', 'insert_zeros', 'am2_mode']
     with open(HW_CONTROL+"config/tmp.txt") as f:
+        lines = f.readlines()
+        for l in lines:
+            s = l[:-1].split("\t")
+            key = s[0]
+            value = s[1]
+            if key in floatlist:
+                t[key] = float(value) 
+            elif key in strlist:
+                t[key] = value
+            else:
+                t[key] = int(value) 
+    return t
+
+def save_calibrated(data, filename):
+    """
+    data : dictionary to be saved to /home/vq-user/config/calibration/filename
+    """
+    fullpath = "/home/vq-user/config/calibration/"+filename
+    os.makedirs(os.path.dirname(fullpath), exist_ok=True)
+    with open(fullpath, 'w') as f:
+        for i in data.items():
+            f.write(i[0]+"\t"+str(i[1])+"\n")
+
+def get_calibrated(filename):
+    """
+    return : dictionary from /home/vq-user/config/filename
+    """
+    t = {}
+    floatlist = ['qdistance', 'pol0', 'pol1', 'pol2', 'pol3', 'vca', 'am_bias','am_bias_2',
+                 'angle0', 'angle1', 'angle2', 'angle3', 'vca_calib']
+    strlist = ['spd_mode', 'am_mode', 'pm_mode', 'feedback', 'soft_gate', 'insert_zeros', 'am2_mode']
+    with open("/home/vq-user/config/calibration/"+filename) as f:
         lines = f.readlines()
         for l in lines:
             s = l[:-1].split("\t")

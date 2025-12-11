@@ -1,7 +1,7 @@
 #!/bin/python
 
 from termcolor import colored
-import socket
+import socket, os
 #import numpy as np
 import json
 import datetime
@@ -132,14 +132,21 @@ while True:
             elif command == 'init_ttl':
                 ctl.init_ttl()
             elif command == 'init_all':
-                ctl.init_all()
-            elif command == 'init_rst_default':
-                ctl.init_rst_default()
-            elif command == 'init_rst_tmp':
-                ctl.init_rst_tmp()
-            elif command == 'init_apply_default':
-                ctl.init_apply_default()
-            
+                ctl.init_hw()
+
+            elif command == 'init_clean':
+                ctl.clean_config()
+            elif command == 'init_save':
+                filename = rcvc()
+                ctl.save_config(filename)
+            elif command == 'init_load':
+                filename = rcvc()
+                if os.path.isfile("/home/vq-user/config/calibration/"+filename):
+                    ctl.load_config(filename)
+                    sendc("ok")
+                else:
+                    sendc("config file does not exist")
+
             elif command == 'set_pm_mode':
                 pm_mode = rcvc()
                 update_tmp('pm_mode', pm_mode)

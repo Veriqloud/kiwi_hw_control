@@ -1,6 +1,6 @@
 #!/bin/python
 
-import socket, json, time, os, struct, datetime
+import socket, json, time, os, struct, datetime, os
 #import numpy as np
 import ctl_bob as ctl
 import lib.gen_seq as gen_seq
@@ -129,10 +129,25 @@ while True:
 
 
             if command == 'init':
-                ctl.init_all()
+                ctl.init_hw()
                 rcvc()
                 sendc('Alice and Bob init done')    
                 print(colored('Alice and Bob init done \n', 'cyan', force_color=True))
+
+            elif command == 'clean':
+                ctl.clean_config()
+            
+            elif command == 'save':
+                filename = rcvc()
+                ctl.save_config(filename)
+            
+            elif command == 'load':
+                filename = rcvc()
+                if not os.path.isfile("/home/vq-user/config/calibration/"+filename):
+                    sendc('error')
+                else:
+                    ctl.load_config(filename)
+                    sendc('ok')
 
 
             elif command == 'sync_gc':
@@ -183,7 +198,7 @@ while True:
 
             elif command == 'find_vca':
                 print(colored('find_vca', 'cyan', force_color=True))
-                ctl.Ensure_Spd_Mode('continuous')
+                #ctl.Ensure_Spd_Mode('continuous')
                 while rcvc() == 'get counts':
                     count = ctl.counts_fast()[0]
                     send_i(count)

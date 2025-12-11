@@ -1,6 +1,6 @@
 #!/bin/python
 
-import socket, json, time, struct, sys, datetime
+import socket, json, time, struct, sys, datetime, os
 #import numpy as np
 import ctl_alice as ctl
 from lib.fpga import get_tmp, save_tmp, update_tmp, update_default, get_default, Sync_Gc, wait_for_pps_ret, get_gc
@@ -140,10 +140,35 @@ print(f"Server listening on {host}:{port}")
 
 def init(conn):
     sendc(bob, 'init')
-    ctl.init_all()
+    ctl.init_hw()
     sendc(bob, 'Alice init done')
     rcvc(bob)
     sendc(conn, 'init done')
+
+def clean(conn):
+    sendc(bob, 'clean')
+    ctl.clean_config()
+    sendc(conn, 'clean done')
+
+def save(conn, filename):
+    sendc(bob, 'save')
+    sendc(bob, filename)
+    ctl.save_config(filename)
+    sendc(conn, 'save done')
+
+def load(conn, filename):
+    if not os.path.isfile("/home/vq-user/config/calibration/"+filename):
+        sendc(conn, 'Alice filename does not exist')
+        return 
+    sendc(bob, 'load')
+    sendc(bob, filename)
+    m = rcvc(bob)
+    if m=='ok':
+        ctl.load_config(filename)
+        sendc(conn, 'load done')
+    else:
+        sendc(conn, 'Bob filename does not exist')
+
             
 def sync_gc(conn):
     sendc(bob, 'sync_gc')
@@ -299,49 +324,84 @@ def vca_per(conn, per=70):
     sendc(conn, 'vca_per ' + m)
 
 
-
-
-def find_vca(conn, limit=3000):
+def find_vca(conn, target=3000):
     sendc(bob, 'find_vca')
-    update_tmp('am_mode', 'double')
-    ctl.Update_Dac()
-    d = get_default()
-    bias_1 = d['am_bias']
-    bias_2 = d['am_bias_2']
-    vca = d['vca']
-
-    for offset in [0.3, 2.0, -2.0]:
-        if limit == 3000:
-            ctl.Set_Am_Bias(bias_1 + offset)
-            ctl.Set_Am_Bias_2(bias_2 + offset)
-
-        count = 0
-        vca = d['vca']
-
-        while (count < limit) and (vca <= 4.8):
+    sendc(bob, 'get counts')
+    count = rcv_i(bob)
+    print("got count: ", count)
+    t = get_tmp()
+    vca = t['vca']
+    print("got vca: ", vca)
+    if count < target*0.8:
+        while (count < target*0.9) and (vca <= 4.8):
             vca = round(vca + 0.2, 2)
             ctl.Set_Vca(vca)
             time.sleep(0.2)
             sendc(bob, 'get counts')
             count = rcv_i(bob)
             print(count)
+    
+    elif count > target*1.3:
+        while (count > target*1.1) and (vca >= 0.2):
+            vca = round(vca - 0.2, 2)
+            ctl.Set_Vca(vca)
+            time.sleep(0.2)
+            sendc(bob, 'get counts')
+            count = rcv_i(bob)
+            print(count)
+    sendc(bob, 'done')
 
-        if count >= limit:
-            break
-
-    if count >= limit:
+    if (count >= target*0.8) and (count <= target*1.3):
         m = colored(f"success, {vca}V / {count} cts \n", "green", force_color=True)
         print(m)
     else:
         m = colored(f"fail, {vca}V / {count} cts \n", "red", force_color=True)
         print(m)
-
-    update_tmp('vca_calib', vca)
-    update_default('vca', max(vca-1, 0))
-    ctl.Set_Am_Bias(bias_1)
-    ctl.Set_Am_Bias_2(bias_2)
-    sendc(bob, 'done')
     sendc(conn, 'find_vca '+m)
+
+
+
+#def find_vca(conn, limit=3000):
+#    sendc(bob, 'find_vca')
+#    update_tmp('am_mode', 'double')
+#    ctl.Update_Dac()
+#    d = get_default()
+#    bias_1 = d['am_bias']
+#    bias_2 = d['am_bias_2']
+#    vca = d['vca']
+#
+#    for offset in [0.3, 2.0, -2.0]:
+#        if limit == 3000:
+#            ctl.Set_Am_Bias(bias_1 + offset)
+#            ctl.Set_Am_Bias_2(bias_2 + offset)
+#
+#        count = 0
+#        vca = d['vca']
+#
+#        while (count < limit) and (vca <= 4.8):
+#            vca = round(vca + 0.2, 2)
+#            ctl.Set_Vca(vca)
+#            time.sleep(0.2)
+#            sendc(bob, 'get counts')
+#            count = rcv_i(bob)
+#            print(count)
+#
+#        if count >= limit:
+#            break
+#
+#    if count >= limit:
+#        m = colored(f"success, {vca}V / {count} cts \n", "green", force_color=True)
+#        print(m)
+#    else:
+#        m = colored(f"fail, {vca}V / {count} cts \n", "red", force_color=True)
+#        print(m)
+#
+#    update_tmp('vca_calib', vca)
+#    update_default('vca', max(vca-1, 0))
+#    ctl.Set_Am_Bias(bias_1)
+#    ctl.Set_Am_Bias_2(bias_2)
+#    sendc(bob, 'done')
+#    sendc(conn, 'find_vca '+m)
 
 
 
@@ -349,17 +409,18 @@ def find_vca(conn, limit=3000):
 
 def find_am_bias(conn, range_val=0.5, sendresult=True):
     sendc(bob, 'find_am_bias')
+    #update_tmp('am_mode', 'off')
+    #ctl.Update_Dac()
+    t = get_tmp()
+    #d = get_default()
+    bias_default = t['am_bias']
+    #bias_default_1 = t['am_bias_2']
+    am_mode_backup = t['am_mode']
+
     update_tmp('am_mode', 'off')
     ctl.Update_Dac()
-    t = get_tmp()
-    d = get_default()
-    bias_default = d['am_bias']
-    bias_default_1 = t['am_bias_2']
-    t['am_mode'] = 'off'
-    save_tmp(t)
-    ctl.Update_Dac()
     counts = []
-    ctl.Set_Am_Bias_2(0) 
+    #ctl.Set_Am_Bias_2(0) 
     #time.sleep(0.1)
     num_points = int(2 * range_val / 0.1) + 1
     prev_count = None
@@ -384,47 +445,53 @@ def find_am_bias(conn, range_val=0.5, sendresult=True):
     print("Min count: ", min_counts , "index: ", min_idx,"\n")
     am_bias_opt = bias_default - range_val + 0.1*min_idx
     ctl.Set_Am_Bias(am_bias_opt)
-    ctl.Set_Am_Bias_2(bias_default_1)
+    #ctl.Set_Am_Bias_2(bias_default_1)
     sendc(bob, 'done')
+    update_tmp('am_mode', am_mode_backup)
+    ctl.Update_Dac()
     if sendresult:
         sendc(conn, 'find_am_bias done')
 
 
 def verify_am_bias(conn, sendresult=True):
     sendc(bob, 'verify_am_bias')
+    t = get_tmp()
+    am_mode_backup = t['am_mode']
+
     update_tmp('am_mode', 'off')
     ctl.Update_Dac()
     time.sleep(0.2)
+
     sendc(bob, 'get counts')
     count_off = rcv_i(bob)
 
-    update_tmp('am_mode', 'double')
-    t = get_tmp()
+    #update_tmp('am_mode', 'double')
+    #t = get_tmp()
     bias = t['am_bias']
     bias2=bias+2
     ctl.Set_Am_Bias(bias2)
     ctl.Update_Dac()
     time.sleep(0.2)
-
     sendc(bob, 'get counts')
-    count_double = rcv_i(bob)
-    ctl.Set_Am_Bias(bias)
-    time.sleep(0.2)
+    count_ref = rcv_i(bob)
 
-    ratio = count_double / count_off
+    ratio = count_ref / count_off
     if ratio >= 1.8:
-        m = colored(f"success: double/off  = {ratio:.2f} ({count_double}/{count_off}) \n", "green", force_color=True)
+        m = colored(f"success: ref/off  = {ratio:.2f} ({count_ref}/{count_off}) \n", "green", force_color=True)
         print(m)
         result = True
     else:
-        m = colored(f"fail double/off = {ratio:.2f} ({count_double}/{count_off}) \n", "yellow", force_color=True)
+        m = colored(f"fail ref/off = {ratio:.2f} ({count_ref}/{count_off}) \n", "yellow", force_color=True)
         print(m)
         result = False
-    update_tmp('am_mode', 'off')
+    
+    ctl.Set_Am_Bias(bias)
+    update_tmp('am_mode', am_mode_backup)
     ctl.Update_Dac()
+
     if sendresult:
         sendc(conn, 'verify_am_bias '+m)
-    return result, count_double, count_off
+    return result, count_ref, count_off
 
 def loop_find_am_bias(conn):
     for voltage in [0.3, 0.5, 1, 2 , 6]:
@@ -437,8 +504,8 @@ def loop_find_am_bias(conn):
         m = colored(f"fail double/off = {ratio:.2f} ({count_double}/{count_off}) \n", "yellow", force_color=True)
     else:
         m = colored(f"success: double/off  = {ratio:.2f} ({count_double}/{count_off}) \n", "green", force_color=True)
-        t = get_tmp()
-        update_default('am_bias',t['am_bias'])
+        #t = get_tmp()
+        #update_tmp('am_bias',t['am_bias'])
     print(m)
     sendc(conn, 'loop_find_am_bias '+m)
 
@@ -937,6 +1004,9 @@ def clear_flag_calibrating():
 
 # for convencience
 functionmap = {}
+functionmap['clean'] = clean
+functionmap['save'] = save
+functionmap['load'] = load
 functionmap['init'] = init
 functionmap['sync_gc'] = sync_gc
 functionmap['compare_gc'] = compare_gc
@@ -999,6 +1069,12 @@ while True:
                 per = int(command.split('_')[-1])
                 print('command: ', command)
                 functionmap['vca_per'](conn, per)
+            elif command.startswith('save_'):
+                name = command.split('_')[-1]
+                functionmap['save'](conn, name)
+            elif command.startswith('load_'):
+                name = command.split('_')[-1]
+                functionmap['load'](conn, name)
 
             else:
                 try:

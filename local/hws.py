@@ -140,14 +140,29 @@ start               : start the system
 parser.add_argument("--use_localhost", action="store_true",
                     help="connect to localhost instead of IP from network.json; e.g., for port forwarding")
 
-parser.add_argument("--full_init", action="store_true",
-                    help="reset and calibrate the system")
+parser.add_argument("--clean", action="store_true",
+                    help="reset config to default")
+
+parser.add_argument("--save", type=str, metavar=("filename"),
+                    help="save current settings")
+
+parser.add_argument("--load", type=str, metavar=("filename"),
+                    help="load current settings")
+
+parser.add_argument("--first_init", action="store_true",
+                    help="long init after deployment")
+
+parser.add_argument("--fast_init", action="store_true",
+                    help="use previously saved values to speed up init")
 
 parser.add_argument("--command", type=str, nargs="+",
                     help="execute one or more commands (see description above)")
 
 parser.add_argument("--monitoring", action="store_true",
                     help="run monitoring loop")
+
+parser.add_argument("--full_init", action="store_true",
+                    help="to be replaced")
 
 # parse arguments
 args = parser.parse_args()
@@ -169,6 +184,14 @@ def interact(command):
         exit()
 
 
+if args.clean:
+    interact('clean')
+
+if args.save:
+    interact('save_'+args.save)
+
+if args.load:
+    interact('load_'+args.load)
 
 
 if args.full_init:
