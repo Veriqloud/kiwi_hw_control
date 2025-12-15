@@ -140,9 +140,9 @@ while True:
             elif command == 'set_am_bias':
                 value = rcv_d()
                 ctl.Set_Am_Bias(value)
-            elif command == 'set_am_bias_2':
+            elif command == 'set_am2_bias':
                 value = rcv_d()
-                ctl.Set_Am_Bias_2(value)
+                ctl.Set_Am2_Bias(value)
             elif command == 'set_qdistance':
                 value = rcv_d()
                 ctl.update_tmp('qdistance', value)
@@ -239,6 +239,9 @@ while True:
             elif not command:
                 print(f"[hw_alice] {datetime.datetime.now()}\tClient disconnected.")
                 break  # Exit loop if the client closes the connection
+
+            else:
+                print(f"[hw_alice] error: received unknown command from local")
 
 
     except KeyboardInterrupt:

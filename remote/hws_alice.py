@@ -3,7 +3,7 @@
 import socket, json, time, struct, sys, datetime, os
 #import numpy as np
 import ctl_alice as ctl
-from lib.fpga import get_tmp, save_tmp, update_tmp, update_default, get_default, Sync_Gc, wait_for_pps_ret, get_gc
+from lib.fpga import get_tmp, save_tmp, update_tmp, Sync_Gc, wait_for_pps_ret, get_gc
 import lib.gen_seq as gen_seq
 from termcolor import colored
 import numpy as np
@@ -141,6 +141,7 @@ print(f"Server listening on {host}:{port}")
 def init(conn):
     sendc(bob, 'init')
     ctl.init_hw()
+    ctl.apply_config()
     sendc(bob, 'Alice init done')
     rcvc(bob)
     sendc(conn, 'init done')
@@ -264,7 +265,7 @@ def qdistance(conn):
             fine_q = qd
 
     update_tmp('qdistance', fine_q)
-    update_default('qdistance', fine_q)
+    #update_default('qdistance', fine_q)
     ctl.Update_Dac()
     msg = colored(f"{fine_q:.3f} / {max_count} counts", "green")
     print(msg)
@@ -274,56 +275,58 @@ def qdistance(conn):
 
 
 
-def vca_per(conn, per=70):
-    sendc(bob, 'vca_per')
-    update_tmp('am_mode', 'double')
-    ctl.Update_Dac()
 
-    d = get_default()
-    vca = d['vca']
-    bias_1 = d['am_bias']
-    bias_2 = d['am_bias_2']
+#def vca_per(conn, per=70):
+#    sendc(bob, 'vca_per')
+#    update_tmp('am_mode', 'double')
+#    ctl.Update_Dac()
+#
+#    d = get_default()
+#    vca = d['vca']
+#    bias_1 = d['am_bias']
+#    bias_2 = d['am2_bias']
+#
+#    if per == 70:
+#        ctl.Set_Am_Bias(bias_1 + 0.3)
+#        ctl.Set_Am2_Bias(bias_2 + 0.3)
+#
+#    count = 0
+#    ctl.Set_Vca(5)
+#    time.sleep(0.3)
+#    sendc(bob, 'get counts')
+#    max_count = rcv_i(bob)
+#    limit = max_count * (per / 100)
+#    vca = d['vca']
+#    while (count < (limit - 20)) and (vca <= 5):
+#        ctl.Set_Vca(round(vca, 2))
+#        time.sleep(0.2)
+#        sendc(bob, 'get counts')
+#        count = rcv_i(bob)
+#        print(count)
+#
+#        if count >= (limit - 20):
+#            break
+#
+#        vca = round(vca + 0.2, 2)
+#
+#    if count >= (limit - 20):
+#        m = colored(f"success, {vca}V / {count} cts \n", "green")
+#        print(m)
+#    else:
+#        m = colored(f"fail, {vca}V / {count} cts \n", "red")
+#        print(m)
+#
+#    update_tmp('vca_calib', vca)
+#    #update_default('vca', max(vca - 1, 0))
+#
+#    ctl.Set_Am_Bias(bias_1)
+#    ctl.Set_Am2_Bias(bias_2)
+#
+#    sendc(bob, 'done')
+#    sendc(conn, 'vca_per ' + m)
 
-    if per == 70:
-        ctl.Set_Am_Bias(bias_1 + 0.3)
-        ctl.Set_Am_Bias_2(bias_2 + 0.3)
 
-    count = 0
-    ctl.Set_Vca(5)
-    time.sleep(0.3)
-    sendc(bob, 'get counts')
-    max_count = rcv_i(bob)
-    limit = max_count * (per / 100)
-    vca = d['vca']
-    while (count < (limit - 20)) and (vca <= 5):
-        ctl.Set_Vca(round(vca, 2))
-        time.sleep(0.2)
-        sendc(bob, 'get counts')
-        count = rcv_i(bob)
-        print(count)
-
-        if count >= (limit - 20):
-            break
-
-        vca = round(vca + 0.2, 2)
-
-    if count >= (limit - 20):
-        m = colored(f"success, {vca}V / {count} cts \n", "green")
-        print(m)
-    else:
-        m = colored(f"fail, {vca}V / {count} cts \n", "red")
-        print(m)
-
-    update_tmp('vca_calib', vca)
-    update_default('vca', max(vca - 1, 0))
-
-    ctl.Set_Am_Bias(bias_1)
-    ctl.Set_Am_Bias_2(bias_2)
-
-    sendc(bob, 'done')
-    sendc(conn, 'vca_per ' + m)
-
-
+# adjust vca to a target count rate
 def find_vca(conn, target=3000):
     sendc(bob, 'find_vca')
     sendc(bob, 'get counts')
@@ -359,6 +362,45 @@ def find_vca(conn, target=3000):
         print(m)
     sendc(conn, 'find_vca '+m)
 
+# adjust vca to a percentage of max counts
+def vca_per(conn, per=90):
+    sendc(bob, 'vca_per')
+    ctl.Set_Vca(5)
+    time.sleep(0.3)
+    sendc(bob, 'get counts')
+    max_count = rcv_i(bob)
+    counts = max_count
+    vca = 5
+    while counts>max_count*per/100:
+        vca = round(vca - 0.2, 2)
+        ctl.Set_Vca(vca)
+        time.sleep(0.2)
+        sendc(bob, 'get counts')
+        counts = rcv_i(bob)
+        final_counts = counts
+
+    # fine tune
+    vca = round(vca + 0.1, 2)
+    ctl.Set_Vca(vca)
+    time.sleep(0.2)
+    sendc(bob, 'get counts')
+    counts = rcv_i(bob)
+    # if worse move back
+    if counts>max_count*per/100:
+        vca = round(vca - 0.1, 2)
+        ctl.Set_Vca(vca)
+    else:
+        final_counts = counts
+    
+    if vca > 0.1:
+        m = colored(f"success: {vca}V; {final_counts}/{max_count} cts \n", "green", force_color=True)
+        print(m)
+    else:
+        m = colored(f"fail: {vca}V / {final_counts}/{max_count} cts \n", "red", force_color=True)
+        print(m)
+
+    sendc(bob, 'done')
+    sendc(conn, 'vca_per done with '+m)
 
 
 #def find_vca(conn, limit=3000):
@@ -537,8 +579,8 @@ def find_am2_bias(conn):
     update_tmp('am_mode', 'double')
     ctl.Update_Dac()
     #t = get_tmp()
-    d = get_default()
-    bias_default = d['am_bias_2']
+    t = get_tmp()
+    bias_default = t['am2_bias']
     #bias_default_1 = t['am_bias'] 
     #t['am_mode'] = 'off'
     #save_tmp(t)
@@ -550,7 +592,7 @@ def find_am2_bias(conn):
         value = bias_default - 3 + 0.1 * i
         if value < 0:
            value = 0
-        ctl.Set_Am_Bias_2(value)
+        ctl.Set_Am2_Bias(value)
        # ctl.Set_Am_Bias_2(bias_default -3 + 0.1*i)
         sendc(bob, 'get counts')
         counts.append(rcv_i(bob))
@@ -558,7 +600,7 @@ def find_am2_bias(conn):
     min_idx = counts.index(min_counts)
     print("Min count: ", min_counts , "index: ", min_idx)
     am_bias_opt = bias_default -3 + 0.1*min_idx
-    ctl.Set_Am_Bias_2(max(0, round(am_bias_opt + 2, 2))) 
+    ctl.Set_Am2_Bias(max(0, round(am_bias_opt + 2, 2))) 
     #ctl.Set_Am_Bias(bias_default_1)
     sendc(conn, 'find_am_bias done. '+f"min count: {min_counts}, index: {min_idx}")
 
@@ -649,8 +691,8 @@ def fs_a(conn):
     t['am_mode'] = 'double'
     t['pm_mode'] = 'seq64'
     save_tmp(t)
-    d = get_default()
-    pm_shift_coarse = (d['pm_shift']//10) * 10
+    #d = get_default()
+    pm_shift_coarse = (t['pm_shift']//10) * 10
     for s in range(10):
         t['pm_shift'] = pm_shift_coarse + s
         save_tmp(t)
@@ -742,11 +784,11 @@ def fz_b(conn):
 
 def fz_a(conn):
     sendc(bob, 'fz_a')
-    d = get_default()
+    #d = get_default()
     t = get_tmp()
     t['pm_mode'] = 'fake_rng'
     t['insert_zeros'] = 'on'
-    t['zero_pos'] = d['zero_pos']
+    #t['zero_pos'] = d['zero_pos']
     save_tmp(t)
     ctl.Write_To_Fake_Rng(gen_seq.seq_rng_all_one())
     ctl.Update_Dac()
@@ -781,7 +823,7 @@ def fz_a(conn):
                 zero_pos = best_zero_pos
     sendc(bob, 'ok')
     update_tmp('zero_pos', zero_pos)
-    update_default('zero_pos', zero_pos)
+    #update_default('zero_pos', zero_pos)
     ctl.Update_Dac()
     rcvc(bob)
     sendc(conn, 'fz_a done')
@@ -1011,6 +1053,7 @@ functionmap['init'] = init
 functionmap['sync_gc'] = sync_gc
 functionmap['compare_gc'] = compare_gc
 functionmap['vca_per'] = vca_per
+#functionmap['vca_max'] = vca_max
 functionmap['config_laser'] = config_laser
 functionmap['qdistance'] = qdistance
 functionmap['find_vca'] = find_vca
@@ -1080,8 +1123,8 @@ while True:
                 try:
                     functionmap[command](conn)
                 except:
-                    print(colored('unkown command or error in function'+command, 'red', force_color=True))
-                    sendc(conn, colored('unknown command or error in function'+command, 'red', force_color=True))
+                    print(colored('unkown command or error in function '+command, 'red', force_color=True))
+                    sendc(conn, colored('unknown command or error in function '+command, 'red', force_color=True))
                     continue
 
             print(colored('... '+command+' done \n', 'blue', force_color=True))

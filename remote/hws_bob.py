@@ -5,7 +5,7 @@ import socket, json, time, os, struct, datetime, os
 import ctl_bob as ctl
 import lib.gen_seq as gen_seq
 
-from lib.fpga import get_tmp, save_tmp, update_tmp, update_default, Set_t0, get_default, Sync_Gc, get_gc
+from lib.fpga import get_tmp, save_tmp, update_tmp, Set_t0, Sync_Gc, get_gc
 from termcolor import colored
 
 from pathlib import Path
@@ -130,6 +130,7 @@ while True:
 
             if command == 'init':
                 ctl.init_hw()
+                ctl.apply_config()
                 rcvc()
                 sendc('Alice and Bob init done')    
                 print(colored('Alice and Bob init done \n', 'cyan', force_color=True))
@@ -163,10 +164,9 @@ while True:
                 print(colored('doing nothing', 'cyan', force_color=True))
 
 
-
             elif command == 'vca_per':
                 print(colored('vca_per', 'cyan'))
-                ctl.Ensure_Spd_Mode('continuous')
+                #ctl.Ensure_Spd_Mode('continuous')
                 while rcvc() == 'get counts':
                     count = ctl.counts_fast()[0]
                     send_i(count)
@@ -197,7 +197,7 @@ while True:
 
 
             elif command == 'find_vca':
-                print(colored('find_vca', 'cyan', force_color=True))
+                #print(colored('find_vca', 'cyan', force_color=True))
                 #ctl.Ensure_Spd_Mode('continuous')
                 while rcvc() == 'get counts':
                     count = ctl.counts_fast()[0]
@@ -205,14 +205,14 @@ while True:
 
 
             elif command == 'find_am_bias':
-                print(colored('find_am_bias', 'cyan', force_color=True))
+                #print(colored('find_am_bias', 'cyan', force_color=True))
                 while rcvc() == 'get counts':
                     time.sleep(0.2)
                     count = ctl.counts_fast()[0]
                     send_i(count)
 
             elif command == 'find_am2_bias':
-                print(colored('find_am_bias_2', 'cyan', force_color=True))
+                #print(colored('find_am2_bias', 'cyan', force_color=True))
                 for i in range(21):
                     rcvc()
                     time.sleep(0.2)
@@ -223,7 +223,7 @@ while True:
 
 
             elif command == 'verify_am_bias':
-                print(colored('verify_am_bias', 'cyan', force_color=True))
+                #print(colored('verify_am_bias', 'cyan', force_color=True))
                 for i in range(2):
                     rcvc()
                     time.sleep(0.2)
@@ -305,8 +305,8 @@ while True:
                 shift_am, t0  = ctl.Measure_Sp(20000)
                 Set_t0(10+t0)
                 update_tmp('t0', 10+t0)
-                d = get_tmp()
-                update_tmp('gate_delay', (d['gate_delay0']-t0*20) % 12500)
+                t = get_tmp()
+                update_tmp('gate_delay', (t['gate_delay0']-t0*20) % 12500)
                 ctl.Gen_Gate()
                 
                 # send back shift_am value to alice
@@ -369,8 +369,7 @@ while True:
                 t['soft_gate'] = 'on'
                 save_tmp(t)
                 ctl.Update_Softgate()
-                d = get_default()
-                pm_shift_coarse = (d['pm_shift']//10) * 10
+                pm_shift_coarse = (t['pm_shift']//10) * 10
                 for s in range(10):
                     t['pm_shift'] = pm_shift_coarse + s
                     save_tmp(t)
@@ -447,7 +446,7 @@ while True:
                 ctl.Ensure_Spd_Mode('gated')
                 zero_pos = ctl.Find_Zero_Pos_B_new()
                 update_tmp('zero_pos', zero_pos)
-                update_default('zero_pos', zero_pos)
+                #update_default('zero_pos', zero_pos)
                 ctl.Update_Dac()
                 sendc('ok')
             
@@ -565,8 +564,7 @@ while True:
                 ctl.Update_Dac()
                 time.sleep(0.3)
 
-                d = get_default()
-                g0, g1, w0, w1 = d['soft_gate0'], d['soft_gate1'], d['w0'], d['w1']
+                g0, g1, w0, w1 = t['soft_gate0'], t['soft_gate1'], t['w0'], t['w1']
 
                 print(f"Initial values: g0={g0}, g1={g1}, w0={w0}, w1={w1}")
 
@@ -700,6 +698,10 @@ while True:
                 print("Client disconnected.")
                 break  # Exit loop if the client closes the connection
         
+            else:
+                print(f"[hws_bob] error: received unknown command from Alice")
+
+
             clear_flag_calibrating()
 
 

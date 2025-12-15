@@ -5,33 +5,33 @@ import hw_control.lib.gen_seq as gen_seq
 HW_CONTROL = '/home/vq-user/hw_control/'
 HW_CONFIG = '/home/vq-user/config/'
 
-def save_default(data):
-    """
-    data : dictionary to be saved to config/tmp.txt
-    """
-    with open(HW_CONTROL+"config/default.txt", 'w') as f:
-        f.write("# tab separated\n")
-        for i in data.items():
-            f.write(i[0]+"\t"+str(i[1])+"\n")
+#def save_default(data):
+#    """
+#    data : dictionary to be saved to config/tmp.txt
+#    """
+#    with open(HW_CONTROL+"config/default.txt", 'w') as f:
+#        f.write("# tab separated\n")
+#        for i in data.items():
+#            f.write(i[0]+"\t"+str(i[1])+"\n")
 
-def get_default():
-    """
-    return : dictionary from config/default.txt
-    """
-    d = {}
-    floatlist = ['vca', 'am_bias','am_bias_2', 'qdistance', 
-                 'angle0', 'angle1', 'angle2', 'angle3']
-    with open(HW_CONTROL+"config/default.txt") as f:
-        lines = f.readlines()
-        for l in lines[1:]:
-            s = l[:-1].split("\t")
-            key = s[0]
-            value = s[1]
-            if key in floatlist:
-                d[key] = float(value) 
-            else:
-                d[key] = int(value) 
-    return d
+#def get_default():
+#    """
+#    return : dictionary from config/default.txt
+#    """
+#    d = {}
+#    floatlist = ['vca', 'am_bias','am2_bias', 'qdistance', 
+#                 'angle0', 'angle1', 'angle2', 'angle3']
+#    with open(HW_CONTROL+"config/default.txt") as f:
+#        lines = f.readlines()
+#        for l in lines[1:]:
+#            s = l[:-1].split("\t")
+#            key = s[0]
+#            value = s[1]
+#            if key in floatlist:
+#                d[key] = float(value) 
+#            else:
+#                d[key] = int(value) 
+#    return d
 
 def save_tmp(data):
     """
@@ -46,8 +46,7 @@ def get_tmp():
     return : dictionary from config/tmp.txt
     """
     t = {}
-    floatlist = ['qdistance', 'pol0', 'pol1', 'pol2', 'pol3', 'vca', 'am_bias','am_bias_2',
-                 'angle0', 'angle1', 'angle2', 'angle3', 'vca_calib']
+    floatlist = ['qdistance', 'pol0', 'pol1', 'pol2', 'pol3', 'vca', 'am_bias','am2_bias',  'am2_bias_min', 'angle0', 'angle1', 'angle2', 'angle3', 'vca_calib']
     strlist = ['spd_mode', 'am_mode', 'pm_mode', 'feedback', 'soft_gate', 'insert_zeros', 'am2_mode']
     with open(HW_CONTROL+"config/tmp.txt") as f:
         lines = f.readlines()
@@ -78,8 +77,7 @@ def get_calibrated(filename):
     return : dictionary from /home/vq-user/config/filename
     """
     t = {}
-    floatlist = ['qdistance', 'pol0', 'pol1', 'pol2', 'pol3', 'vca', 'am_bias','am_bias_2',
-                 'angle0', 'angle1', 'angle2', 'angle3', 'vca_calib']
+    floatlist = ['qdistance', 'pol0', 'pol1', 'pol2', 'pol3', 'vca', 'am_bias','am2_bias',  'am2_bias_min', 'angle0', 'angle1', 'angle2', 'angle3', 'vca_calib']
     strlist = ['spd_mode', 'am_mode', 'pm_mode', 'feedback', 'soft_gate', 'insert_zeros', 'am2_mode']
     with open("/home/vq-user/config/calibration/"+filename) as f:
         lines = f.readlines()
@@ -100,10 +98,10 @@ def update_tmp(key, element):
     t[key] = element
     save_tmp(t)
 
-def update_default(key, element):
-    d = get_default()
-    d[key] = element
-    save_default(d)
+#def update_default(key, element):
+#    d = get_default()
+#    d[key] = element
+#    save_default(d)
 
 def write_to_dev(fd, offset, addr, array_of_u32):
     """ 

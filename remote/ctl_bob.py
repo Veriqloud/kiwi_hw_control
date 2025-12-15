@@ -211,14 +211,14 @@ def Gen_Gate():
     print(coarse, direction0, direction1, direction2)
 
 
-#def Find_Best_Shift(party):
-#    if party == 'alice':
-#       gc_comp = cal_lib.find_best_gc_comp('alice') 
-#    else:
-#       gc_comp = cal_lib.find_best_gc_comp('bob')
-#    best_shift = cal_lib.Best_Shift(party,gc_comp)
-#    cal_lib.plot_shift(party, best_shift,gc_comp)
-#    return best_shift
+def Find_Best_Shift(party):
+    if party == 'alice':
+       gc_comp = cal_lib.find_best_gc_comp('alice') 
+    else:
+       gc_comp = cal_lib.find_best_gc_comp('bob')
+    best_shift = cal_lib.Best_Shift(party,gc_comp)
+    cal_lib.plot_shift(party, best_shift,gc_comp)
+    return best_shift
 
     
 #---------------------------TDC CALIBRATION-----------------------------------------------
@@ -334,7 +334,7 @@ def Polarisation_Control():
         bests2.append(best)
         print("Best voltage on channel ", ch, "is", best)
         t['pol'+str(ch)] = best
-        Set_vol(ch,best)
+        Set_vol(ch,round(best, 2))
     save_tmp(t)
 
 #-----------APPLY GATE--------------------------

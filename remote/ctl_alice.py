@@ -160,12 +160,12 @@ def Set_Am_Bias(voltage):
     Set_vol(5, voltage)
     update_tmp('am_bias', voltage)
 
-def Set_Am_Bias_2(voltage):
+def Set_Am2_Bias(voltage):
     if (voltage>10) or (voltage<0):
         print("Voltage out of range. Choose a value between 0 and 10")
         exit()
     Set_vol(4, voltage)
-    update_tmp('am_bias_2', voltage)
+    update_tmp('am2_bias', voltage)
 
 
 def Config_Fda():
@@ -366,7 +366,8 @@ def rst_config():
     t['vca'] = 2
     t['vca_calib'] = 0
     t['am_bias'] = 0
-    t['am_bias_2'] = 0
+    t['am2_bias'] = 2
+    t['am2_bias_min'] = 0
     t['angle0'] = 0
     t['angle1'] = 0.18
     t['angle2'] = -0.18

@@ -337,6 +337,9 @@ while True:
             elif not command:
                 print(f"[hw_bob] {datetime.datetime.now()}\tClient disconnected.")
                 break  # Exit loop if the client closes the connection
+            
+            else:
+                print(f"[hw_bob] error: received unknown command from local")
 
 
     except KeyboardInterrupt:
