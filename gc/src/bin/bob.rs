@@ -86,10 +86,10 @@ fn send_gc(alice: &mut TcpStream) -> std::io::Result<()> {
         if !&CONFIG.get().unwrap().ignore_gcr_timeout{
             // keep read time between 6ms and 12ms
             // 50 ms is the limit above which a reset is requrired
-            if (time_ms < 6) & (read_length<BATCHSIZE){
-                read_length += 1;
+            if (time_ms < 6) & (read_length<BATCHSIZE/2){
+                read_length *= 2;
             } else if (time_ms > 12) & (time_ms < 20) & (read_length>1) {
-                read_length -= 1;
+                read_length /= 2;
             } else if time_ms >= 20{
                 tracing::warn!("[gc-bob] took {:?} ms to read gcr (probably unrecoverable above 50ms)", time_ms);
                 read_length = 1;
