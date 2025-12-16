@@ -242,6 +242,7 @@ while True:
                 print(colored('ad', 'cyan', force_color=True))
                 update_tmp('soft_gate', 'off')
                 update_tmp('gate_delay', 0)
+                update_tmp('t0', 10)
                 ctl.Gen_Gate()
                 ctl.Update_Softgate()
                 ctl.Ensure_Spd_Mode('gated')
@@ -249,47 +250,12 @@ while True:
                 ctl.Download_Time(10000, 'verify_gate_ad_0')
                 file_off = HW_CONTROL+"data/tdc/verify_gate_ad_0.txt"
 
-                #max_iter = 2
-                #iter_count = 0
-                    
-
                 lf = ctl.fall_edge(file_off)
-                target = (65-lf) % 312
+                target = (70-lf) % 312
                 target = (target - 10) % 312
                 update_tmp('gate_delay', target*40)
                 ctl.Gen_Gate()
                 sendc('done')
-
-                #while True:
-                #    lf = ctl.fall_edge(file_off, 200, 900)
-               ##     print("Last falling edge off between 200 and 900:", lf)
-
-                #    if abs(lf - 725) <= 2 or iter_count >= max_iter:
-                #        break
-
-                #    d = get_tmp()
-                #    tmp_delay0=d['gate_delay0']
-                ##    print("gate_delay0 =", tmp_delay0)
-                #    tmp_delay=d['gate_delay']
-                # #   print("tmp_delay =", tmp_delay)
-                #    if lf > 725:
-                #        ad = tmp_delay - ((lf - 725) * 20)
-                #    else:
-                #        ad = tmp_delay + ((725 - lf) * 20)
-
-                #    ad = abs(ad)
-                #    ad = 5000 if ad > 12500 else ad
-
-                #    update_tmp('gate_delay', ad)
-                #    update_tmp('gate_delay0', ad)
-                #    ctl.Gen_Gate()
-                #    iter_count += 1
-                #    ctl.Download_Time(10000, 'verify_gate_ad_'+str(iter_count))
-                #    file_off = HW_CONTROL+"data/tdc/verify_gate_ad_"+str(iter_count)+".txt"
-                #sendc('done')
-                #ctl.Ensure_Spd_Mode('continuous')
-                #sendc('ok')
-                #time.sleep(0.2)
 
 
             elif command == 'find_sp':
@@ -299,14 +265,15 @@ while True:
                 t['soft_gate'] = 'off'
                 save_tmp(t)
                 ctl.Update_Softgate()
+                ctl.Gen_Gate()
 
                 # detection single pulse at shift_am 0
                 print("measure and search single peak")
                 shift_am, t0  = ctl.Measure_Sp(20000)
-                Set_t0(10+t0)
+                #Set_t0(10+t0)
                 update_tmp('t0', 10+t0)
-                t = get_tmp()
-                update_tmp('gate_delay', (t['gate_delay0']-t0*20) % 12500)
+                #t = get_tmp()
+                update_tmp('gate_delay', (t['gate_delay']-t0*20) % 12500)
                 ctl.Gen_Gate()
                 
                 # send back shift_am value to alice
@@ -335,23 +302,24 @@ while True:
                 gate1=t['soft_gate1']
                 width=t['soft_gatew']
                 binstep = 2
-                maxtime = gate1 + width
+                #maxtime = gate1 + width
                 input_file = HW_CONTROL+'data/tdc/verify_gate_double.txt'
                 input_file2 = HW_CONTROL+'data/tdc/verify_gate_off.txt'
-                status, peak0_x, peak1_x = ctl.verify_gate_double(input_file, input_file2, gate0, gate1, width, binstep, maxtime)
+                status, peak0_x, peak1_x = ctl.verify_gate_double(input_file, input_file2, gate0, gate1, width, binstep)
                 print(status, peak0_x, peak1_x)
-                if status == "success":
-                    w0 = 30
-                    w1 = 30
-                    pic0 = int(round(peak0_x - (w0 / 2)))
-                    pic1 = int(round(peak1_x - (w1 / 2)))
+                #if status == "success":
+                w0 = 30
+                w1 = 30
+                pic0 = max(int(round(peak0_x - (w0 / 2))), 0)
+                pic1 = max(int(round(peak1_x - (w1 / 2))), 0)
 
-                    ctl.set_Softgate(pic0, pic1, w0, w1)
-                    t['soft_gate0'] = pic0
-                    t['soft_gate1'] = pic1
-                    t['w0'] = w0
-                    t['w1'] = w1
-                    save_tmp(t)
+                ctl.set_Softgate(pic0, pic1, w0, w1)
+                t['soft_gate0'] = pic0
+                t['soft_gate1'] = pic1
+                t['w0'] = w0
+                t['w1'] = w1
+                save_tmp(t)
+                ctl.Update_Softgate()
 
                 pic = HW_CONTROL+"data/calib_res/gate_double.png"
                 with open(pic, 'rb') as f:

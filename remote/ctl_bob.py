@@ -169,6 +169,7 @@ def Gen_Gate():
     # calculate and update corse and fine delays
     t = get_tmp()
     delay = t['gate_delay']
+    Set_t0(t['t0'])
         
     timestep = 3.383    # fine delay timestep in ps
     delay_au = round(delay/timestep)
@@ -749,14 +750,14 @@ def fall_edge(file_path):
     return lf
 
 
-def verify_gate_double(input_file, input_file2, gate0, gate1, width, binstep=2, maxtime=590):
-    raw1 = np.loadtxt(input_file, usecols=1) % 1250
-    data1 = raw1[(raw1 >= 0) & (raw1 < maxtime)]
+def verify_gate_double(input_file, input_file2, gate0, gate1, width, binstep=2):
+    raw1 = np.loadtxt(input_file, usecols=1) % 625
+    data1 = raw1
 
-    raw2 = np.loadtxt(input_file2, usecols=1) % 1250
-    data2 = raw2[(raw2 >= 0) & (raw2 < maxtime)]
+    raw2 = np.loadtxt(input_file2, usecols=1) % 625
+    data2 = raw2
 
-    bins = np.arange(0, maxtime + binstep, binstep) - 1
+    bins = np.arange(0, 625) - 1
     h1, _ = np.histogram(data1, bins=bins)
     h2, _ = np.histogram(data2, bins=bins)
     centers = bins[:-1] + binstep / 2
@@ -792,6 +793,7 @@ def verify_gate_double(input_file, input_file2, gate0, gate1, width, binstep=2, 
     plt.axvline(gate1, color='purple', linestyle='--', label='Gate1')
     plt.axvline(gate1 + width, color='purple', linestyle='--')
     plt.ylim(0)
+    plt.xlim(0)
     plt.xlabel("Time bin (ns)")
     plt.ylabel("Counts")
     plt.legend()
