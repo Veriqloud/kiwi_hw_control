@@ -400,7 +400,7 @@ def vca_per(conn, per=90):
         print(m)
 
     sendc(bob, 'done')
-    sendc(conn, 'vca_per done with '+m)
+    sendc(conn, 'vca_per '+m)
 
 
 #def find_vca(conn, limit=3000):

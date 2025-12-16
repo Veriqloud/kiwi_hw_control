@@ -980,6 +980,7 @@ def apply_config():
     Update_Dac()
     Update_Angles()
     Update_Softgate()
+    init_ttl()
     Gen_Gate()
     update_spd()
 

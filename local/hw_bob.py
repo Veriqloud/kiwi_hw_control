@@ -158,6 +158,9 @@ def set(args):
     elif args.spd_eff:
         sendc('set_spd_eff')
         send_i(int(args.spd_eff))
+    elif args.spd_delay is not None:
+        sendc('set_spd_delay')
+        send_i(int(args.spd_delay))
     elif args.pol_bias:
         sendc('set_pol_bias')
         for i in range(4):

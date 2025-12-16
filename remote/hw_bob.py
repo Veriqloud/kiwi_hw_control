@@ -229,11 +229,14 @@ while True:
                 update_tmp('deadtime_gated', deadtime)
             elif command == 'set_spd_eff':
                 eff = rcv_i()
-                #print("opening SPD...")
                 aurea = ctl.Aurea()
                 aurea.effi(eff)
                 aurea.close()
                 update_tmp('spd_eff', eff)
+            elif command == 'set_spd_delay':
+                delay = rcv_i()
+                update_tmp('gate_delay', delay)
+                ctl.Gen_Gate()
             elif command == 'set_pol_bias':
                 t = get_tmp()
                 t['pol0'] = rcv_d()

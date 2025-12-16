@@ -129,6 +129,15 @@ def update_vca():
         exit()
     Set_vol(7, voltage)
 
+def update_bias():
+    t = get_tmp()
+    am=t['am_bias']
+    am2=t['am2_bias']
+    Set_vol(5, am)
+    if (am2>10) or (am2<0):
+        print("Voltage out of range. Choose a value between 0 and 10")
+        exit()
+    Set_vol(4, am2)
 
 def Set_Vca(voltage):
     t = get_tmp()
@@ -354,6 +363,7 @@ def apply_config():
     Update_Dac()
     Update_Angles()
     update_vca()
+    update_bias()
     gen_decoy()
 
 def rst_config():
