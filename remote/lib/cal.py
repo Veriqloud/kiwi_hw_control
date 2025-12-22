@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 from termcolor import colored
 
 HW_CONTROL = '/home/vq-user/hw_control/'
+LOG = '/home/vq-user/log/calibration/'
 
 def Shift_Unit(j,party,gc_comp):
     #times_ref_click0=[]
@@ -108,7 +109,7 @@ def Best_Shift(party,gc_comp):
 
 def Find_First_Peak(ref_time_arr):
     y, x = np.histogram(ref_time_arr, bins=np.arange(0,1255, 5)-2.5)
-    import matplotlib.pyplot as plt
+    #import matplotlib.pyplot as plt
 
     amax1 = y.argmax()
     ytmp = np.copy(y)
@@ -145,6 +146,11 @@ def Find_First_Peak(ref_time_arr):
     d2 = p[2] - p[1]
     d3 = p[3] - p[2]
     first_peak = (p[np.argmax([d0, d1, d2, d3])]+2.5) % 625
+    data = np.zeros((len(y), 3), dtype=int)
+    data[:,0] = x[1:]
+    data[:,1] = y
+    data[int((p[np.argmax([d0, d1, d2, d3])]+2.5)/5),2] = 1
+    np.savetxt(LOG+'find_sp.txt', data, fmt='%d')
     # print("First peak: ",first_peak)
     return int(first_peak)
 

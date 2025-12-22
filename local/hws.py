@@ -198,6 +198,7 @@ if args.full_init:
     interact('init')
     interact('config_laser')
     interact('sync_gc')
+    interact('free_running')
     interact('find_vca')
     interact('loop_find_am_bias')
     #interact('find_am2_bias')

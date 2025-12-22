@@ -262,6 +262,7 @@ parser.add_argument("--status", action="store_true", help="print status")
 parser.add_argument("--counts", action="store_true", help="counts per 0.1s")
 parser.add_argument("--gates", action="store_true", help="plot gates")
 parser.add_argument("--link", action="store_true", help="get link status")
+parser.add_argument("--calfigures", action="store_true", help="plot calibration figures")
 
 args = parser.parse_args()
 
@@ -361,6 +362,58 @@ elif args.gates:
         fig.canvas.draw()
         fig.canvas.flush_events()
         time.sleep(0.1)
+
+elif args.calfigures:
+    fig, axs = plt.subplots(1, 2)
+
+    # falling edge
+    sendc(bob, 'get_calfigures')
+    m = rcv_data(bob)
+    data = pickle.loads(m)
+    axs[0].set_title("falling edge detection")
+    axs[0].plot(data[:,0])
+    edge = np.where(data[:,1]==1)
+    axs[0].vlines(edge, 0, data.max(), color='green')
+    axs[0].set_ylim(0)
+    axs[0].set_xlim(0)
+    
+    # find_sp 
+    m = rcv_data(bob)
+    data = pickle.loads(m)
+    axs[1].set_title("find single peak")
+    axs[1].plot(data[:,0], data[:,1])
+    edge = data[:,0][np.where(data[:,2]==1)]
+    axs[1].vlines(edge, 0, data[:,1].max(), color='green')
+    axs[1].set_ylim(0)
+    axs[1].set_xlim(0)
+    
+    # fd_
+    m = rcv_data(bob)
+    data = pickle.loads(m)
+    plt.figure()
+    plt.title("find delay")
+    plt.plot(data, '-x', label='Bob')
+    m = rcv_data(bob)
+    data = pickle.loads(m)
+    plt.plot(data, '-o', label='Alice')
+    plt.ylim(0)
+    plt.xlim(0)
+    plt.legend()
+    
+    # fd__long
+    m = rcv_data(bob)
+    data = pickle.loads(m)
+    plt.figure()
+    plt.title("find delay long")
+    plt.plot(data, '-x', label='Bob')
+    m = rcv_data(bob)
+    data = pickle.loads(m)
+    plt.plot(data, '-o', label='Alice')
+    plt.ylim(0)
+    plt.xlim(0)
+    plt.legend()
+
+    plt.show()
 
 
 elif args.status:

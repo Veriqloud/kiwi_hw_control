@@ -163,6 +163,11 @@ while True:
             elif command == 'config_laser':
                 print(colored('doing nothing', 'cyan', force_color=True))
 
+            elif command == 'free_running':
+                ctl.Ensure_Spd_Mode('continuous')
+                update_tmp('soft_gate', 'off')
+                ctl.Update_Softgate()
+                sendc('ok')
 
             elif command == 'vca_per':
                 print(colored('vca_per', 'cyan'))
@@ -242,7 +247,7 @@ while True:
                 print(colored('ad', 'cyan', force_color=True))
                 update_tmp('soft_gate', 'off')
                 update_tmp('gate_delay', 0)
-                update_tmp('t0', 10)
+                #update_tmp('t0', 10)
                 ctl.Gen_Gate()
                 ctl.Update_Softgate()
                 ctl.Ensure_Spd_Mode('gated')
@@ -273,15 +278,16 @@ while True:
                 #Set_t0(10+t0)
                 update_tmp('t0', 10+t0)
                 #t = get_tmp()
-                update_tmp('gate_delay', (t['gate_delay']-t0*20) % 12500)
+
+                #update_tmp('gate_delay', (t['gate_delay']-t0*20) % 12500)
                 ctl.Gen_Gate()
                 
                 # send back shift_am value to alice
                 send_i(shift_am)
 
                 # detect single64 pulse and send to Alice
-                update_tmp('soft_gate', 'on')
-                ctl.Update_Softgate()
+                #update_tmp('soft_gate', 'on')
+                #ctl.Update_Softgate()
                 print("measure sp64")
                 coarse_shift = ctl.Measure_Sp64()
                 send_i(coarse_shift)
@@ -655,6 +661,7 @@ while True:
 
             elif command == 'start':
                 print(colored('start', 'cyan', force_color=True))
+                t = get_tmp()
                 t['pm_mode'] = 'true_rng'
                 t['insert_zeros'] = 'on'
                 t['feedback'] = 'on'

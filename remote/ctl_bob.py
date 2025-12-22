@@ -13,6 +13,8 @@ from scipy.optimize import curve_fit
 import matplotlib.pyplot as plt
 
 HW_CONTROL = '/home/vq-user/hw_control/'
+LOG = '/home/vq-user/log/calibration/'
+
 
 def update_spd():
     t = get_tmp()
@@ -404,6 +406,7 @@ def Find_Opt_Delay_B():
     h = h-m
 
     index = np.argmax(np.abs(h))
+    np.savetxt(LOG+'fd_b.txt', np.abs(h))
     print("Fiber delay of Bob: ",index, " [q_bins]")
     return(int(index))
 
@@ -438,6 +441,7 @@ def Find_Opt_Delay_B_long():
     h = h-m
 
     index = np.argmax(np.abs(h))
+    np.savetxt(LOG+'fd_b_long.txt', np.abs(h))
     print("Fiber delay of Bob: ",index, " [64 q_bins]")
     return(int(index*64))
 
@@ -659,6 +663,7 @@ def Find_Opt_Delay_A():
     h = h-m
 
     index = np.argmax(np.abs(h))
+    np.savetxt(LOG+'fd_a.txt', np.abs(h))
     print("Fiber delay of Alice: ",index, " [q_bins]")
     return(int(index))
 
@@ -692,6 +697,7 @@ def Find_Opt_Delay_A_long(fiber_delay_mod):
     m = h.mean()
     h = h-m
 
+    np.savetxt(LOG+'fd_a_long.txt', np.abs(h))
     index = np.argmax(np.abs(h))
     print("Fiber delay of Alice: ",index, " [64 q_bins]")
     return(int(index))
@@ -728,26 +734,39 @@ def Test_delay():
 
 def fall_edge(file_path):
     data = np.loadtxt(os.path.expanduser(file_path), usecols=1)
+    # ignore the first 2000 clicks (because it seems that there are leftovers)
+    data = data[2000:]
     bins = np.arange(0, 624, 2) 
     hist, _ = np.histogram(data % 624, bins=bins)
+
+    data_for_save = np.zeros((len(hist), 2), dtype=int)
+    data_for_save[:,0] = hist
+
+    # take columns with at least 10 clicks
+    hist = hist//10
+    # delete zero points in front of rising edge
+    for i in range(len(hist)-1):
+        if hist[i] == 0:
+            if hist[i+1:i+10].any() > 0:
+                hist[i] = 1
     zeros = hist == 0
+    # get the first zero point
     d = zeros[1:]*1 - zeros[:-1]*1
     pos = np.where(d == 1)[0][0]
-    print(pos)
+
+    data_for_save[pos,1] = 1
+    np.savetxt(LOG+'fall_edge.txt', data_for_save, fmt='%d')
     return pos
 
-
-
-
-    index = bins[:-1] + 1
-    #mask = (index >= start_range) & (index <= end_range)
-    index_filt = index[mask]
-    amp_filt = hist[mask]
-    lf = 724  # default
-    for i in range(1, len(amp_filt)):
-        if amp_filt[i] < amp_filt[i - 1]:
-            lf = index_filt[i]
-    return lf
+#    index = bins[:-1] + 1
+#    #mask = (index >= start_range) & (index <= end_range)
+#    index_filt = index[mask]
+#    amp_filt = hist[mask]
+#    lf = 724  # default
+#    for i in range(1, len(amp_filt)):
+#        if amp_filt[i] < amp_filt[i - 1]:
+#            lf = index_filt[i]
+#    return lf
 
 
 def verify_gate_double(input_file, input_file2, gate0, gate1, width, binstep=2):
@@ -1005,7 +1024,6 @@ def rst_config():
     t['pol2'] = 2.5
     t['pol3'] = 2.5
     t['gate_delay'] = 6000
-    t['gate_delay0'] = 0
     t['soft_gate'] = 'off'
     t['soft_gate0'] = 28
     t['soft_gate1'] = 542

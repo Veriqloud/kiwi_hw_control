@@ -212,6 +212,7 @@ def get(args):
         plt.figure()
         bins = np.arange(0,625, 2)
         plt.plot(bins[:-1], h)
+        plt.ylim(0)
         plt.show()
     
     elif args.ltc:

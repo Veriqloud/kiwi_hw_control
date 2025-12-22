@@ -170,6 +170,10 @@ def load(conn, filename):
     else:
         sendc(conn, 'Bob filename does not exist')
 
+def free_running(conn):
+    sendc(bob, 'free_running')
+    m = rcvc(bob)
+    sendc(conn, 'free_running done')
             
 def sync_gc(conn):
     sendc(bob, 'sync_gc')
@@ -1050,6 +1054,7 @@ functionmap['clean'] = clean
 functionmap['save'] = save
 functionmap['load'] = load
 functionmap['init'] = init
+functionmap['free_running'] = free_running
 functionmap['sync_gc'] = sync_gc
 functionmap['compare_gc'] = compare_gc
 functionmap['vca_per'] = vca_per
@@ -1140,5 +1145,4 @@ while True:
         except OSError:
             pass  # Ignore if connection is already closed
         conn.close()
-
 
