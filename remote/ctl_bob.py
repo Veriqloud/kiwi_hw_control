@@ -1001,7 +1001,8 @@ def apply_config():
     Update_Dac()
     Update_Angles()
     Update_Softgate()
-    init_ttl()
+    #init_tdc()
+    #init_ttl()
     Gen_Gate()
     update_spd()
 
@@ -1049,6 +1050,7 @@ def save_config(filename):
 def load_config(filename):
     c = get_calibrated(filename)
     save_tmp(c)
+    init_hw()
     apply_config()
 
 

@@ -402,6 +402,7 @@ def save_config(filename):
 def load_config(filename):
     c = get_calibrated(filename)
     save_tmp(c)
+    init_hw()
     apply_config()
 
 

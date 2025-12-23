@@ -364,54 +364,53 @@ elif args.gates:
         time.sleep(0.1)
 
 elif args.calfigures:
-    fig, axs = plt.subplots(1, 2)
+    fig, ax = plt.subplots(2, 2)
 
     # falling edge
     sendc(bob, 'get_calfigures')
     m = rcv_data(bob)
     data = pickle.loads(m)
-    axs[0].set_title("falling edge detection")
-    axs[0].plot(data[:,0])
+    ax[0,0].set_title("falling edge detection")
+    ax[0,0].plot(data[:,0])
     edge = np.where(data[:,1]==1)
-    axs[0].vlines(edge, 0, data.max(), color='green')
-    axs[0].set_ylim(0)
-    axs[0].set_xlim(0)
+    ax[0,0].vlines(edge, 0, data.max(), color='green')
+    ax[0,0].set_ylim(0)
+    ax[0,0].set_xlim(0)
     
     # find_sp 
     m = rcv_data(bob)
     data = pickle.loads(m)
-    axs[1].set_title("find single peak")
-    axs[1].plot(data[:,0], data[:,1])
+    ax[0,1].set_title("find single peak")
+    ax[0,1].plot(data[:,0], data[:,1])
     edge = data[:,0][np.where(data[:,2]==1)]
-    axs[1].vlines(edge, 0, data[:,1].max(), color='green')
-    axs[1].set_ylim(0)
-    axs[1].set_xlim(0)
+    ax[0,1].vlines(edge, 0, data[:,1].max(), color='green')
+    ax[0,1].set_ylim(0)
+    ax[0,1].set_xlim(0)
     
     # fd_
     m = rcv_data(bob)
     data = pickle.loads(m)
-    plt.figure()
-    plt.title("find delay")
-    plt.plot(data, '-x', label='Bob')
+    
+    ax[1,0].set_title("find delay")
+    ax[1,0].plot(data, '-x', label='Bob')
     m = rcv_data(bob)
     data = pickle.loads(m)
-    plt.plot(data, '-o', label='Alice')
-    plt.ylim(0)
-    plt.xlim(0)
-    plt.legend()
+    ax[1,0].plot(data, '-+', label='Alice')
+    ax[1,0].set_ylim(0)
+    ax[1,0].set_xlim(0)
+    ax[1,0].legend()
     
     # fd__long
     m = rcv_data(bob)
     data = pickle.loads(m)
-    plt.figure()
-    plt.title("find delay long")
-    plt.plot(data, '-x', label='Bob')
+    ax[1,1].set_title("find delay long")
+    ax[1,1].plot(data, '-x', label='Bob')
     m = rcv_data(bob)
     data = pickle.loads(m)
-    plt.plot(data, '-o', label='Alice')
-    plt.ylim(0)
-    plt.xlim(0)
-    plt.legend()
+    ax[1,1].plot(data, '-+', label='Alice')
+    ax[1,1].set_ylim(0)
+    ax[1,1].set_xlim(0)
+    #ax2[1].legend()
 
     plt.show()
 
