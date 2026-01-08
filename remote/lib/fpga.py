@@ -562,6 +562,19 @@ def Write_Angles(a0, a1, a2, a3):
     #last two are the trigger for switching domain
     write(Base_Addr, addr, value)
 
+def did_reboot():
+    # check the first 204b reg
+    ret = read(0x10000, 34)
+    if ret == 0:
+        return True
+    else:
+        return False
+
+def print_angles():
+    # check the first 204b reg
+    ret = read(0x30000, [8,24])
+    print(ret)
+
 #Read back the FGPA registers configured for JESD
 def ReadFPGA():
     file = open(HW_CONFIG+"registers/fda/FastdacFPGAstats.txt","r")
@@ -832,6 +845,22 @@ def Get_Si5319():
     print("Monitoring finished. It's normal the last reg is F")
     reg_file.close()
 
+def get_jic_info():
+    reg_file = open(HW_CONFIG+'registers/jit_cleaner/Si5319_regs.txt','r')
+    ins_set_addr = 0x00
+    ins_read = 0x80
+    check = []
+    for l in reg_file.readlines():
+        add, val = l.split(',')
+        add = int(add, 16)
+        val = int(val, 16)
+        Get_reg_new(1,'jic', ins_set_addr,add)
+        ret = Get_reg_new(1,'jic', ins_read,0)[-1]
+        check.append(val==ret)
+    reg_file.close()
+    # return true if all regs ok
+    return np.array(check[:-1]).all()
+
 def Get_Id_Si5319():
     ins_set_addr = 0x00
     ins_read = 0x80
@@ -869,6 +898,20 @@ def Get_AS6501():
         print(hex(add)+"\t"+hex(val)+"\t"+hex(ret)+"\t"+str(val==ret))
     print("Monitoring finished")
     reg_file.close()
+
+def get_tdc_info():
+    reg_file = open(HW_CONFIG+'registers/tdc/AS6501_regs.txt','r')
+    opc_read_config = 0x40
+    check = []
+    for l in reg_file.readlines():
+        add, val = l.split(',')
+        add = int(add, 16)
+        val = int(val, 16)
+        addmod = add & 0x1f | 0x40
+        ret = Get_reg_new(1, 'tdc', addmod, 0)[-1]
+        check.append(ret==val)
+    reg_file.close()
+    return np.array(check).all()
 
 def Get_Id_AS6501():
     #opc_power = 0x30
