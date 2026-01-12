@@ -764,17 +764,26 @@ def decoy_state(mode):
     write(0x16000, 28, 0x40)
     #Write data to rng_dpram
     Base_seq0 = 0x00016000
+    true_rng = 0
+    print("mode: ", mode)
     if mode=='single':
         rngseq0 = 0x1
         rngseq1 = 0x0
     elif mode=='off':
         rngseq0 = 0x0
         rngseq1 = 0x0
+    elif mode=='true_rng':
+        rngseq0 = 0x0
+        rngseq1 = 0x0
+        true_rng = 1
+    elif mode=='fake_rng':
+        rngseq0 = 0x11
+        rngseq1 = 0x11
     else:
         exit("wrong decoy state string")
     write(Base_seq0, [1024,1028], [rngseq0, rngseq1])
     #Write rng mode
-    write(0x16000, [12, 0, 0], [0, 0, 1])
+    write(0x16000, [12, 0, 0], [true_rng, 0, 1])
     #last two are for enable regs values
 
 #---------decoy delay------------------
