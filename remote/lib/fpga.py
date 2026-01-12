@@ -1,37 +1,37 @@
-import subprocess, time, mmap, numpy as np
+import subprocess, time, mmap, numpy as np, os
 
 import hw_control.lib.gen_seq as gen_seq
 
 HW_CONTROL = '/home/vq-user/hw_control/'
 HW_CONFIG = '/home/vq-user/config/'
 
-def save_default(data):
-    """
-    data : dictionary to be saved to config/tmp.txt
-    """
-    with open(HW_CONTROL+"config/default.txt", 'w') as f:
-        f.write("# tab separated\n")
-        for i in data.items():
-            f.write(i[0]+"\t"+str(i[1])+"\n")
+#def save_default(data):
+#    """
+#    data : dictionary to be saved to config/tmp.txt
+#    """
+#    with open(HW_CONTROL+"config/default.txt", 'w') as f:
+#        f.write("# tab separated\n")
+#        for i in data.items():
+#            f.write(i[0]+"\t"+str(i[1])+"\n")
 
-def get_default():
-    """
-    return : dictionary from config/default.txt
-    """
-    d = {}
-    floatlist = ['vca', 'am_bias','am_bias_2', 'qdistance', 
-                 'angle0', 'angle1', 'angle2', 'angle3']
-    with open(HW_CONTROL+"config/default.txt") as f:
-        lines = f.readlines()
-        for l in lines[1:]:
-            s = l[:-1].split("\t")
-            key = s[0]
-            value = s[1]
-            if key in floatlist:
-                d[key] = float(value) 
-            else:
-                d[key] = int(value) 
-    return d
+#def get_default():
+#    """
+#    return : dictionary from config/default.txt
+#    """
+#    d = {}
+#    floatlist = ['vca', 'am_bias','am2_bias', 'qdistance', 
+#                 'angle0', 'angle1', 'angle2', 'angle3']
+#    with open(HW_CONTROL+"config/default.txt") as f:
+#        lines = f.readlines()
+#        for l in lines[1:]:
+#            s = l[:-1].split("\t")
+#            key = s[0]
+#            value = s[1]
+#            if key in floatlist:
+#                d[key] = float(value) 
+#            else:
+#                d[key] = int(value) 
+#    return d
 
 def save_tmp(data):
     """
@@ -46,10 +46,40 @@ def get_tmp():
     return : dictionary from config/tmp.txt
     """
     t = {}
-    floatlist = ['qdistance', 'pol0', 'pol1', 'pol2', 'pol3', 'vca', 'am_bias','am_bias_2',
-                 'angle0', 'angle1', 'angle2', 'angle3', 'vca_calib']
+    floatlist = ['qdistance', 'pol0', 'pol1', 'pol2', 'pol3', 'vca', 'am_bias','am2_bias',  'am2_bias_min', 'angle0', 'angle1', 'angle2', 'angle3', 'vca_calib']
     strlist = ['spd_mode', 'am_mode', 'pm_mode', 'feedback', 'soft_gate', 'insert_zeros', 'am2_mode']
     with open(HW_CONTROL+"config/tmp.txt") as f:
+        lines = f.readlines()
+        for l in lines:
+            s = l[:-1].split("\t")
+            key = s[0]
+            value = s[1]
+            if key in floatlist:
+                t[key] = float(value) 
+            elif key in strlist:
+                t[key] = value
+            else:
+                t[key] = int(value) 
+    return t
+
+def save_calibrated(data, filename):
+    """
+    data : dictionary to be saved to /home/vq-user/config/calibration/filename
+    """
+    fullpath = "/home/vq-user/config/calibration/"+filename
+    os.makedirs(os.path.dirname(fullpath), exist_ok=True)
+    with open(fullpath, 'w') as f:
+        for i in data.items():
+            f.write(i[0]+"\t"+str(i[1])+"\n")
+
+def get_calibrated(filename):
+    """
+    return : dictionary from /home/vq-user/config/filename
+    """
+    t = {}
+    floatlist = ['qdistance', 'pol0', 'pol1', 'pol2', 'pol3', 'vca', 'am_bias','am2_bias',  'am2_bias_min', 'angle0', 'angle1', 'angle2', 'angle3', 'vca_calib']
+    strlist = ['spd_mode', 'am_mode', 'pm_mode', 'feedback', 'soft_gate', 'insert_zeros', 'am2_mode']
+    with open("/home/vq-user/config/calibration/"+filename) as f:
         lines = f.readlines()
         for l in lines:
             s = l[:-1].split("\t")
@@ -68,10 +98,10 @@ def update_tmp(key, element):
     t[key] = element
     save_tmp(t)
 
-def update_default(key, element):
-    d = get_default()
-    d[key] = element
-    save_default(d)
+#def update_default(key, element):
+#    d = get_default()
+#    d[key] = element
+#    save_default(d)
 
 def write_to_dev(fd, offset, addr, array_of_u32):
     """ 
@@ -532,6 +562,19 @@ def Write_Angles(a0, a1, a2, a3):
     #last two are the trigger for switching domain
     write(Base_Addr, addr, value)
 
+def did_reboot():
+    # check the first 204b reg
+    ret = read(0x10000, 34)
+    if ret == 0:
+        return True
+    else:
+        return False
+
+def print_angles():
+    # check the first 204b reg
+    ret = read(0x30000, [8,24])
+    print(ret)
+
 #Read back the FGPA registers configured for JESD
 def ReadFPGA():
     file = open(HW_CONFIG+"registers/fda/FastdacFPGAstats.txt","r")
@@ -721,17 +764,26 @@ def decoy_state(mode):
     write(0x16000, 28, 0x40)
     #Write data to rng_dpram
     Base_seq0 = 0x00016000
+    true_rng = 0
+    print("mode: ", mode)
     if mode=='single':
         rngseq0 = 0x1
         rngseq1 = 0x0
     elif mode=='off':
         rngseq0 = 0x0
         rngseq1 = 0x0
+    elif mode=='true_rng':
+        rngseq0 = 0x0
+        rngseq1 = 0x0
+        true_rng = 1
+    elif mode=='fake_rng':
+        rngseq0 = 0x11
+        rngseq1 = 0x11
     else:
         exit("wrong decoy state string")
     write(Base_seq0, [1024,1028], [rngseq0, rngseq1])
     #Write rng mode
-    write(0x16000, [12, 0, 0], [0, 0, 1])
+    write(0x16000, [12, 0, 0], [true_rng, 0, 1])
     #last two are for enable regs values
 
 #---------decoy delay------------------
@@ -802,6 +854,22 @@ def Get_Si5319():
     print("Monitoring finished. It's normal the last reg is F")
     reg_file.close()
 
+def get_jic_info():
+    reg_file = open(HW_CONFIG+'registers/jit_cleaner/Si5319_regs.txt','r')
+    ins_set_addr = 0x00
+    ins_read = 0x80
+    check = []
+    for l in reg_file.readlines():
+        add, val = l.split(',')
+        add = int(add, 16)
+        val = int(val, 16)
+        Get_reg_new(1,'jic', ins_set_addr,add)
+        ret = Get_reg_new(1,'jic', ins_read,0)[-1]
+        check.append(val==ret)
+    reg_file.close()
+    # return true if all regs ok
+    return np.array(check[:-1]).all()
+
 def Get_Id_Si5319():
     ins_set_addr = 0x00
     ins_read = 0x80
@@ -839,6 +907,20 @@ def Get_AS6501():
         print(hex(add)+"\t"+hex(val)+"\t"+hex(ret)+"\t"+str(val==ret))
     print("Monitoring finished")
     reg_file.close()
+
+def get_tdc_info():
+    reg_file = open(HW_CONFIG+'registers/tdc/AS6501_regs.txt','r')
+    opc_read_config = 0x40
+    check = []
+    for l in reg_file.readlines():
+        add, val = l.split(',')
+        add = int(add, 16)
+        val = int(val, 16)
+        addmod = add & 0x1f | 0x40
+        ret = Get_reg_new(1, 'tdc', addmod, 0)[-1]
+        check.append(ret==val)
+    reg_file.close()
+    return np.array(check).all()
 
 def Get_Id_AS6501():
     #opc_power = 0x30

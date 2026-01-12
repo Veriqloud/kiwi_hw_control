@@ -13,6 +13,19 @@ from scipy.optimize import curve_fit
 import matplotlib.pyplot as plt
 
 HW_CONTROL = '/home/vq-user/hw_control/'
+LOG = '/home/vq-user/log/calibration/'
+
+
+def update_spd():
+    t = get_tmp()
+    aurea = Aurea()
+    aurea.mode(t['spd_mode'])
+    if (t['spd_mode'] == 'continuous'):
+        aurea.deadtime(t['deadtime_cont'])
+    else:
+        aurea.deadtime(t['deadtime_gated'])
+    aurea.close()
+
 
 def Ensure_Spd_Mode(mode):
     t = get_tmp()
@@ -20,22 +33,18 @@ def Ensure_Spd_Mode(mode):
         if (t['spd_mode'] != 'continuous'):
             aurea = Aurea()
             aurea.mode("continuous")
-            #time.sleep(0.2)
             aurea.deadtime(t['deadtime_cont'])
             time.sleep(0.5)
             aurea.close()
             t['spd_mode'] = 'continuous'
-            #time.sleep(0.5)
     elif mode=='gated':
         if (t['spd_mode'] != 'gated'):
             aurea = Aurea()
             aurea.mode("gated")
-            #time.sleep(0.2)
             aurea.deadtime(t['deadtime_gated'])
             time.sleep(0.5)
             aurea.close()
             t['spd_mode'] = 'gated'
-            #time.sleep(0.2)
     else:
         exit("wrong mode")
     save_tmp(t)
@@ -162,6 +171,8 @@ def Gen_Gate():
     # calculate and update corse and fine delays
     t = get_tmp()
     delay = t['gate_delay']
+    Set_t0(t['t0'])
+        
     timestep = 3.383    # fine delay timestep in ps
     delay_au = round(delay/timestep)
     fine_max = 404      # corresponds to 1/3 of coarse delay
@@ -170,28 +181,33 @@ def Gen_Gate():
     fine1_abs = int((delay_au%(fine_max*3)) >= fine_max) * fine_max
     fine2_abs = int((delay_au%(fine_max*3)) >= 2*fine_max) * fine_max
 
+    with open(HW_CONTROL+"config/delayf.txt", 'r+') as f:
+        df0 = int(f.readline())
+        df1 = int(f.readline())
+        df2 = int(f.readline())
 
-    fine0 = fine0_abs - t['gate_delayf0']
-    direction0 = 1 if fine0 > 0 else 0
+        fine0 = fine0_abs - df0
+        direction0 = 1 if fine0 > 0 else 0
 
-    fine1 = fine1_abs - t['gate_delayf1']
-    direction1 = 1 if fine1 > 0 else 0
-    
-    fine2 = fine2_abs - t['gate_delayf2']
-    direction2 = 1 if fine2 > 0 else 0
+        fine1 = fine1_abs - df1
+        direction1 = 1 if fine1 > 0 else 0
+        
+        fine2 = fine2_abs - df2
+        direction2 = 1 if fine2 > 0 else 0
 
-    write_delay_master(2,coarse, abs(fine0), direction0) 
-    write_delay_slaves(abs(fine1), direction1, abs(fine2), direction2)
+        write_delay_master(2,coarse, abs(fine0), direction0) 
+        write_delay_slaves(abs(fine1), direction1, abs(fine2), direction2)
 
-    params_en()
-    trigger_fine_master()
-    trigger_fine_slv1()
-    trigger_fine_slv2()
+        params_en()
+        trigger_fine_master()
+        trigger_fine_slv1()
+        trigger_fine_slv2()
 
-    t['gate_delayf0'] = fine0_abs
-    t['gate_delayf1'] = fine1_abs
-    t['gate_delayf2'] = fine2_abs
-    save_tmp(t)
+        f.seek(0)
+
+        f.write(str(fine0_abs)+'\n')
+        f.write(str(fine1_abs)+'\n')
+        f.write(str(fine2_abs)+'\n')
 
     print("gate pulse delay set to", delay/1000, "sn")
     print(coarse, fine0, fine1, fine2)
@@ -321,7 +337,7 @@ def Polarisation_Control():
         bests2.append(best)
         print("Best voltage on channel ", ch, "is", best)
         t['pol'+str(ch)] = best
-        Set_vol(ch,best)
+        Set_vol(ch,round(best, 2))
     save_tmp(t)
 
 #-----------APPLY GATE--------------------------
@@ -390,6 +406,7 @@ def Find_Opt_Delay_B():
     h = h-m
 
     index = np.argmax(np.abs(h))
+    np.savetxt(LOG+'fd_b.txt', np.abs(h))
     print("Fiber delay of Bob: ",index, " [q_bins]")
     return(int(index))
 
@@ -424,6 +441,7 @@ def Find_Opt_Delay_B_long():
     h = h-m
 
     index = np.argmax(np.abs(h))
+    np.savetxt(LOG+'fd_b_long.txt', np.abs(h))
     print("Fiber delay of Bob: ",index, " [64 q_bins]")
     return(int(index*64))
 
@@ -645,6 +663,7 @@ def Find_Opt_Delay_A():
     h = h-m
 
     index = np.argmax(np.abs(h))
+    np.savetxt(LOG+'fd_a.txt', np.abs(h))
     print("Fiber delay of Alice: ",index, " [q_bins]")
     return(int(index))
 
@@ -678,6 +697,7 @@ def Find_Opt_Delay_A_long(fiber_delay_mod):
     m = h.mean()
     h = h-m
 
+    np.savetxt(LOG+'fd_a_long.txt', np.abs(h))
     index = np.argmax(np.abs(h))
     print("Fiber delay of Alice: ",index, " [64 q_bins]")
     return(int(index))
@@ -714,36 +734,49 @@ def Test_delay():
 
 def fall_edge(file_path):
     data = np.loadtxt(os.path.expanduser(file_path), usecols=1)
+    # ignore the first 2000 clicks (because it seems that there are leftovers)
+    data = data[2000:]
     bins = np.arange(0, 624, 2) 
     hist, _ = np.histogram(data % 624, bins=bins)
+
+    data_for_save = np.zeros((len(hist), 2), dtype=int)
+    data_for_save[:,0] = hist
+
+    # take columns with at least 10 clicks
+    hist = hist//10
+    # delete zero points in front of rising edge
+    for i in range(len(hist)-1):
+        if hist[i] == 0:
+            if hist[i+1:i+10].any() > 0:
+                hist[i] = 1
     zeros = hist == 0
+    # get the first zero point
     d = zeros[1:]*1 - zeros[:-1]*1
     pos = np.where(d == 1)[0][0]
-    print(pos)
+
+    data_for_save[pos,1] = 1
+    np.savetxt(LOG+'fall_edge.txt', data_for_save, fmt='%d')
     return pos
 
+#    index = bins[:-1] + 1
+#    #mask = (index >= start_range) & (index <= end_range)
+#    index_filt = index[mask]
+#    amp_filt = hist[mask]
+#    lf = 724  # default
+#    for i in range(1, len(amp_filt)):
+#        if amp_filt[i] < amp_filt[i - 1]:
+#            lf = index_filt[i]
+#    return lf
 
 
+def verify_gate_double(input_file, input_file2, gate0, gate1, width, binstep=2):
+    raw1 = np.loadtxt(input_file, usecols=1) % 625
+    data1 = raw1
 
-    index = bins[:-1] + 1
-    #mask = (index >= start_range) & (index <= end_range)
-    index_filt = index[mask]
-    amp_filt = hist[mask]
-    lf = 724  # default
-    for i in range(1, len(amp_filt)):
-        if amp_filt[i] < amp_filt[i - 1]:
-            lf = index_filt[i]
-    return lf
+    raw2 = np.loadtxt(input_file2, usecols=1) % 625
+    data2 = raw2
 
-
-def verify_gate_double(input_file, input_file2, gate0, gate1, width, binstep=2, maxtime=590):
-    raw1 = np.loadtxt(input_file, usecols=1) % 1250
-    data1 = raw1[(raw1 >= 0) & (raw1 < maxtime)]
-
-    raw2 = np.loadtxt(input_file2, usecols=1) % 1250
-    data2 = raw2[(raw2 >= 0) & (raw2 < maxtime)]
-
-    bins = np.arange(0, maxtime + binstep, binstep) - 1
+    bins = np.arange(0, 625) - 1
     h1, _ = np.histogram(data1, bins=bins)
     h2, _ = np.histogram(data2, bins=bins)
     centers = bins[:-1] + binstep / 2
@@ -779,6 +812,7 @@ def verify_gate_double(input_file, input_file2, gate0, gate1, width, binstep=2, 
     plt.axvline(gate1, color='purple', linestyle='--', label='Gate1')
     plt.axvline(gate1 + width, color='purple', linestyle='--')
     plt.ylim(0)
+    plt.xlim(0)
     plt.xlabel("Time bin (ns)")
     plt.ylabel("Counts")
     plt.legend()
@@ -904,18 +938,18 @@ def init_sync():
     Sync_Ltc()
 
 def init_fda():
-    Write_To_Fake_Rng(gen_seq.seq_rng_zeros())
-    d = get_default()
-    t = get_tmp()
-    t['angle0'] = d['angle0']
-    t['angle1'] = d['angle1']
-    t['angle2'] = d['angle2']
-    t['angle3'] = d['angle3']
-    t['pm_shift'] = d['pm_shift']
-    t['pm_mode'] = 'off'
-    save_tmp(t)
-    Update_Angles()
-    Update_Dac()
+    #Write_To_Fake_Rng(gen_seq.seq_rng_zeros())
+    #d = get_default()
+    #t = get_tmp()
+    #t['angle0'] = d['angle0']
+    #t['angle1'] = d['angle1']
+    #t['angle2'] = d['angle2']
+    #t['angle3'] = d['angle3']
+    #t['pm_shift'] = d['pm_shift']
+    #t['pm_mode'] = 'off'
+    #save_tmp(t)
+    #Update_Angles()
+    #Update_Dac()
     Config_Fda()
 
 
@@ -929,109 +963,59 @@ def init_jic():
     Config_Jic()
 
 def init_tdc():
-    d = get_default()
-    t = get_tmp()
-    t['gate_delay'] = d['gate_delay']
-    t['soft_gate0'] = d['soft_gate0']
-    t['soft_gate1'] = d['soft_gate1']
-    t['soft_gatew'] = d['soft_gatew']
-    t['t0'] = d['t0']
-    t['spd_deadtime'] = d['deadtime_cont']
-    save_tmp(t)
-    Update_Softgate()
+    #d = get_default()
+    #t = get_tmp()
+    #t['gate_delay'] = d['gate_delay']
+    #t['soft_gate0'] = d['soft_gate0']
+    #t['soft_gate1'] = d['soft_gate1']
+    #t['soft_gatew'] = d['soft_gatew']
+    #t['t0'] = d['t0']
+    #t['spd_deadtime'] = d['deadtime_cont']
+    #save_tmp(t)
+    #Update_Softgate()
     Time_Calib_Init()
-    aurea = Aurea()
-    aurea.deadtime(t['spd_deadtime'])
-    aurea.mode("continuous")
-    aurea.close()
+    #aurea = Aurea()
+    #aurea.deadtime(t['spd_deadtime'])
+    #aurea.mode("continuous")
+    #aurea.close()
 
 def init_ttl():
     ttl_reset()
-    t = get_tmp()
-    t['gate_delayf0'] = 0
-    t['gate_delayf1'] = 0
-    t['gate_delayf2'] = 0
-    #d = get_default()
-    #t['gate_delay'] = d['gate_delay']
-    save_tmp(t)
+    with open(HW_CONTROL+'config/delayf.txt', 'w') as f:
+        f.write('0\n0\n0\n')
     Gen_Gate()
 
 def init_ddr():
     Ddr_Data_Init()
 
-def init_apply_default():
-    d = get_default()
-    t = get_tmp()
-    t['pm_shift'] = d['pm_shift']
-    t['angle0'] = d['angle0']
-    t['angle1'] = d['angle1']
-    t['angle2'] = d['angle2']
-    t['angle3'] = d['angle3']
-    t['gate_delay'] = d['gate_delay']
-    t['soft_gate0'] = d['soft_gate0']
-    t['soft_gate1'] = d['soft_gate1']
-    t['soft_gatew'] = d['soft_gatew']
-    t['w1'] = d['w1']
-    t['w0'] = d['w0']
-    t['t0'] = d['t0']
-    t['deadtime_cont'] = d['deadtime_cont']
-    t['deadtime_gated'] = d['deadtime_gated']
-    t['fiber_delay'] = d['fiber_delay']
-    t['fiber_delay_long'] = d['fiber_delay_long']
-    t['fiber_delay_mod'] = d['fiber_delay']%32
-    t['zero_pos'] = d['zero_pos']
-    save_tmp(t)
+def init_hw():
+    init_ltc()
+    init_sync()
+    init_fda()
+    init_sda()
+    init_jic()
+    init_tdc()
+    init_ttl()
+
+def apply_config():
     Update_Dac()
     Update_Angles()
     Update_Softgate()
+    #init_tdc()
+    #init_ttl()
     Gen_Gate()
+    update_spd()
 
-
-
-def init_rst_default():
-    default_file = HW_CONTROL+'config/default.txt'
-    if os.path.exists(default_file):
-        return
-
-    d = {}
-    d['pm_shift'] = 320
-    d['angle0'] = 0
-    d['angle1'] = 0.18
-    d['angle2'] = -0.18
-    d['angle3'] = 0.36
-    d['gate_delay'] = 6000
-    d['soft_gate0'] = 28
-    d['soft_gate1'] = 542
-    d['soft_gatew'] = 40
-    d['w1'] = 40
-    d['w0'] = 40
-    d['t0'] = 0
-    d['deadtime_cont'] = 20
-    d['deadtime_gated'] = 15
-    d['fiber_delay_mod'] = 0
-    d['fiber_delay_long'] = 0
-    d['fiber_delay'] = 0
-    d['zero_pos'] = 14
-    save_default(d)
-
-def init_rst_tmp():
-    tmp_file = HW_CONTROL+'config/tmp.txt'
-    if os.path.exists(tmp_file):
-        return
-
+def rst_config():
     t = {}
+    t['angle0'] = 0
+    t['angle1'] = 0.18
+    t['angle2'] = -0.18
+    t['angle3'] = 0.36
     t['pm_mode'] = 'off'
     t['pm_shift'] = 0
     t['feedback'] = 'off'
-    t['insert_zeros'] = 'off'
-    t['angle0'] = 0
-    t['angle1'] = 0
-    t['angle2'] = 0
-    t['angle3'] = 0
     t['first_peak'] = 0
-    t['gate_delayf0'] = 0
-    t['gate_delayf1'] = 0
-    t['gate_delayf2'] = 0
     t['spd_mode'] = 'continuous'
     t['spd_eff'] = 20
     t['deadtime_cont'] = 20
@@ -1040,32 +1024,35 @@ def init_rst_tmp():
     t['pol1'] = 2.5
     t['pol2'] = 2.5
     t['pol3'] = 2.5
-    t['gate_delay0'] = 0
-    t['gate_delay'] = 0
+    t['gate_delay'] = 6000
     t['soft_gate'] = 'off'
-    t['soft_gate0'] = 0
-    t['soft_gate1'] = 0
-    t['soft_gatew'] = 0
-    t['w1'] = 0
-    t['w0'] = 0
+    t['soft_gate0'] = 28
+    t['soft_gate1'] = 542
+    t['soft_gatew'] = 40
+    t['w1'] = 40
+    t['w0'] = 40
     t['t0'] = 0
     t['fiber_delay_mod'] = 0
     t['fiber_delay_long'] = 0
     t['fiber_delay'] = 0
-    t['zero_pos'] = 14
+    t['insert_zeros'] = 'off'
+    t['zero_pos'] = 0
     save_tmp(t)
 
-def init_all():
-    init_rst_tmp()
-    init_rst_default()
-    init_apply_default()
-    init_ltc()
-    init_sync()
-    init_fda()
-    init_sda()
-    init_jic()
-    init_tdc()
-    init_ttl()
+def clean_config():
+    rst_config()
+    apply_config()
+
+def save_config(filename):
+    t = get_tmp()
+    save_calibrated(t, filename)
+
+def load_config(filename):
+    c = get_calibrated(filename)
+    save_tmp(c)
+    init_hw()
+    apply_config()
+
 
 
 

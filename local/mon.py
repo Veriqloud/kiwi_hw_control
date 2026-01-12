@@ -262,6 +262,7 @@ parser.add_argument("--status", action="store_true", help="print status")
 parser.add_argument("--counts", action="store_true", help="counts per 0.1s")
 parser.add_argument("--gates", action="store_true", help="plot gates")
 parser.add_argument("--link", action="store_true", help="get link status")
+parser.add_argument("--calfigures", action="store_true", help="plot calibration figures")
 
 args = parser.parse_args()
 
@@ -362,6 +363,57 @@ elif args.gates:
         fig.canvas.flush_events()
         time.sleep(0.1)
 
+elif args.calfigures:
+    fig, ax = plt.subplots(2, 2)
+
+    # falling edge
+    sendc(bob, 'get_calfigures')
+    m = rcv_data(bob)
+    data = pickle.loads(m)
+    ax[0,0].set_title("falling edge detection")
+    ax[0,0].plot(data[:,0])
+    edge = np.where(data[:,1]==1)
+    ax[0,0].vlines(edge, 0, data.max(), color='green')
+    ax[0,0].set_ylim(0)
+    ax[0,0].set_xlim(0)
+    
+    # find_sp 
+    m = rcv_data(bob)
+    data = pickle.loads(m)
+    ax[0,1].set_title("find single peak")
+    ax[0,1].plot(data[:,0], data[:,1])
+    edge = data[:,0][np.where(data[:,2]==1)]
+    ax[0,1].vlines(edge, 0, data[:,1].max(), color='green')
+    ax[0,1].set_ylim(0)
+    ax[0,1].set_xlim(0)
+    
+    # fd_
+    m = rcv_data(bob)
+    data = pickle.loads(m)
+    
+    ax[1,0].set_title("find delay")
+    ax[1,0].plot(data, '-x', label='Bob')
+    m = rcv_data(bob)
+    data = pickle.loads(m)
+    ax[1,0].plot(data, '-+', label='Alice')
+    ax[1,0].set_ylim(0)
+    ax[1,0].set_xlim(0)
+    ax[1,0].legend()
+    
+    # fd__long
+    m = rcv_data(bob)
+    data = pickle.loads(m)
+    ax[1,1].set_title("find delay long")
+    ax[1,1].plot(data, '-x', label='Bob')
+    m = rcv_data(bob)
+    data = pickle.loads(m)
+    ax[1,1].plot(data, '-+', label='Alice')
+    ax[1,1].set_ylim(0)
+    ax[1,1].set_xlim(0)
+    #ax2[1].legend()
+
+    plt.show()
+
 
 elif args.status:
     firstrun = True
@@ -445,9 +497,9 @@ elif args.status:
 
         # hw components
         #if (count%100 == 0):
-        ltc_alice, ltc_bob = check_chip_status('get_ltc_info')
-        sda_alice, sda_bob = check_chip_status('get_sda_info')
-        fda_alice, fda_bob = check_chip_status('get_fda_info')
+        #ltc_alice, ltc_bob = check_chip_status('get_ltc_info')
+        #sda_alice, sda_bob = check_chip_status('get_sda_info')
+        #fda_alice, fda_bob = check_chip_status('get_fda_info')
 
         # wrs ip status
         wrs_ip_status_alice, wrs_ip_status_bob = get_wrs_ip_status()
@@ -467,9 +519,9 @@ elif args.status:
                 #["slow dac", sda_alice, sda_bob, "update in "+str(100-count%100)],
                 #["fast dac", fda_alice, fda_bob, "update in "+str(100-count%100)],
                 ["xilinx pci", xilinx_alice, xilinx_bob, ],
-                ["clock chip", ltc_alice, ltc_bob, ],
-                ["slow dac", sda_alice, sda_bob, ],
-                ["fast dac", fda_alice, fda_bob, ],
+                #["clock chip", ltc_alice, ltc_bob, ],
+                #["slow dac", sda_alice, sda_bob, ],
+                #["fast dac", fda_alice, fda_bob, ],
                 ]
         table2 = [
                 ["initial counts (1/0.1s)", first_total, first_click0, first_click1],

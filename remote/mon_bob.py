@@ -14,6 +14,7 @@ from pathlib import Path
 import ctl_bob as ctl
 
 HW_CONTROL = '/home/vq-user/hw_control/'
+LOG = '/home/vq-user/log/calibration/'
 
 qlinepath = '/home/vq-user/'
 
@@ -122,6 +123,38 @@ def handle_client(conn, addr):
                 for i in range(3):
                     send_i(conn, c[i])
             
+            elif command == 'get_calfigures':
+
+                # falling edge
+                data = np.loadtxt(LOG+'fall_edge.txt')
+                serialized = pickle.dumps(data)
+                send_data(conn, serialized)
+                
+                # find_sp
+                data = np.loadtxt(LOG+'find_sp.txt')
+                serialized = pickle.dumps(data)
+                send_data(conn, serialized)
+                
+                # fd_b
+                data = np.loadtxt(LOG+'fd_b.txt')
+                serialized = pickle.dumps(data)
+                send_data(conn, serialized)
+                
+                # fd_a
+                data = np.loadtxt(LOG+'fd_a.txt')
+                serialized = pickle.dumps(data)
+                send_data(conn, serialized)
+
+                # fd_b_long
+                data = np.loadtxt(LOG+'fd_b_long.txt')
+                serialized = pickle.dumps(data)
+                send_data(conn, serialized)
+                
+                # fd_a_long
+                data = np.loadtxt(LOG+'fd_a_long.txt')
+                serialized = pickle.dumps(data)
+                send_data(conn, serialized)
+
             elif command == 'get_gates':
                 #ctl.Download_Time(10000, 'get_gates')
                 #input_file = HW_CONTROL+'data/tdc/get_gates.txt'

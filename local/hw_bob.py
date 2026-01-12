@@ -105,15 +105,17 @@ def init(args):
         sendc("init_tdc")
     elif args.ttl:
         sendc("init_ttl")
-
     elif args.all:
         sendc("init_all")
-    elif args.rst_default:
-        sendc("init_rst_default")
-    elif args.rst_tmp:
-        sendc("init_rst_tmp")
-    elif args.apply_default:
-        sendc("init_apply_default")
+    elif args.clean:
+        sendc("init_clean")
+    elif args.save:
+        sendc("init_save")
+        sendc(args.save)
+    elif args.load:
+        sendc("init_load")
+        sendc(args.load)
+        print(rcvc())
 
 def set(args):
     if args.pm_mode:
@@ -156,6 +158,9 @@ def set(args):
     elif args.spd_eff:
         sendc('set_spd_eff')
         send_i(int(args.spd_eff))
+    elif args.spd_delay is not None:
+        sendc('set_spd_delay')
+        send_i(int(args.spd_delay))
     elif args.pol_bias:
         sendc('set_pol_bias')
         for i in range(4):
@@ -207,6 +212,7 @@ def get(args):
         plt.figure()
         bins = np.arange(0,625, 2)
         plt.plot(bins[:-1], h)
+        plt.ylim(0)
         plt.show()
     
     elif args.ltc:
@@ -253,12 +259,15 @@ parser_init.add_argument("--sync", action="store_true",
                          help="sync to PPS")
 parser_init.add_argument("--ttl", action="store_true", 
                          help="delay module for the SPD gate")
-parser_init.add_argument("--rst_default", action="store_true", 
-                         help="reset default parameters in config/default.txt")
-parser_init.add_argument("--rst_tmp", action="store_true", 
-                         help="reset tmp file in config/default.txt")
-parser_init.add_argument("--apply_default", action="store_true", 
-                         help="apply values from config/default.txt")
+
+parser_init.add_argument("--clean", action="store_true", 
+                         help="reset to default config parameters")
+parser_init.add_argument("--save", type=str, metavar="filemane", 
+                         help="save current system config")
+parser_init.add_argument("--load", type=str, metavar="filename", 
+                         help="load saved system config")
+
+
 parser_init.add_argument("--ddr", action="store_true", 
                          help="init ddr data")
 

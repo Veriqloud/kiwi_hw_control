@@ -1,7 +1,7 @@
 #!/bin/python
 
 from termcolor import colored
-import socket
+import socket, os
 #import numpy as np
 import json
 import datetime
@@ -132,14 +132,21 @@ while True:
             elif command == 'init_ttl':
                 ctl.init_ttl()
             elif command == 'init_all':
-                ctl.init_all()
-            elif command == 'init_rst_default':
-                ctl.init_rst_default()
-            elif command == 'init_rst_tmp':
-                ctl.init_rst_tmp()
-            elif command == 'init_apply_default':
-                ctl.init_apply_default()
-            
+                ctl.init_hw()
+
+            elif command == 'init_clean':
+                ctl.clean_config()
+            elif command == 'init_save':
+                filename = rcvc()
+                ctl.save_config(filename)
+            elif command == 'init_load':
+                filename = rcvc()
+                if os.path.isfile("/home/vq-user/config/calibration/"+filename):
+                    ctl.load_config(filename)
+                    sendc("ok")
+                else:
+                    sendc("config file does not exist")
+
             elif command == 'set_pm_mode':
                 pm_mode = rcvc()
                 update_tmp('pm_mode', pm_mode)
@@ -222,11 +229,14 @@ while True:
                 update_tmp('deadtime_gated', deadtime)
             elif command == 'set_spd_eff':
                 eff = rcv_i()
-                #print("opening SPD...")
                 aurea = ctl.Aurea()
                 aurea.effi(eff)
                 aurea.close()
                 update_tmp('spd_eff', eff)
+            elif command == 'set_spd_delay':
+                delay = rcv_i()
+                update_tmp('gate_delay', delay)
+                ctl.Gen_Gate()
             elif command == 'set_pol_bias':
                 t = get_tmp()
                 t['pol0'] = rcv_d()
@@ -330,6 +340,9 @@ while True:
             elif not command:
                 print(f"[hw_bob] {datetime.datetime.now()}\tClient disconnected.")
                 break  # Exit loop if the client closes the connection
+            
+            else:
+                print(f"[hw_bob] error: received unknown command from local")
 
 
     except KeyboardInterrupt:

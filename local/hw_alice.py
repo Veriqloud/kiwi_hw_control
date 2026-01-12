@@ -90,12 +90,16 @@ def init(args):
         sendc("decoy_reset")
     elif args.all:
         sendc("init_all")
-    elif args.rst_default:
-        sendc("init_rst_default")
-    elif args.rst_tmp:
-        sendc("init_rst_tmp")
-    elif args.apply_default:
-        sendc("init_apply_default")
+    elif args.clean:
+        sendc("init_clean")
+    elif args.save:
+        sendc("init_save")
+        sendc(args.save)
+    elif args.load:
+        sendc("init_load")
+        sendc(args.load)
+        print(rcvc())
+
 
 def set(args):
     if args.vca is not None:
@@ -104,9 +108,9 @@ def set(args):
     elif args.am_bias is not None:
         sendc("set_am_bias")
         send_d(args.am_bias)
-    elif args.am_bias_2 is not None:
-        sendc("set_am_bias_2")
-        send_d(args.am_bias_2)
+    elif args.am2_bias is not None:
+        sendc("set_am2_bias")
+        send_d(args.am2_bias)
     elif args.qdistance is not None:
         sendc("set_qdistance")
         send_d(args.qdistance)
@@ -197,21 +201,21 @@ parser_init.add_argument("--decoy", action="store_true",
                          help="reset decoy module")
 parser_init.add_argument("--sync", action="store_true", 
                          help="sync to PPS")
-parser_init.add_argument("--rst_default", action="store_true", 
-                         help="reset default parameters in config/default.txt")
-parser_init.add_argument("--rst_tmp", action="store_true", 
-                         help="reset tmp file in config/default.txt")
-parser_init.add_argument("--apply_default", action="store_true", 
-                         help="apply values from config/default.txt")
-#    parser_init.add_argument("--ddr", action="store_true", 
-#                             help="init ddr data")
+
+parser_init.add_argument("--clean", action="store_true", 
+                         help="reset to default config parameters")
+parser_init.add_argument("--save", type=str, metavar="filemane", 
+                         help="save current system config")
+parser_init.add_argument("--load", type=str, metavar="filename", 
+                         help="load saved system config")
+
 
 
 parser_set.add_argument("--vca", type=float, metavar=("voltage"), 
                         help="voltage controlled attenuator; float [0,5] V")
 parser_set.add_argument("--am_bias", type=float, metavar=("voltage"), 
                         help="bias of amplitude modulator; float [-10,10] V")
-parser_set.add_argument("--am_bias_2", type=float, metavar=("voltage"), 
+parser_set.add_argument("--am2_bias", type=float, metavar=("voltage"), 
                         help="bias of amplitude modulator; float [0,10] V")
 parser_set.add_argument("--am_mode", choices=['off', 'single', 'double', 'single64'],
                         help="send single pulse at 40MHz or double pulse at 80MHz or single64 at 80MHz/64")

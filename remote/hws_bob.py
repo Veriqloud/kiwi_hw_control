@@ -1,11 +1,11 @@
 #!/bin/python
 
-import socket, json, time, os, struct, datetime
+import socket, json, time, os, struct, datetime, os
 #import numpy as np
 import ctl_bob as ctl
 import lib.gen_seq as gen_seq
 
-from lib.fpga import get_tmp, save_tmp, update_tmp, update_default, Set_t0, get_default, Sync_Gc, get_gc
+from lib.fpga import get_tmp, save_tmp, update_tmp, Set_t0, Sync_Gc, get_gc
 from termcolor import colored
 
 from pathlib import Path
@@ -129,10 +129,26 @@ while True:
 
 
             if command == 'init':
-                ctl.init_all()
+                ctl.init_hw()
+                ctl.apply_config()
                 rcvc()
                 sendc('Alice and Bob init done')    
                 print(colored('Alice and Bob init done \n', 'cyan', force_color=True))
+
+            elif command == 'clean':
+                ctl.clean_config()
+            
+            elif command == 'save':
+                filename = rcvc()
+                ctl.save_config(filename)
+            
+            elif command == 'load':
+                filename = rcvc()
+                if not os.path.isfile("/home/vq-user/config/calibration/"+filename):
+                    sendc('error')
+                else:
+                    ctl.load_config(filename)
+                    sendc('ok')
 
 
             elif command == 'sync_gc':
@@ -147,11 +163,15 @@ while True:
             elif command == 'config_laser':
                 print(colored('doing nothing', 'cyan', force_color=True))
 
-
+            elif command == 'free_running':
+                ctl.Ensure_Spd_Mode('continuous')
+                update_tmp('soft_gate', 'off')
+                ctl.Update_Softgate()
+                sendc('ok')
 
             elif command == 'vca_per':
                 print(colored('vca_per', 'cyan'))
-                ctl.Ensure_Spd_Mode('continuous')
+                #ctl.Ensure_Spd_Mode('continuous')
                 while rcvc() == 'get counts':
                     count = ctl.counts_fast()[0]
                     send_i(count)
@@ -182,22 +202,22 @@ while True:
 
 
             elif command == 'find_vca':
-                print(colored('find_vca', 'cyan', force_color=True))
-                ctl.Ensure_Spd_Mode('continuous')
+                #print(colored('find_vca', 'cyan', force_color=True))
+                #ctl.Ensure_Spd_Mode('continuous')
                 while rcvc() == 'get counts':
                     count = ctl.counts_fast()[0]
                     send_i(count)
 
 
             elif command == 'find_am_bias':
-                print(colored('find_am_bias', 'cyan', force_color=True))
+                #print(colored('find_am_bias', 'cyan', force_color=True))
                 while rcvc() == 'get counts':
                     time.sleep(0.2)
                     count = ctl.counts_fast()[0]
                     send_i(count)
 
             elif command == 'find_am2_bias':
-                print(colored('find_am_bias_2', 'cyan', force_color=True))
+                #print(colored('find_am2_bias', 'cyan', force_color=True))
                 for i in range(21):
                     rcvc()
                     time.sleep(0.2)
@@ -208,7 +228,7 @@ while True:
 
 
             elif command == 'verify_am_bias':
-                print(colored('verify_am_bias', 'cyan', force_color=True))
+                #print(colored('verify_am_bias', 'cyan', force_color=True))
                 for i in range(2):
                     rcvc()
                     time.sleep(0.2)
@@ -227,6 +247,7 @@ while True:
                 print(colored('ad', 'cyan', force_color=True))
                 update_tmp('soft_gate', 'off')
                 update_tmp('gate_delay', 0)
+                #update_tmp('t0', 10)
                 ctl.Gen_Gate()
                 ctl.Update_Softgate()
                 ctl.Ensure_Spd_Mode('gated')
@@ -234,47 +255,12 @@ while True:
                 ctl.Download_Time(10000, 'verify_gate_ad_0')
                 file_off = HW_CONTROL+"data/tdc/verify_gate_ad_0.txt"
 
-                #max_iter = 2
-                #iter_count = 0
-                    
-
                 lf = ctl.fall_edge(file_off)
-                target = (65-lf) % 312
+                target = (70-lf) % 312
                 target = (target - 10) % 312
                 update_tmp('gate_delay', target*40)
                 ctl.Gen_Gate()
                 sendc('done')
-
-                #while True:
-                #    lf = ctl.fall_edge(file_off, 200, 900)
-               ##     print("Last falling edge off between 200 and 900:", lf)
-
-                #    if abs(lf - 725) <= 2 or iter_count >= max_iter:
-                #        break
-
-                #    d = get_tmp()
-                #    tmp_delay0=d['gate_delay0']
-                ##    print("gate_delay0 =", tmp_delay0)
-                #    tmp_delay=d['gate_delay']
-                # #   print("tmp_delay =", tmp_delay)
-                #    if lf > 725:
-                #        ad = tmp_delay - ((lf - 725) * 20)
-                #    else:
-                #        ad = tmp_delay + ((725 - lf) * 20)
-
-                #    ad = abs(ad)
-                #    ad = 5000 if ad > 12500 else ad
-
-                #    update_tmp('gate_delay', ad)
-                #    update_tmp('gate_delay0', ad)
-                #    ctl.Gen_Gate()
-                #    iter_count += 1
-                #    ctl.Download_Time(10000, 'verify_gate_ad_'+str(iter_count))
-                #    file_off = HW_CONTROL+"data/tdc/verify_gate_ad_"+str(iter_count)+".txt"
-                #sendc('done')
-                #ctl.Ensure_Spd_Mode('continuous')
-                #sendc('ok')
-                #time.sleep(0.2)
 
 
             elif command == 'find_sp':
@@ -284,22 +270,24 @@ while True:
                 t['soft_gate'] = 'off'
                 save_tmp(t)
                 ctl.Update_Softgate()
+                ctl.Gen_Gate()
 
                 # detection single pulse at shift_am 0
                 print("measure and search single peak")
                 shift_am, t0  = ctl.Measure_Sp(20000)
-                Set_t0(10+t0)
+                #Set_t0(10+t0)
                 update_tmp('t0', 10+t0)
-                d = get_tmp()
-                update_tmp('gate_delay', (d['gate_delay0']-t0*20) % 12500)
+                #t = get_tmp()
+
+                #update_tmp('gate_delay', (t['gate_delay']-t0*20) % 12500)
                 ctl.Gen_Gate()
                 
                 # send back shift_am value to alice
                 send_i(shift_am)
 
                 # detect single64 pulse and send to Alice
-                update_tmp('soft_gate', 'on')
-                ctl.Update_Softgate()
+                #update_tmp('soft_gate', 'on')
+                #ctl.Update_Softgate()
                 print("measure sp64")
                 coarse_shift = ctl.Measure_Sp64()
                 send_i(coarse_shift)
@@ -320,23 +308,24 @@ while True:
                 gate1=t['soft_gate1']
                 width=t['soft_gatew']
                 binstep = 2
-                maxtime = gate1 + width
+                #maxtime = gate1 + width
                 input_file = HW_CONTROL+'data/tdc/verify_gate_double.txt'
                 input_file2 = HW_CONTROL+'data/tdc/verify_gate_off.txt'
-                status, peak0_x, peak1_x = ctl.verify_gate_double(input_file, input_file2, gate0, gate1, width, binstep, maxtime)
+                status, peak0_x, peak1_x = ctl.verify_gate_double(input_file, input_file2, gate0, gate1, width, binstep)
                 print(status, peak0_x, peak1_x)
-                if status == "success":
-                    w0 = 30
-                    w1 = 30
-                    pic0 = int(round(peak0_x - (w0 / 2)))
-                    pic1 = int(round(peak1_x - (w1 / 2)))
+                #if status == "success":
+                w0 = 30
+                w1 = 30
+                pic0 = max(int(round(peak0_x - (w0 / 2))), 0)
+                pic1 = max(int(round(peak1_x - (w1 / 2))), 0)
 
-                    ctl.set_Softgate(pic0, pic1, w0, w1)
-                    t['soft_gate0'] = pic0
-                    t['soft_gate1'] = pic1
-                    t['w0'] = w0
-                    t['w1'] = w1
-                    save_tmp(t)
+                ctl.set_Softgate(pic0, pic1, w0, w1)
+                t['soft_gate0'] = pic0
+                t['soft_gate1'] = pic1
+                t['w0'] = w0
+                t['w1'] = w1
+                save_tmp(t)
+                ctl.Update_Softgate()
 
                 pic = HW_CONTROL+"data/calib_res/gate_double.png"
                 with open(pic, 'rb') as f:
@@ -354,8 +343,7 @@ while True:
                 t['soft_gate'] = 'on'
                 save_tmp(t)
                 ctl.Update_Softgate()
-                d = get_default()
-                pm_shift_coarse = (d['pm_shift']//10) * 10
+                pm_shift_coarse = (t['pm_shift']//10) * 10
                 for s in range(10):
                     t['pm_shift'] = pm_shift_coarse + s
                     save_tmp(t)
@@ -432,7 +420,7 @@ while True:
                 ctl.Ensure_Spd_Mode('gated')
                 zero_pos = ctl.Find_Zero_Pos_B_new()
                 update_tmp('zero_pos', zero_pos)
-                update_default('zero_pos', zero_pos)
+                #update_default('zero_pos', zero_pos)
                 ctl.Update_Dac()
                 sendc('ok')
             
@@ -550,8 +538,7 @@ while True:
                 ctl.Update_Dac()
                 time.sleep(0.3)
 
-                d = get_default()
-                g0, g1, w0, w1 = d['soft_gate0'], d['soft_gate1'], d['w0'], d['w1']
+                g0, g1, w0, w1 = t['soft_gate0'], t['soft_gate1'], t['w0'], t['w1']
 
                 print(f"Initial values: g0={g0}, g1={g1}, w0={w0}, w1={w1}")
 
@@ -674,6 +661,7 @@ while True:
 
             elif command == 'start':
                 print(colored('start', 'cyan', force_color=True))
+                t = get_tmp()
                 t['pm_mode'] = 'true_rng'
                 t['insert_zeros'] = 'on'
                 t['feedback'] = 'on'
@@ -685,6 +673,10 @@ while True:
                 print("Client disconnected.")
                 break  # Exit loop if the client closes the connection
         
+            else:
+                print(f"[hws_bob] error: received unknown command from Alice")
+
+
             clear_flag_calibrating()
 
 
