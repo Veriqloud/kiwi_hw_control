@@ -497,9 +497,9 @@ elif args.status:
 
         # hw components
         #if (count%100 == 0):
-        ltc_alice, ltc_bob = check_chip_status('get_ltc_info')
-        sda_alice, sda_bob = check_chip_status('get_sda_info')
-        fda_alice, fda_bob = check_chip_status('get_fda_info')
+        #ltc_alice, ltc_bob = check_chip_status('get_ltc_info')
+        #sda_alice, sda_bob = check_chip_status('get_sda_info')
+        #fda_alice, fda_bob = check_chip_status('get_fda_info')
 
         # wrs ip status
         wrs_ip_status_alice, wrs_ip_status_bob = get_wrs_ip_status()
@@ -519,9 +519,9 @@ elif args.status:
                 #["slow dac", sda_alice, sda_bob, "update in "+str(100-count%100)],
                 #["fast dac", fda_alice, fda_bob, "update in "+str(100-count%100)],
                 ["xilinx pci", xilinx_alice, xilinx_bob, ],
-                ["clock chip", ltc_alice, ltc_bob, ],
-                ["slow dac", sda_alice, sda_bob, ],
-                ["fast dac", fda_alice, fda_bob, ],
+                #["clock chip", ltc_alice, ltc_bob, ],
+                #["slow dac", sda_alice, sda_bob, ],
+                #["fast dac", fda_alice, fda_bob, ],
                 ]
         table2 = [
                 ["initial counts (1/0.1s)", first_total, first_click0, first_click1],
