@@ -40,6 +40,9 @@ class TailHandler(FileSystemEventHandler):
         for i in range(len(self.files)):
             if event.src_path == self.files[i]:
                 s = self.fps[i].read()
+                # sometimes the file is read twice and the string is empty
+                if s=="":
+                    return 
                 try:
                     self.sendstring(i, s)
                 except (BrokenPipeError, ConnectionAbortedError):
@@ -63,6 +66,7 @@ class TailHandler(FileSystemEventHandler):
 
     def sendstring(self, fileindex, s):
         # format: 4 bytes length of message + 1 byte fileindex + message
+        print("sending", s)
         b = s.encode()
         m = len(b).to_bytes(4, 'little') + fileindex.to_bytes(1, 'little')  + b
         self.conn.sendall(m)
