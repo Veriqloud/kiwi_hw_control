@@ -14,7 +14,7 @@ logging.basicConfig(
 )
 logger.info("Start program")
 
-FILE_NAMES = ['hw.log', 'hws.log']
+FILE_NAMES = ['hw.log', 'hws.log', 'mon.log', 'hwi.log', 'gc.log', 'node.log', 'kms.log']
 
 
 # event handler to read log files upon filesystem change
@@ -26,11 +26,14 @@ class TailHandler(FileSystemEventHandler):
         for file in FILE_NAMES:
             self.files.append(os.path.join(path, file))
         self.fps = []
+        self.fsize = []
         for file in self.files:
             try:
+                size = os.path.getsize(file)
                 fp = open(file)
                 fp.seek(0,2)
                 self.fps.append(fp)
+                self.fsize.append(size)
             except FileNotFoundError:
                 logger.warning(file+' does not exist')
                 self.fps.append(None)
@@ -39,6 +42,11 @@ class TailHandler(FileSystemEventHandler):
     def on_modified(self, event):
         for i in range(len(self.files)):
             if event.src_path == self.files[i]:
+                # in case of truncation, read the entire file
+                size = os.path.getsize(self.files[i])
+                if size <= self.fsize[i]:
+                    self.fps[i].seek(0)
+                self.fsize[i]=size
                 s = self.fps[i].read()
                 # sometimes the file is read twice and the string is empty
                 if s=="":
@@ -66,7 +74,6 @@ class TailHandler(FileSystemEventHandler):
 
     def sendstring(self, fileindex, s):
         # format: 4 bytes length of message + 1 byte fileindex + message
-        print("sending", s)
         b = s.encode()
         m = len(b).to_bytes(4, 'little') + fileindex.to_bytes(1, 'little')  + b
         self.conn.sendall(m)
