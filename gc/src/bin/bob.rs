@@ -11,6 +11,7 @@ use std::fs::OpenOptions;
 use std::io::prelude::*;
 use std::net::{TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
+use std::time::{Instant};
 
 use gc::hw::BATCHSIZE;
 
@@ -105,9 +106,21 @@ fn send_gc(alice: &mut TcpStream) -> std::io::Result<()> {
             //return Err(std::io::Error::other(error)
         //}
         //println!("read_length {:?}; num_clicks {:?}; time_ms {:?}", read_length, num_clicks, time_ms);
+        let now = Instant::now();
         write_gc_to_alice(gc, alice, num_clicks)?;
+        let elapsed_time = now.elapsed();
+        let ms = elapsed_time.as_millis();
+        if ms > 10 {
+            tracing::warn!("[gc-bob] took {:?} ms to send gc to Alice" , ms);
+        }
+        let now = Instant::now();
         write_gc_to_fpga(gc, &mut file_gcw, num_clicks)?;
+        let elapsed_time = now.elapsed();
+        let ms = elapsed_time.as_millis();
         file_result.write_all(&result[..num_clicks])?;
+        if ms > 10 {
+            tracing::warn!("[gc-bob] took {:?} ms to write gc to fpga and r to fifo" , ms);
+        }
         match option_file_gcuser.as_mut(){
             Some(file_gcuser) => {
                 write_gc_to_user(gc, file_gcuser, num_clicks)?;

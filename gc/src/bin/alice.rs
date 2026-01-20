@@ -14,6 +14,7 @@ use std::str::FromStr;
 use std::{thread, time};
 use tracing_subscriber::fmt::writer::MakeWriterExt;
 use uuid::Uuid;
+use std::time::{Instant};
 
 use std::sync::Mutex;
 
@@ -54,7 +55,13 @@ fn recv_gc(bob: &mut TcpStream) -> std::io::Result<()> {
 
 
     while *RUNNING.lock().unwrap() {
+        let now = Instant::now();
         let (gc, num_clicks) = read_gc_from_bob(bob)?;
+        let elapsed_time = now.elapsed();
+        let ms = elapsed_time.as_millis();
+        if ms > 20 {
+            tracing::warn!("[gc-alice] took {:?} ms to get {:?} gcs from Bob", ms, num_clicks);
+        }
         if num_clicks == 0 {
             if CONFIG.get().unwrap().ignore_gcr_timeout {
                 continue
@@ -62,7 +69,13 @@ fn recv_gc(bob: &mut TcpStream) -> std::io::Result<()> {
                 panic!("timeout read_gc_from_bob")
             }
         } else {
+            let now = Instant::now();
             write_gc_to_fpga(gc, &mut file_gcw, num_clicks)?;
+            let elapsed_time = now.elapsed();
+            let ms = elapsed_time.as_millis();
+            if ms > 20 {
+                tracing::warn!("[gc-alice] took {:?} ms to write gc to fpga", ms);
+            }
         }
     }
     Ok(())
