@@ -25,15 +25,15 @@ class TailHandler(FileSystemEventHandler):
         self.files = []
         for file in FILE_NAMES:
             self.files.append(os.path.join(path, file))
-        self.fps = []
-        self.fsize = []
-        for file in self.files:
+        self.fps = [None]*len(FILE_NAMES)
+        self.fsize = [0]*len(FILE_NAMES)
+        for i,file in enumerate(self.files):
             try:
                 size = os.path.getsize(file)
                 fp = open(file)
                 fp.seek(0,2)
-                self.fps.append(fp)
-                self.fsize.append(size)
+                self.fps[i] = fp
+                self.fsize[i] = size
             except FileNotFoundError:
                 logger.warning(file+' does not exist')
                 self.fps.append(None)
@@ -43,6 +43,10 @@ class TailHandler(FileSystemEventHandler):
         for i in range(len(self.files)):
             if event.src_path == self.files[i]:
                 # in case of truncation, read the entire file
+                if not os.path.isfile(self.files[i]):
+                    # ignore event if the file does not exist 
+                    # this happens when the file was deleted but some process tries to write t it
+                    continue
                 size = os.path.getsize(self.files[i])
                 if size <= self.fsize[i]:
                     self.fps[i].seek(0)

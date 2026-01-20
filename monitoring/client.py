@@ -39,6 +39,8 @@ tk.Text.define_color=define_color
 # colored insert
 
 ANSI_TO_TAG = {
+    "1": "bold",
+    "2": "gray",
     "30": "black",
     "31": "red",
     "32": "green",
@@ -244,7 +246,8 @@ class Graphics():
             while True:
                 (who, tabnumber, s) = self.q.get_nowait()
                 self.attach(who, tabnumber, s)
-                if "error".casefold() in s:
+                errorpattern = re.compile(r'\berror\b(?![\s_]+(rate|correction)\b)', re.IGNORECASE)
+                if bool(errorpattern.search(s)):
                     self.haserror[who][tabnumber]=True
                     s = "error in "
                     for i in range(len(FILE_NAMES)):
