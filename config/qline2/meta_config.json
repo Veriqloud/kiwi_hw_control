@@ -14,7 +14,8 @@
         "gc": 13005,
         "qber": 13006,
         "node_alice": 13007,
-        "node_bob": 13008
+        "node_bob": 13008,
+        "showlogs": 13009
     },
     "file": {
         "gcr": "/dev/xdma0_c2h_1",

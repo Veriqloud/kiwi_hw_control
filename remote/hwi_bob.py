@@ -44,8 +44,10 @@ def main():
             logger.info("init fda...")
             ctl.init_fda()
         if get_sda_info() == 0:
-            logger.info("init sda...")
-            ctl.init_sda()
+            time.sleep(1)
+            if get_sda_info() == 0:
+                logger.info("init sda...")
+                ctl.init_sda()
         if get_jic_info() == 0:
             logger.info("init jic...")
             ctl.init_jic()

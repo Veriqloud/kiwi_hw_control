@@ -33,6 +33,7 @@ struct Port {
     qber: u16,
     node_alice: u16,
     node_bob: u16,
+    showlogs: u16,
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
@@ -91,6 +92,7 @@ pub struct Config {
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub struct Network {
+    myname: String,
     ip: Ip,
     port: Port,
 }
@@ -502,17 +504,26 @@ pub fn write_node_config(config_alice: &Config, config_bob: &Config) {
 }
 
 
-pub fn write_network(config: &Config) {
+pub fn write_network_alice(config: &Config) {
     let network = Network{
+        myname: "alice".to_string(),
         ip: config.ip.clone(),
         port: config.port.clone(),
     };
     let network_json = serde_json::to_string_pretty(&network).expect("network conf struct to json");
     std::fs::write("alice/network.json", network_json.clone()).expect("writing network alice config to file");
-    std::fs::write("bob/network.json", network_json).expect("writing network bob config to file");
 }
 
 
+pub fn write_network_bob(config: &Config) {
+    let network = Network{
+        myname: "bob".to_string(),
+        ip: config.ip.clone(),
+        port: config.port.clone(),
+    };
+    let network_json = serde_json::to_string_pretty(&network).expect("network conf struct to json");
+    std::fs::write("bob/network.json", network_json).expect("writing network bob config to file");
+}
 
 
 

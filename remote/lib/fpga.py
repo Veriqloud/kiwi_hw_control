@@ -761,7 +761,7 @@ def decoy_reset():
 #input fake rng
 def decoy_state(mode):
     #dpram_rng_max_addr
-    write(0x16000, 28, 0x40)
+    write(0x16000, 28, 0x10)
     #Write data to rng_dpram
     Base_seq0 = 0x00016000
     true_rng = 0
@@ -777,8 +777,11 @@ def decoy_state(mode):
         rngseq1 = 0x0
         true_rng = 1
     elif mode=='fake_rng':
-        rngseq0 = 0x11
-        rngseq1 = 0x11
+        # 0x33333333 = all high
+        # 0x11111111 = every second high
+        # 0x22222222 = every second high
+        rngseq0 = 0x11111111
+        rngseq1 = 0x11111111
     else:
         exit("wrong decoy state string")
     write(Base_seq0, [1024,1028], [rngseq0, rngseq1])

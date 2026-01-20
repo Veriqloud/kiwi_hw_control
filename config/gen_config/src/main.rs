@@ -55,7 +55,8 @@ fn main() {
     config::write_kms_config(&config_alice, &config_bob);
     config::write_node_config(&config_alice, &config_bob);
     
-    config::write_network(&config);
+    config::write_network_alice(&config);
+    config::write_network_bob(&config);
 
 
 

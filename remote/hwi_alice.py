@@ -44,8 +44,10 @@ def main():
             logger.info("init fda...")
             ctl.init_fda()
         if get_sda_info() == 0:
-            logger.info("init sda...")
-            ctl.init_sda()
+            time.sleep(1)
+            if get_sda_info() == 0:
+                logger.info("init sda...")
+                ctl.init_sda()
 
         # in case of reboot, init fpga regs and apply values from config
         if did_reboot():

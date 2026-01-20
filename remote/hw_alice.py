@@ -204,7 +204,7 @@ while True:
             elif command == 'set_decoy_delay':
                 delay = rcv_i()
                 update_tmp('decoy_delay',delay)
-                ctl.Gen_Decoy()
+                ctl.gen_decoy()
             
             elif command == 'get_info':
                 with open(HW_CONTROL+'config/tmp.txt') as f:
