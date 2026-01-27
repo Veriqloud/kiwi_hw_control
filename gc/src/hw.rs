@@ -123,7 +123,7 @@ fn ddr_data_reg(command: u32, gc_delay: u32, decoy_delay: u32, delay_ab: u32) {
     xdma_write(8, command, offset);
     xdma_write(16, 0, offset);
     xdma_write(20, 0, offset);
-    xdma_write(32, 100, offset); // read speed
+    xdma_write(32, 100, offset); // default value = 100; read speed 200MHz/value
     xdma_write(36, 4000, offset); // threshold full
     xdma_write(40, (de_delay << 16) | fiber_delay, offset);
     xdma_write(44, delay_ab, offset);
@@ -191,7 +191,7 @@ pub fn sync_at_pps() {
     // enable save alpha
     xdma_write(24, 0, 0x1000);
     xdma_write(24, 1, 0x1000);
-    //thread::sleep(time::Duration::from_secs(1));
+    thread::sleep(time::Duration::from_secs(1));
 
 }
 
@@ -217,7 +217,9 @@ fn gc_for_fpga(gc: u64) -> [u8; 16] {
     return buf;
 }
 
-pub const BATCHSIZE: usize = 128; // max number of clicks to process in one batch
+pub const BATCHSIZE: usize = 128; // max number of clicks to process in one batch; must be a power
+                                  // of 2
+pub const TCP_RCV_BATCHSIZE: usize = 1024; // max number of clicks to receive per TCP read on Alice
 
 // read gcr from fpga and split gc and r
 // the number of clicks read is read_length
@@ -270,6 +272,21 @@ pub fn process_gcr_stream(file: &mut File, read_length: usize) -> std::io::Resul
     Ok((gc, result, num_clicks, elapsed_time.as_millis()))
 }
 
+// decompose integer into powers of two and return as vec
+pub fn decompose_num_clicks(num_clicks: usize) -> Vec<usize>{
+    let mut num_out = Vec::new();
+    let num_full_length = num_clicks/BATCHSIZE;
+    for _i in 0..num_full_length{
+        num_out.push(BATCHSIZE);
+    }
+    for i in 0..BATCHSIZE.trailing_zeros(){
+        let num = 1<<i;
+        if num_clicks & num == num  {
+            num_out.push(num);
+        }
+    }
+    num_out
+}
 
 // write gc back to fpga
 pub fn write_gc_to_fpga(gc: [u64; BATCHSIZE], file: &mut File, num_clicks: usize) -> std::io::Result<()> {
@@ -306,9 +323,9 @@ pub fn write_gc_to_user(gc: [u64; BATCHSIZE], file: &mut File, num_clicks: usize
 
 // read gc coming from Bob
 // similar to proces_gcr_stream
-pub fn read_gc_from_bob(bob: &mut TcpStream) -> std::io::Result<([u64; BATCHSIZE], usize)> {
-    let mut buf: [u8; BATCHSIZE * 8] = [0; BATCHSIZE * 8];
-    let mut gc: [u64; BATCHSIZE] = [0; BATCHSIZE];
+pub fn read_gc_from_bob(bob: &mut TcpStream) -> std::io::Result<([u64; TCP_RCV_BATCHSIZE], usize)> {
+    let mut buf: [u8; TCP_RCV_BATCHSIZE * 8] = [0; TCP_RCV_BATCHSIZE * 8];
+    let mut gc: [u64; TCP_RCV_BATCHSIZE] = [0; TCP_RCV_BATCHSIZE];
 
     let mut len = bob.read(&mut buf)?;
 

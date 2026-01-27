@@ -3,7 +3,7 @@ use comm::gc_comms::{Request, Response};
 use comm::{read_message, write_message};
 use gc::comm::{Comm, HwControl};
 use gc::config::Configuration;
-use gc::hw::{CONFIG, init_ddr, read_gc_from_bob, sync_at_pps, wait_for_pps, write_gc_to_fpga};
+use gc::hw::{BATCHSIZE, CONFIG, decompose_num_clicks, init_ddr, read_gc_from_bob, sync_at_pps, wait_for_pps, write_gc_to_fpga};
 use std::fs::OpenOptions;
 //use std::io::Write;
 use std::net::TcpStream;
@@ -54,30 +54,44 @@ fn recv_gc(bob: &mut TcpStream) -> std::io::Result<()> {
     tracing::info!("[gc-alice] gcw file opened");
 
 
+    let mut t_loop = Instant::now();
+    let mut dt_loop_max = 0;
+    tracing::info!("[gc-alice] reading gc from Bob");
     while *RUNNING.lock().unwrap() {
         let now = Instant::now();
+        //thread::sleep(time::Duration::from_millis(20));
         let (gc, num_clicks) = read_gc_from_bob(bob)?;
-        let elapsed_time = now.elapsed();
-        let ms = elapsed_time.as_millis();
-        if ms > 20 {
-            tracing::warn!("[gc-alice] took {:?} ms to get {:?} gcs from Bob", ms, num_clicks);
+        let t_read_gc = now.elapsed().as_millis();
+        if t_read_gc > 20 {
+            tracing::warn!("[gc-alice] took {:?} ms to get {:?} gcs from Bob", t_read_gc, num_clicks);
         }
         if num_clicks == 0 {
             if CONFIG.get().unwrap().ignore_gcr_timeout {
                 continue
             } else {
-                panic!("timeout read_gc_from_bob")
+                panic!("got 0 clicks from Bob (timeout)")
             }
         } else {
-            let now = Instant::now();
-            write_gc_to_fpga(gc, &mut file_gcw, num_clicks)?;
-            let elapsed_time = now.elapsed();
-            let ms = elapsed_time.as_millis();
-            if ms > 20 {
-                tracing::warn!("[gc-alice] took {:?} ms to write gc to fpga", ms);
+            // make sure the number of written gcs is a power of 2 and less than BATCHSIZE
+            let num_clicks_array = decompose_num_clicks(num_clicks);
+            let mut pos = 0;
+            for num in num_clicks_array{
+                let mut gc_tmp = [0; BATCHSIZE];
+                gc_tmp[0..num].copy_from_slice(&gc[pos..pos+num]);
+                pos = pos + num;
+                write_gc_to_fpga(gc_tmp, &mut file_gcw, num)?;
             }
         }
+        let t2_loop = Instant::now();
+        let dt_loop = t2_loop.duration_since(t_loop).as_millis();
+        if dt_loop > dt_loop_max{
+            println!("max loop time: {:?} ms; num clicks: {:?}", dt_loop, num_clicks);
+            dt_loop_max = dt_loop;
+        }
+        t_loop = Instant::now();
+
     }
+    tracing::info!("[gc-alice] stopped reading gc from Bob");
     Ok(())
 }
 

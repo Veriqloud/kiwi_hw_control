@@ -77,16 +77,14 @@ fn send_gc(alice: &mut TcpStream) -> std::io::Result<()> {
             Some(file_gcuser)
         };
 
-    let mut i = 0;
     let mut read_length = 1;
+    let mut t_loop = Instant::now();
+    let mut dt_loop_max = 0;
     loop {
         let (gc, result, num_clicks, time_ms) = process_gcr_stream(&mut file_gcr, read_length)?;
-        if i==0 {
-            println!("read {:?} clicks on gcr stream", num_clicks);
-        }
         if !&CONFIG.get().unwrap().ignore_gcr_timeout{
             // keep read time between 6ms and 12ms
-            // 50 ms is the limit above which a reset is requrired
+            // 50 ms is the limit above which a reset is requrired (debugging...)
             if (time_ms < 6) & (read_length<BATCHSIZE/2){
                 read_length *= 2;
             } else if (time_ms > 12) & (time_ms < 20) & (read_length>1) {
@@ -95,39 +93,28 @@ fn send_gc(alice: &mut TcpStream) -> std::io::Result<()> {
                 tracing::warn!("[gc-bob] took {:?} ms to read gcr (probably unrecoverable above 50ms)", time_ms);
                 read_length = 1;
             }
-            if (time_ms >= 50) & (i>0) {
+            if time_ms >= 50 {
                 tracing::warn!("[gc-bob] took {:?} ms to read gcr (probably unrecoverable above 50ms)", time_ms);
                 let gcr_timout_error = std::io::Error::new(std::io::ErrorKind::Other, "Gcr50msTimeout");
                 return Err(gcr_timout_error)
             }
         }
-        //} else if (time_ms >= 50) {
-        //    let 
-            //return Err(std::io::Error::other(error)
-        //}
-        //println!("read_length {:?}; num_clicks {:?}; time_ms {:?}", read_length, num_clicks, time_ms);
-        let now = Instant::now();
         write_gc_to_alice(gc, alice, num_clicks)?;
-        let elapsed_time = now.elapsed();
-        let ms = elapsed_time.as_millis();
-        if ms > 10 {
-            tracing::warn!("[gc-bob] took {:?} ms to send gc to Alice" , ms);
-        }
-        let now = Instant::now();
         write_gc_to_fpga(gc, &mut file_gcw, num_clicks)?;
-        let elapsed_time = now.elapsed();
-        let ms = elapsed_time.as_millis();
         file_result.write_all(&result[..num_clicks])?;
-        if ms > 10 {
-            tracing::warn!("[gc-bob] took {:?} ms to write gc to fpga and r to fifo" , ms);
-        }
         match option_file_gcuser.as_mut(){
             Some(file_gcuser) => {
                 write_gc_to_user(gc, file_gcuser, num_clicks)?;
             },
             None => {}
         }
-        i = i + 1;
+        let t2_loop = Instant::now();
+        let dt_loop = t2_loop.duration_since(t_loop).as_millis();
+        if dt_loop > dt_loop_max{
+            println!("max loop time: {:?} ms", dt_loop);
+            dt_loop_max = dt_loop;
+        }
+        t_loop = Instant::now();
     }
 }
 
