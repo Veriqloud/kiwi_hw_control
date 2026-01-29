@@ -1130,13 +1130,13 @@ def Ddr_Data_Init():
 
 def Ddr_Status():
     ddr_fifos_status = read(0x1000, 52)
-    print(ddr_fifos_status)
+    #print(ddr_fifos_status)
     fifos_status = read(0x1000, 56)
     #hex_ddr_fifos_status = ddr_fifos_status.decode('utf-8').strip()
     #hex_fifos_status = fifos_status.decode('utf-8').strip()
     vfifo_idle = (ddr_fifos_status & 0x180)>>7
-    vfifo_empty = (ddr_fifos_status & 0x60)>>5
-    vfifo_full = (ddr_fifos_status & 0x18)>>3
+    vfifo_full = (ddr_fifos_status & 0x60)>>5
+    vfifo_empty = (ddr_fifos_status & 0x18)>>3
     gc_out_full = (ddr_fifos_status & 0x4)>>2
     gc_in_empty = (ddr_fifos_status & 0x2)>>1
     alpha_out_full = ddr_fifos_status & 0x1
@@ -1154,8 +1154,8 @@ def ddr_status2():
     ddr_fifos_status = read(0x1000, 52)
     fifos_status = read(0x1000, 56)
     vfifo_idle = (ddr_fifos_status & 0x180)>>7
-    vfifo_empty = (ddr_fifos_status & 0x60)>>5
-    vfifo_full = (ddr_fifos_status & 0x18)>>3
+    vfifo_full = (ddr_fifos_status & 0x60)>>5
+    vfifo_empty = (ddr_fifos_status & 0x18)>>3
     gc_out_full = (ddr_fifos_status & 0x4)>>2
     gc_in_empty = (ddr_fifos_status & 0x2)>>1
     alpha_out_full = ddr_fifos_status & 0x1

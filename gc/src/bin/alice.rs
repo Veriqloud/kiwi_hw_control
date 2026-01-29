@@ -57,9 +57,11 @@ fn recv_gc(bob: &mut TcpStream) -> std::io::Result<()> {
     let mut t_loop = Instant::now();
     let mut dt_loop_max = 0;
     tracing::info!("[gc-alice] reading gc from Bob");
+    let mut total_counts = 0;
+    let mut loop_counter = 0;
     while *RUNNING.lock().unwrap() {
         let now = Instant::now();
-        //thread::sleep(time::Duration::from_millis(20));
+        //thread::sleep(time::Duration::from_millis(10));
         let (gc, num_clicks) = read_gc_from_bob(bob)?;
         let t_read_gc = now.elapsed().as_millis();
         if t_read_gc > 20 {
@@ -82,6 +84,11 @@ fn recv_gc(bob: &mut TcpStream) -> std::io::Result<()> {
                 write_gc_to_fpga(gc_tmp, &mut file_gcw, num)?;
             }
         }
+        total_counts += num_clicks;
+        if loop_counter % 100 == 0{
+            println!("total counts {:?}", total_counts);
+        }
+
         let t2_loop = Instant::now();
         let dt_loop = t2_loop.duration_since(t_loop).as_millis();
         if dt_loop > dt_loop_max{
@@ -89,6 +96,7 @@ fn recv_gc(bob: &mut TcpStream) -> std::io::Result<()> {
             dt_loop_max = dt_loop;
         }
         t_loop = Instant::now();
+        loop_counter += 1;
 
     }
     tracing::info!("[gc-alice] stopped reading gc from Bob");

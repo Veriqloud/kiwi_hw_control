@@ -20,12 +20,12 @@ STOP_THREADS = threading.Event()
 # add method to tk.Text class for color definition
 def define_color(self):
     self.tag_configure("black", foreground="black")
-    self.tag_configure("red", foreground="red")
-    self.tag_configure("green", foreground="green")
-    self.tag_configure("yellow", foreground="yellow")
+    self.tag_configure("red", foreground="darkred")
+    self.tag_configure("green", foreground="darkgreen")
+    self.tag_configure("yellow", foreground="darkorange")
     self.tag_configure("blue", foreground="blue")
-    self.tag_configure("magenta", foreground="magenta")
-    self.tag_configure("cyan", foreground="cyan")
+    self.tag_configure("magenta", foreground="darkmagenta")
+    self.tag_configure("cyan", foreground="darkcyan")
     self.tag_configure("gray", foreground="gray")
     # tag to make default font bold
     default_font = font.nametofont("TkFixedFont")
@@ -274,7 +274,7 @@ def handle_connection(use_localhost, q, root, player='alice'):
                     root.event_generate("<<DataReady>>", when="tail")
                 root.event_generate("<<DataReady>>", when="tail")
                 break
-            except ConnectionRefusedError:
+            except ConnectionRefusedError or TimeoutError:
                 # update text for all tabs: Alice/Bob unavailable
                 for i in range(len(FILE_NAMES)):
                     q.put((player+'_clear', i, player+" unavailable\n"))

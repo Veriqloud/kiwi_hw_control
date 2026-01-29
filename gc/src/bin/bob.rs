@@ -12,6 +12,7 @@ use std::io::prelude::*;
 use std::net::{TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
 use std::time::{Instant};
+use std::{thread, time};
 
 use gc::hw::BATCHSIZE;
 
@@ -80,7 +81,12 @@ fn send_gc(alice: &mut TcpStream) -> std::io::Result<()> {
     let mut read_length = 1;
     let mut t_loop = Instant::now();
     let mut dt_loop_max = 0;
+    let mut loop_counter = 0;
+    let mut total_counts = 0;
     loop {
+        if loop_counter % 100 == 99{
+            thread::sleep(time::Duration::from_millis(60));
+        }
         let (gc, result, num_clicks, time_ms) = process_gcr_stream(&mut file_gcr, read_length)?;
         if !&CONFIG.get().unwrap().ignore_gcr_timeout{
             // keep read time between 6ms and 12ms
@@ -101,6 +107,12 @@ fn send_gc(alice: &mut TcpStream) -> std::io::Result<()> {
         }
         write_gc_to_alice(gc, alice, num_clicks)?;
         write_gc_to_fpga(gc, &mut file_gcw, num_clicks)?;
+
+        total_counts += num_clicks;
+        if loop_counter % 100 == 0{
+            println!("total counts {:?}", total_counts);
+        }
+
         file_result.write_all(&result[..num_clicks])?;
         match option_file_gcuser.as_mut(){
             Some(file_gcuser) => {
@@ -115,6 +127,7 @@ fn send_gc(alice: &mut TcpStream) -> std::io::Result<()> {
             dt_loop_max = dt_loop;
         }
         t_loop = Instant::now();
+        loop_counter += 1;
     }
 }
 
