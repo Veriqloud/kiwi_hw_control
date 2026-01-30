@@ -5,5 +5,7 @@
     "qber": 12004,
     "node": 12005,
     "mon_alice": 12006,
-    "mon_bob": 12007
+    "mon_bob": 12007,
+    "showlogs_alice": 12008,
+    "showlogs_bob": 12009
 }

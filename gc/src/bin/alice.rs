@@ -3,7 +3,7 @@ use comm::gc_comms::{Request, Response};
 use comm::{read_message, write_message};
 use gc::comm::{Comm, HwControl};
 use gc::config::Configuration;
-use gc::hw::{BATCHSIZE, CONFIG, decompose_num_clicks, init_ddr, read_gc_from_bob, sync_at_pps, wait_for_pps, write_gc_to_fpga};
+use gc::hw::{BATCHSIZE, CONFIG, decompose_num_clicks, init_ddr, read_gc_from_bob, sync_at_pps, wait_for_pps, write_gc_to_fpga, fifo_status_gc};
 use std::fs::OpenOptions;
 //use std::io::Write;
 use std::net::TcpStream;
@@ -74,19 +74,28 @@ fn recv_gc(bob: &mut TcpStream) -> std::io::Result<()> {
                 panic!("got 0 clicks from Bob (timeout)")
             }
         } else {
-            // make sure the number of written gcs is a power of 2 and less than BATCHSIZE
-            let num_clicks_array = decompose_num_clicks(num_clicks);
-            let mut pos = 0;
-            for num in num_clicks_array{
-                let mut gc_tmp = [0; BATCHSIZE];
-                gc_tmp[0..num].copy_from_slice(&gc[pos..pos+num]);
-                pos = pos + num;
-                write_gc_to_fpga(gc_tmp, &mut file_gcw, num)?;
+            // only write when gc_in is empty
+            while !fifo_status_gc().gc_in_empty {
+                //println!("gc_in not empty");
             }
+            write_gc_to_fpga(gc, &mut file_gcw, num_clicks)?;
+
+            //// make sure the number of written gcs is a power of 2 and less than BATCHSIZE
+            //let num_clicks_array = decompose_num_clicks(num_clicks);
+            //let mut pos = 0;
+            //for num in num_clicks_array{
+            //    let mut gc_tmp = [0; BATCHSIZE];
+            //    gc_tmp[0..num].copy_from_slice(&gc[pos..pos+num]);
+            //    pos = pos + num;
+            //    // only write when gc_in is empty
+            //    while !fifo_status_gc().gc_in_empty {
+            //    }
+            //    write_gc_to_fpga(gc_tmp, &mut file_gcw, num)?;
+            //}
         }
         total_counts += num_clicks;
         if loop_counter % 100 == 0{
-            println!("total counts {:?}", total_counts);
+            //println!("total counts {:?}", total_counts);
         }
 
         let t2_loop = Instant::now();

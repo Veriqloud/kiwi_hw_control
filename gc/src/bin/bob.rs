@@ -5,7 +5,7 @@ use std::str::FromStr;
 use tracing_subscriber::fmt::writer::MakeWriterExt;
 use uuid::Uuid;
 use gc::hw::{
-    init_ddr, process_gcr_stream, sync_at_pps, write_gc_to_alice, write_gc_to_fpga, write_gc_to_user, CONFIG
+    init_ddr, process_gcr_stream, sync_at_pps, write_gc_to_alice, write_gc_to_fpga, write_gc_to_user, CONFIG, fifo_status_gc
 };
 use std::fs::OpenOptions;
 use std::io::prelude::*;
@@ -85,13 +85,15 @@ fn send_gc(alice: &mut TcpStream) -> std::io::Result<()> {
     let mut total_counts = 0;
     loop {
         if loop_counter % 100 == 99{
-            thread::sleep(time::Duration::from_millis(60));
+            //thread::sleep(time::Duration::from_millis(60));
         }
+        let now_process_gcr = Instant::now();
         let (gc, result, num_clicks, time_ms) = process_gcr_stream(&mut file_gcr, read_length)?;
+        let time_process_gcr = now_process_gcr.elapsed().as_millis();
         if !&CONFIG.get().unwrap().ignore_gcr_timeout{
             // keep read time between 6ms and 12ms
             // 50 ms is the limit above which a reset is requrired (debugging...)
-            if (time_ms < 6) & (read_length<BATCHSIZE/2){
+            if (time_ms < 6) & (read_length<=BATCHSIZE/2){
                 read_length *= 2;
             } else if (time_ms > 12) & (time_ms < 20) & (read_length>1) {
                 read_length /= 2;
@@ -105,15 +107,29 @@ fn send_gc(alice: &mut TcpStream) -> std::io::Result<()> {
                 return Err(gcr_timout_error)
             }
         }
+        let now_send_to_alice = Instant::now();
         write_gc_to_alice(gc, alice, num_clicks)?;
+        let time_send_to_alice = now_send_to_alice.elapsed().as_millis();
+        if time_send_to_alice > 10{
+            tracing::warn!("time_send_to_alice: {:?} ms", time_send_to_alice);
+        }
+        let now_write_to_fpga = Instant::now();
+        while !fifo_status_gc().gc_in_empty {
+        }
         write_gc_to_fpga(gc, &mut file_gcw, num_clicks)?;
+        let time_write_to_fpga = now_write_to_fpga.elapsed().as_millis();
+        if time_write_to_fpga > 10{
+            tracing::warn!("time_write_to_fpga: {:?} ms", time_write_to_fpga);
+        }
 
         total_counts += num_clicks;
         if loop_counter % 100 == 0{
-            println!("total counts {:?}", total_counts);
+            //println!("total counts {:?}", total_counts);
         }
 
+        let now_write_result = Instant::now();
         file_result.write_all(&result[..num_clicks])?;
+        let time_write_result = now_write_result.elapsed().as_millis();
         match option_file_gcuser.as_mut(){
             Some(file_gcuser) => {
                 write_gc_to_user(gc, file_gcuser, num_clicks)?;
@@ -123,7 +139,7 @@ fn send_gc(alice: &mut TcpStream) -> std::io::Result<()> {
         let t2_loop = Instant::now();
         let dt_loop = t2_loop.duration_since(t_loop).as_millis();
         if dt_loop > dt_loop_max{
-            println!("max loop time: {:?} ms", dt_loop);
+            println!("max loop time: {:?}; num clicks {:?}, process_gcr {:?}, send {:?}; fpga_write {:?}, write_result {:?}", dt_loop, num_clicks, time_process_gcr, time_send_to_alice, time_write_to_fpga, time_write_result);
             dt_loop_max = dt_loop;
         }
         t_loop = Instant::now();

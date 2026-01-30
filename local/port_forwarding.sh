@@ -14,14 +14,18 @@ localhost_hws=$(jq '.hws' $QLINE_CONFIG_DIR/ports_for_localhost.json)
 # mon
 localhost_mon_alice=$(jq '.mon_alice' $QLINE_CONFIG_DIR/ports_for_localhost.json)
 localhost_mon_bob=$(jq '.mon_bob' $QLINE_CONFIG_DIR/ports_for_localhost.json)
+# showlogs
+localhost_showlogs_alice=$(jq '.showlogs_alice' $QLINE_CONFIG_DIR/ports_for_localhost.json)
+localhost_showlogs_bob=$(jq '.showlogs_bob' $QLINE_CONFIG_DIR/ports_for_localhost.json)
 
 
 # get ip and ports on machines
-ip_alice=$(jq '.ip.alice' $QLINE_CONFIG_DIR/network.json | tr -d '"')
-ip_bob=$(jq '.ip.bob' $QLINE_CONFIG_DIR/network.json | tr -d '"')
-hw_port=$(jq '.port.hw' $QLINE_CONFIG_DIR/network.json)
-hws_port=$(jq '.port.hws' $QLINE_CONFIG_DIR/network.json)
-mon_port=$(jq '.port.mon' $QLINE_CONFIG_DIR/network.json)
+ip_alice=$(jq '.ip.alice' $QLINE_CONFIG_DIR/alice/network.json | tr -d '"')
+ip_bob=$(jq '.ip.bob' $QLINE_CONFIG_DIR/alice/network.json | tr -d '"')
+hw_port=$(jq '.port.hw' $QLINE_CONFIG_DIR/alice/network.json)
+hws_port=$(jq '.port.hws' $QLINE_CONFIG_DIR/alice/network.json)
+mon_port=$(jq '.port.mon' $QLINE_CONFIG_DIR/alice/network.json)
+showlogs_port=$(jq '.port.showlogs' $QLINE_CONFIG_DIR/alice/network.json)
 
 # hw
 ssh -N -L $localhost_hw_alice:$ip_alice:$hw_port vq &
@@ -31,6 +35,9 @@ ssh -N -L $localhost_hws:$ip_alice:$hws_port vq &
 # mon
 ssh -N -L $localhost_mon_alice:$ip_alice:$mon_port vq &
 ssh -N -L $localhost_mon_bob:$ip_bob:$mon_port vq &
+# showlogs
+ssh -N -L $localhost_showlogs_alice:$ip_alice:$showlogs_port vq &
+ssh -N -L $localhost_showlogs_bob:$ip_bob:$showlogs_port vq &
 
 
 
