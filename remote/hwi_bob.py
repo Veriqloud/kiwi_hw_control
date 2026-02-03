@@ -4,20 +4,25 @@ import time, logging, subprocess
 from lib.fpga import get_ltc_info, get_sda_info, get_fda_info, get_jic_info, get_tdc_info, did_reboot, WriteFPGA
 import ctl_bob as ctl
 
-logger = logging.getLogger(__name__)
+from lib.visuals import mylogger
+from lib.statusfiles import HwiStatus, HwiValues
+import atexit
+
+
+# run on program exit
+def shutdown(status):
+    status.inactive()
 
 # This program monitors chips through spi and reinits them.
 # Covers computer reboot and full system restart
 def main():
 
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
-    )
+    logger = mylogger()
 
     logger.info("start program")
 
+    status = HwiStatus()
+    atexit.register(shutdown, status)
 
     ret = subprocess.run("lspci | grep Xilinx", shell=True, capture_output=True).returncode
     if ret:
@@ -31,6 +36,7 @@ def main():
         
         # init chips through spi in case their registers don't match expected values
         if get_ltc_info() == 0:
+            status.initing()
             logger.info("init ltc...")
             ctl.init_ltc()
             logger.info("init sync...")
@@ -41,22 +47,27 @@ def main():
             ctl.init_fda()
             skip_fda = True
         if (get_fda_info() == 0) and (not skip_fda):
+            status.initing()
             logger.info("init fda...")
             ctl.init_fda()
         if get_sda_info() == 0:
             time.sleep(1)
             if get_sda_info() == 0:
+                status.initing()
                 logger.info("init sda...")
                 ctl.init_sda()
         if get_jic_info() == 0:
+            status.initing()
             logger.info("init jic...")
             ctl.init_jic()
         if get_tdc_info() == 0:
+            status.initing()
             logger.info("init tdc...")
             ctl.init_tdc()
 
         # in case of reboot, init fpga regs and apply values from config
         if did_reboot():
+            status.initing()
             logger.info("init fpga registers")
             WriteFPGA()
             ctl.apply_config()
@@ -66,6 +77,7 @@ def main():
             ctl.init_tdc()
 
         if apply_config_flag:
+            status.initing()
             logger.info("apply config...")
             ctl.apply_config()
             # not sure why but have to reinit fda
@@ -73,6 +85,7 @@ def main():
             ctl.init_ttl()
             ctl.init_tdc()
 
+        status.done()
 
         time.sleep(2)
 
