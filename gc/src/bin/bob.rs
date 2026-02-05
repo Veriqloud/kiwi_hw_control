@@ -84,9 +84,6 @@ fn send_gc(alice: &mut TcpStream) -> std::io::Result<()> {
     let mut loop_counter = 0;
     let mut total_counts = 0;
     loop {
-        if loop_counter % 100 == 99{
-            //thread::sleep(time::Duration::from_millis(60));
-        }
         let now_process_gcr = Instant::now();
         let (gc, result, num_clicks, time_ms) = process_gcr_stream(&mut file_gcr, read_length)?;
         let time_process_gcr = now_process_gcr.elapsed().as_millis();
@@ -115,6 +112,9 @@ fn send_gc(alice: &mut TcpStream) -> std::io::Result<()> {
         }
         let now_write_to_fpga = Instant::now();
         while !fifo_status_gc().gc_in_empty {
+        }
+        if loop_counter % 1000 == 999{
+            thread::sleep(time::Duration::from_millis(60));
         }
         write_gc_to_fpga(gc, &mut file_gcw, num_clicks)?;
         let time_write_to_fpga = now_write_to_fpga.elapsed().as_millis();

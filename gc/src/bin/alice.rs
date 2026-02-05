@@ -4,17 +4,18 @@ use comm::{read_message, write_message};
 use gc::comm::{Comm, HwControl};
 use gc::config::Configuration;
 use gc::hw::{BATCHSIZE, CONFIG, decompose_num_clicks, init_ddr, read_gc_from_bob, sync_at_pps, wait_for_pps, write_gc_to_fpga, fifo_status_gc};
-use std::fs::OpenOptions;
+use std::fs::{OpenOptions, File};
 //use std::io::Write;
 use std::net::TcpStream;
 use std::os::unix::net::UnixListener;
 use std::path::PathBuf;
 use std::str::FromStr;
 //use std::sync::mpsc::{Receiver, Sender, TryRecvError, channel};
-use std::{thread, time};
+use std::{num, thread, time};
 use tracing_subscriber::fmt::writer::MakeWriterExt;
 use uuid::Uuid;
 use std::time::{Instant};
+use std::io::Write;
 
 use std::sync::Mutex;
 
@@ -57,16 +58,21 @@ fn recv_gc(bob: &mut TcpStream) -> std::io::Result<()> {
     let mut t_loop = Instant::now();
     let mut dt_loop_max = 0;
     tracing::info!("[gc-alice] reading gc from Bob");
-    let mut total_counts = 0;
+    //let mut total_counts = 0;
     let mut loop_counter = 0;
+    let mut max_num_clicks = 0;
+    let mut max_dgc = 0;
+    let mut last_gc = 0;
+    let mut t_max_get_gc = 0;
     while *RUNNING.lock().unwrap() {
         let now = Instant::now();
-        //thread::sleep(time::Duration::from_millis(10));
         let (gc, num_clicks) = read_gc_from_bob(bob)?;
         let t_read_gc = now.elapsed().as_millis();
-        if t_read_gc > 20 {
+        if t_read_gc > t_max_get_gc {
             tracing::warn!("[gc-alice] took {:?} ms to get {:?} gcs from Bob", t_read_gc, num_clicks);
+            t_max_get_gc = t_read_gc;
         }
+        let now_write_to_fpga = Instant::now();
         if num_clicks == 0 {
             if CONFIG.get().unwrap().ignore_gcr_timeout {
                 continue
@@ -78,6 +84,25 @@ fn recv_gc(bob: &mut TcpStream) -> std::io::Result<()> {
             while !fifo_status_gc().gc_in_empty {
                 //println!("gc_in not empty");
             }
+            //if loop_counter % 1000 == 999{
+            //    println!("xxxxxxxxxxxxx         extra delay");
+            //    thread::sleep(time::Duration::from_millis(30));
+            //    write_gc_to_fpga(gc, &mut file_gcw, 16)?;
+            //    thread::sleep(time::Duration::from_millis(30));
+            //    while !fifo_status_gc().gc_in_empty {
+            //        //println!("gc_in not empty");
+            //    }
+            //    let mut gc_tmp: [u64; BATCHSIZE] = [0; BATCHSIZE];
+            //    for i in 0..BATCHSIZE-16{
+            //        gc_tmp[i] = gc[i+16];
+            //    }
+            //    write_gc_to_fpga(gc_tmp, &mut file_gcw, num_clicks-16)?;
+            //} else {
+            //    write_gc_to_fpga(gc, &mut file_gcw, num_clicks)?;
+            //}
+            //if loop_counter % 1024 == 1023{
+            //    thread::sleep(time::Duration::from_millis(60));
+            //}
             write_gc_to_fpga(gc, &mut file_gcw, num_clicks)?;
 
             //// make sure the number of written gcs is a power of 2 and less than BATCHSIZE
@@ -93,13 +118,37 @@ fn recv_gc(bob: &mut TcpStream) -> std::io::Result<()> {
             //    write_gc_to_fpga(gc_tmp, &mut file_gcw, num)?;
             //}
         }
-        total_counts += num_clicks;
-        if loop_counter % 100 == 0{
+        let t_write_to_fpga = now_write_to_fpga.elapsed().as_millis();
+        if t_write_to_fpga > 10{
+            println!("t_write_to_fpga {:?}", t_write_to_fpga);
+        }
+        //total_counts += num_clicks;
+        if loop_counter == 1{
+            max_dgc = 0;
             //println!("total counts {:?}", total_counts);
         }
-
+        
         let t2_loop = Instant::now();
         let dt_loop = t2_loop.duration_since(t_loop).as_millis();
+
+        let mut dgc = gc[0] - last_gc;
+        if dgc > max_dgc {
+            println!("max dgc {:?}; loop time: {:?} ms; num clicks: {:?}", dgc, dt_loop, num_clicks);
+            max_dgc = dgc;
+        }
+        for i in 1..num_clicks {
+            dgc = gc[i] - gc[i-1];
+            if dgc > max_dgc {
+                println!("max dgc {:?}; loop time: {:?} ms; num clicks: {:?}", dgc, dt_loop, num_clicks);
+                max_dgc = dgc;
+            }
+        }
+        last_gc = gc[num_clicks-1];
+
+        if num_clicks > max_num_clicks{
+            max_num_clicks = num_clicks;
+            println!("max num clicks; loop time: {:?} ms; num clicks: {:?}", dt_loop, num_clicks);
+        }
         if dt_loop > dt_loop_max{
             println!("max loop time: {:?} ms; num clicks: {:?}", dt_loop, num_clicks);
             dt_loop_max = dt_loop;

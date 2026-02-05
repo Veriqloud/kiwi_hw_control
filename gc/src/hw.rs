@@ -7,6 +7,8 @@ use std::sync::OnceLock;
 use std::{thread, time};
 use std::time::{Instant};
 use crate::config::Configuration;
+//use libc;
+use std::os::fd::AsRawFd;
 
 pub const PPS_ADDRESS: usize = 48;
 pub const PPS_OFFSET: u64 = 0x1000;
@@ -14,9 +16,9 @@ pub const PPS_OFFSET: u64 = 0x1000;
 pub const FIFO_ADDRESS: usize = 52;
 pub const FIFO_OFFSET: u64 = 0x1000;
 
-pub const BATCHSIZE: usize = 512; // max number of clicks to process in one batch; must be a power
+pub const BATCHSIZE: usize = 256; // max number of clicks to process in one batch; must be a power
                                   // of 2; the FIFO depth is 512
-pub const TCP_RCV_BATCHSIZE: usize = 512; // max number of clicks to receive per TCP read on Alice
+pub const TCP_RCV_BATCHSIZE: usize = 256; // max number of clicks to receive per TCP read on Alice
 
 pub static CONFIG: OnceLock<Configuration> = OnceLock::new();
 
@@ -312,6 +314,23 @@ pub fn decompose_num_clicks(num_clicks: usize) -> Vec<usize>{
     num_out
 }
 
+fn my_write_all(file: &mut File, buf: &[u8], n: usize){
+    let ret = unsafe {
+        libc::write(
+            file.as_raw_fd(),
+            buf.as_ptr() as *const libc::c_void,
+            n
+        )
+    };
+    if ret as usize != n {
+        println!("write length {:?} / {:?}", ret, n);
+    }
+    let _ret2 = unsafe {
+        libc::fsync(file.as_raw_fd())
+    };
+}
+
+
 // write gc back to fpga
 pub fn write_gc_to_fpga(gc: [u64; BATCHSIZE], file: &mut File, num_clicks: usize) -> std::io::Result<()> {
     let mut buf: [u8; BATCHSIZE * 16] = [0; BATCHSIZE * 16];
@@ -320,6 +339,7 @@ pub fn write_gc_to_fpga(gc: [u64; BATCHSIZE], file: &mut File, num_clicks: usize
         buf[i * 16..(i + 1) * 16].copy_from_slice(&gcbuf);
     }
     file.write_all(&buf[..num_clicks*16])?;
+    //my_write_all(file, &buf, num_clicks*16);
     Ok(())
 }
 
