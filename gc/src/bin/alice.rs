@@ -64,6 +64,7 @@ fn recv_gc(bob: &mut TcpStream) -> std::io::Result<()> {
     let mut max_dgc = 0;
     let mut last_gc = 0;
     let mut t_max_get_gc = 0;
+    let mut now_finished_writing_to_fpga = Instant::now();
     while *RUNNING.lock().unwrap() {
         let now = Instant::now();
         let (gc, num_clicks) = read_gc_from_bob(bob)?;
@@ -82,7 +83,6 @@ fn recv_gc(bob: &mut TcpStream) -> std::io::Result<()> {
         } else {
             // only write when gc_in is empty
             while !fifo_status_gc().gc_in_empty {
-                //println!("gc_in not empty");
             }
             //if loop_counter % 1000 == 999{
             //    println!("xxxxxxxxxxxxx         extra delay");
@@ -100,10 +100,21 @@ fn recv_gc(bob: &mut TcpStream) -> std::io::Result<()> {
             //} else {
             //    write_gc_to_fpga(gc, &mut file_gcw, num_clicks)?;
             //}
-            //if loop_counter % 1024 == 1023{
-            //    thread::sleep(time::Duration::from_millis(60));
+            if loop_counter % 1000 == 999{
+                println!("sleeping...");
+                thread::sleep(time::Duration::from_millis(50));
+            }
+
+            if fifo_status_gc().vfifo_full{
+                println!("xxxxxxxxxx VFIFO full! xxxxxxxxxxxxxx");
+            }
+            
+            //if now_finished_writing_to_fpga.elapsed().as_millis() < 5{
+            //    println!("sleeping 5ms");
+            //    thread::sleep(time::Duration::from_millis(5));
             //}
             write_gc_to_fpga(gc, &mut file_gcw, num_clicks)?;
+            now_finished_writing_to_fpga = Instant::now();
 
             //// make sure the number of written gcs is a power of 2 and less than BATCHSIZE
             //let num_clicks_array = decompose_num_clicks(num_clicks);

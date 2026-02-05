@@ -113,9 +113,9 @@ fn send_gc(alice: &mut TcpStream) -> std::io::Result<()> {
         let now_write_to_fpga = Instant::now();
         while !fifo_status_gc().gc_in_empty {
         }
-        if loop_counter % 1000 == 999{
-            thread::sleep(time::Duration::from_millis(60));
-        }
+        //if loop_counter % 1000 == 999{
+        //    thread::sleep(time::Duration::from_millis(60));
+        //}
         write_gc_to_fpga(gc, &mut file_gcw, num_clicks)?;
         let time_write_to_fpga = now_write_to_fpga.elapsed().as_millis();
         if time_write_to_fpga > 10{

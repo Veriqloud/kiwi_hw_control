@@ -16,9 +16,9 @@ pub const PPS_OFFSET: u64 = 0x1000;
 pub const FIFO_ADDRESS: usize = 52;
 pub const FIFO_OFFSET: u64 = 0x1000;
 
-pub const BATCHSIZE: usize = 256; // max number of clicks to process in one batch; must be a power
+pub const BATCHSIZE: usize = 128; // max number of clicks to process in one batch; must be a power
                                   // of 2; the FIFO depth is 512
-pub const TCP_RCV_BATCHSIZE: usize = 256; // max number of clicks to receive per TCP read on Alice
+pub const TCP_RCV_BATCHSIZE: usize = 128; // max number of clicks to receive per TCP read on Alice
 
 pub static CONFIG: OnceLock<Configuration> = OnceLock::new();
 
@@ -118,15 +118,18 @@ fn xdma_read(addr: usize, offset: u64) -> u32 {
 pub struct FifoStatus {
     pub gc_out_full: bool,
     pub gc_in_empty: bool,
+    pub vfifo_full: bool,
 }
 
 pub fn fifo_status_gc() -> FifoStatus {
     let value = xdma_read(FIFO_ADDRESS, FIFO_OFFSET);
     let gc_out_full = (value & 0x4) >> 2;
     let gc_in_empty = (value & 0x2) >> 1;
+    let vfifo_full = (value & 0x60) >> 5;
     let fifo_status = FifoStatus {
-        gc_out_full: gc_out_full==1,
-        gc_in_empty: gc_in_empty==1,
+        gc_out_full: gc_out_full == 1,
+        gc_in_empty: gc_in_empty == 1,
+        vfifo_full: vfifo_full != 0,
     };
     return fifo_status;
 }
