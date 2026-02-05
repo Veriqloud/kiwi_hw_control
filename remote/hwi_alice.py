@@ -5,12 +5,7 @@ from lib.fpga import get_ltc_info, get_sda_info, get_fda_info, did_reboot, Write
 import ctl_alice as ctl
 from lib.visuals import mylogger
 from lib.statusfiles import HwiStatus, HwiValues
-import atexit
 
-
-# run on program exit
-def shutdown(status):
-    status.inactive()
 
 
 # This program monitors chips through spi and reinits them.
@@ -18,12 +13,11 @@ def shutdown(status):
 def main():
 
     logger = mylogger()
-
     logger.info("start program")
 
     status = HwiStatus()
-    atexit.register(shutdown, status)
 
+    # make sure Xilinx PCIE is connected
     ret = subprocess.run("lspci | grep Xilinx", shell=True, capture_output=True).returncode
     if ret:
         logger.error("no Xilinx PCIE. Make sure the cable is well attached!")

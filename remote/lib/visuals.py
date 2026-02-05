@@ -25,19 +25,26 @@ def mylogger():
     handler = logging.StreamHandler()
     handler.setFormatter(ColorFormatter("%(asctime)s %(levelname)s: %(message)s"))
 
-    logger = logging.getLogger()
-    logger.addHandler(handler)
-    logger.setLevel(logging.DEBUG)
+    logger = logging.getLogger("mylogger")
+    # don't add the handler if it already exists
+    if not logger.handlers:
+        logger.addHandler(handler)
+        logger.setLevel(logging.DEBUG)
     return logger
 
 
 
 
+# for testing
+def main():
+    logger = mylogger()
+    
+    logger.info("Hello color!")
+    logger.error("Test the error message")
 
-#logger = mylogger()
-#
-#logger.info("Hello color!")
-#logger.error("Something broke")
+if __name__=="__main__":
+    main()
+
 
 
 
