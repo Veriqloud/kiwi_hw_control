@@ -4,15 +4,15 @@ sys.path.insert(0, '/home/vq-user/hw_control')
 
 from lib.visuals import mylogger
 from lib.statusfiles import HwsStatus, HwsValues
-from lib.communication import TcpServer, TcpClient
-
-
+from lib.communication import TcpServer
 
 
 
 # this program is handling the calibration phase
-# it starts a server for the alice-admin connection
-# it connects as client to Bob
+# it starts a server for the alice-bob connection
+
+
+
 
 def main():
 
@@ -20,19 +20,15 @@ def main():
     logger.info("start program")
     status = HwsStatus()
                 
-    server = TcpServer("hws")
+    server = TcpServer("hws", use_wrs=True)
 
     while True:
-        bob = TcpClient("hws", "bob", use_wrs=True).connect()
-
+        conn = server.accept()
         while True:
-            admin = server.accept()
             try:
-                m = admin.prcv()
+                m = conn.prcv()
                 print(m)
-                bob.psnd(m)
-                bob.wait_ack()
-                admin.ack()
+                conn.ack()
             except ConnectionError:
                 logger.warning("client disconnected unexpectedly")
                 break
@@ -45,6 +41,11 @@ def main():
 
 
 main()
+
+
+
+
+
 
 
 
