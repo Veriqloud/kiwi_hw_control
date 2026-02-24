@@ -146,6 +146,8 @@ def init(conn):
     rcvc(bob)
     sendc(conn, 'init done')
 
+
+
 def clean(conn):
     sendc(bob, 'clean')
     ctl.clean_config()
@@ -188,6 +190,8 @@ def compare_gc(conn):
     gc_bob = rcv_d(bob)
     diff = gc - gc_bob
     difftime = diff/80e6
+    print(f"GC local   : {gc}")
+    print(f"GC Bob     : {gc_bob}")
     sendc(conn, f'gc difference: {diff} ({difftime} s)')
 
 
@@ -331,23 +335,56 @@ def qdistance(conn):
 
 
 # adjust vca to a target count rate
+
+
 def find_vca(conn, target=3000):
     sendc(bob, 'find_vca')
+    t = get_tmp()
+    bias_1 = t['am_bias']
+    bias_2 = t['am2_bias']
+
+    best_count = 0
+    best_v = 0
+    for v in [0, 2.5, 5]:
+      ctl.Set_Am2_Bias(v)
+      time.sleep(0.2)
+      sendc(bob,'get counts')
+      c = rcv_i(bob)
+      if c > best_count:
+        best_count = c
+        best_v = v
+
+    ctl.Set_Am2_Bias(best_v)
+
+    best_count = 0
+    best_v = 0
+    for v in [0, 2.5, 5]:
+      ctl.Set_Am_Bias(v)
+      time.sleep(0.2)
+      sendc(bob,'get counts')
+      c = rcv_i(bob)
+      if c > best_count:
+        best_count = c
+        best_v = v
+
+    ctl.Set_Am_Bias(best_v)
+
     sendc(bob, 'get counts')
     count = rcv_i(bob)
     print("got count: ", count)
     t = get_tmp()
     vca = t['vca']
     print("got vca: ", vca)
+
     if count < target*0.8:
         while (count < target*0.9) and (vca <= 4.8):
             vca = round(vca + 0.2, 2)
             ctl.Set_Vca(vca)
             time.sleep(0.2)
-            sendc(bob, 'get counts')
+            sendc(bob,'get counts')
             count = rcv_i(bob)
             print(count)
-    
+
     elif count > target*1.3:
         while (count > target*1.1) and (vca >= 0.2):
             vca = round(vca - 0.2, 2)
@@ -356,15 +393,28 @@ def find_vca(conn, target=3000):
             sendc(bob, 'get counts')
             count = rcv_i(bob)
             print(count)
+
     sendc(bob, 'done')
 
-    if (count >= target*0.8) and (count <= target*1.3):
+    if (count >= target*0.8) :
         m = colored(f"success, {vca}V / {count} cts \n", "green", force_color=True)
         print(m)
     else:
         m = colored(f"fail, {vca}V / {count} cts \n", "red", force_color=True)
         print(m)
+
+    ctl.Set_Am_Bias(bias_1)
+    ctl.Set_Am2_Bias(bias_2)
     sendc(conn, 'find_vca '+m)
+
+
+
+
+
+
+
+
+
 
 # adjust vca to a percentage of max counts
 def vca_per(conn, per=90):
@@ -451,52 +501,60 @@ def vca_per(conn, per=90):
 
 
 
-
-
-def find_am_bias(conn, range_val=0.5, sendresult=True):
+def find_am_bias(conn, range_val=0.5, step=0.1, sendresult=True):
     sendc(bob, 'find_am_bias')
-    #update_tmp('am_mode', 'off')
-    #ctl.Update_Dac()
     t = get_tmp()
-    #d = get_default()
     bias_default = t['am_bias']
-    #bias_default_1 = t['am_bias_2']
     am_mode_backup = t['am_mode']
-
     update_tmp('am_mode', 'off')
     ctl.Update_Dac()
     counts = []
-    #ctl.Set_Am_Bias_2(0) 
-    #time.sleep(0.1)
-    num_points = int(2 * range_val / 0.1) + 1
+    bias_values = []
+
+    num_points = int(2 * range_val / step) + 1
     prev_count = None
     increase_count = 0
+
+    if bias_default >= 0:
+        direction = -1
+    else:
+        direction = 1
+
     for i in range(num_points):
-        ctl.Set_Am_Bias(bias_default - range_val + 0.1*i)
+        bias = bias_default + direction * (-range_val + step * i)
+        if bias < -10 or bias > 10:
+            continue
+
+        ctl.Set_Am_Bias(bias)
         sendc(bob, 'get counts')
         count = rcv_i(bob)
         counts.append(count)
+        bias_values.append(bias)
 
         if prev_count is not None:
-            if count > prev_count:
-                increase_count += 1
+            if step == 1:
+                if count <= 0.7 * counts[0]:
+                    break
             else:
-                increase_count = 0
-        if increase_count >= 3:
-            break
+                if (count - prev_count) > 200:
+                    increase_count += 1
+                else:
+                    increase_count = 0
+                if increase_count >= 2:
+                    break
         prev_count = count
 
     min_counts = min(counts)
     min_idx = counts.index(min_counts)
-    print("Min count: ", min_counts , "index: ", min_idx,"\n")
-    am_bias_opt = bias_default - range_val + 0.1*min_idx
+    am_bias_opt = bias_values[min_idx]
     ctl.Set_Am_Bias(am_bias_opt)
-    #ctl.Set_Am_Bias_2(bias_default_1)
     sendc(bob, 'done')
     update_tmp('am_mode', am_mode_backup)
     ctl.Update_Dac()
     if sendresult:
         sendc(conn, 'find_am_bias done')
+    print(f"Min count: {min_counts}, optimal bias: {am_bias_opt}\n")
+    return am_bias_opt
 
 
 def verify_am_bias(conn, sendresult=True):
@@ -511,49 +569,116 @@ def verify_am_bias(conn, sendresult=True):
     sendc(bob, 'get counts')
     count_off = rcv_i(bob)
 
-    #update_tmp('am_mode', 'double')
-    #t = get_tmp()
     bias = t['am_bias']
-    bias2=bias+2
-    ctl.Set_Am_Bias(bias2)
+    if bias + 2 <= 10:
+        am_final = bias + 2
+    else:
+        am_final = bias - 2
+
+    ctl.Set_Am_Bias(am_final)
     ctl.Update_Dac()
     time.sleep(0.2)
     sendc(bob, 'get counts')
     count_ref = rcv_i(bob)
 
     ratio = count_ref / count_off
-    if ratio >= 1.8:
-        m = colored(f"success: ref/off  = {ratio:.2f} ({count_ref}/{count_off}) \n", "green", force_color=True)
-        print(m)
+    if ratio >= 1.5:
+        m = colored(f"success: ref/off = {ratio:.2f} ({count_ref}/{count_off}) \n", "green", force_color=True)
         result = True
     else:
         m = colored(f"fail ref/off = {ratio:.2f} ({count_ref}/{count_off}) \n", "yellow", force_color=True)
-        print(m)
         result = False
-    
+
     ctl.Set_Am_Bias(bias)
     update_tmp('am_mode', am_mode_backup)
     ctl.Update_Dac()
 
     if sendresult:
-        sendc(conn, 'verify_am_bias '+m)
+        sendc(conn, 'verify_am_bias ' + m)
+    print(m)
     return result, count_ref, count_off
 
+
 def loop_find_am_bias(conn):
-    for voltage in [0.3, 0.5, 1, 2 , 6]:
-        find_am_bias(conn, voltage, sendresult=False)
-        result, count_double, count_off = verify_am_bias(conn, sendresult=False)
-        if result:
-            break
+    sendc(bob, 'find_am_bias')
+    t = get_tmp()
+    bias_2 = t['am2_bias']
+
+    best_count = 0
+    best_v = 0
+    for v in [0, 2.5, 5]:
+      ctl.Set_Am2_Bias(v)
+      time.sleep(0.2)
+      sendc(bob,'get counts')
+      c = rcv_i(bob)
+      if c > best_count:
+        best_count = c
+        best_v = v
+
+    ctl.Set_Am2_Bias(best_v)
+    sendc(bob, 'done')
+
+    am_bias_opt = find_am_bias(conn, 0.8, step=0.2, sendresult=False)
+    result, count_double, count_off = verify_am_bias(conn, sendresult=False)
+
     ratio = count_double / count_off
-    if result == False:
-        m = colored(f"fail double/off = {ratio:.2f} ({count_double}/{count_off}) \n", "yellow", force_color=True)
+
+    if  ratio < 5:
+        am_bias_opt = find_am_bias(conn, 0.3, step=0.1, sendresult=False)
+        result, count_double, count_off = verify_am_bias(conn, sendresult=False)
+        ratio = count_double / count_off
+
+    if not result:
+        am_bias_opt = find_am_bias(conn, 20, step=1, sendresult=False)
+        am_bias_opt = find_am_bias(conn, 1, step=0.2, sendresult=False)
+
+        result, count_double, count_off = verify_am_bias(conn, sendresult=False)
+        ratio = count_double / count_off
+
+        if ratio < 5:
+            am_bias_opt = find_am_bias(conn, 0.3, step=0.1, sendresult=False)
+            result, count_double, count_off = verify_am_bias(conn, sendresult=False)
+            ratio = count_double / count_off
+
+    if result:
+        m = colored(f"success: double/off = {ratio:.2f} ({count_double}/{count_off})\n", "green", force_color=True)
     else:
-        m = colored(f"success: double/off  = {ratio:.2f} ({count_double}/{count_off}) \n", "green", force_color=True)
-        #t = get_tmp()
-        #update_tmp('am_bias',t['am_bias'])
+        m = colored(f"fail double/off = {ratio:.2f} ({count_double}/{count_off})\n", "yellow", force_color=True)
+        if count_off > 3500:
+           print(colored("Run the find_vca function or manually reduce the power (manual attenuator) before retrying.", "red",force_color=True))
     print(m)
-    sendc(conn, 'loop_find_am_bias '+m)
+    ctl.Set_Am2_Bias(bias_2)
+    sendc(conn, 'loop_find_am_bias ' + m)
+
+
+
+
+def loop_find_gates(conn):
+    for _ in range(2):
+        ad(conn, sendresult=False)
+        find_sp(conn, sendresult=False)
+        ad(conn, sendresult=False)
+
+        for _ in range(1):
+            result, pic = verify_gates(conn, sendresult=False)
+            if result:
+                send_data(conn, pic)
+                m = colored("success: good gates found \n", "green", force_color=True)
+                sendc(conn, 'loop_find_gates ' + m)
+                return
+            print(colored("verify_gates failed retrying...", "yellow", force_color=True))
+
+        print(colored("verify_gates failed after 1 retry, restarting find_gate sequence...", "red", force_color=True))
+
+    send_data(conn, pic)
+    m = colored("verify_gates failed", "red", force_color=True)
+    sendc(conn, 'loop_find_gates ' + m)
+
+
+
+
+
+
 
 def loop_find_gates(conn):
     for global_attempt in range(2):
@@ -578,35 +703,189 @@ def loop_find_gates(conn):
     sendc(conn, 'loop_find_gates '+m)
 
 
-def find_am2_bias(conn):
+
+
+#########################################################################
+def find_am2_bias(conn, range_val=0.5, step=0.1, sendresult=True):
     sendc(bob, 'find_am2_bias')
-    update_tmp('am_mode', 'double')
-    ctl.Update_Dac()
-    #t = get_tmp()
     t = get_tmp()
     bias_default = t['am2_bias']
-    #bias_default_1 = t['am_bias'] 
-    #t['am_mode'] = 'off'
-    #save_tmp(t)
+    am2_mode_backup = t['am2_mode']
+
+    update_tmp('am2_mode', 'off')
     ctl.Update_Dac()
     counts = []
-    #ctl.Set_Am_Bias(0) 
-    time.sleep(0.2)
-    for i in range(21):
-        value = bias_default - 3 + 0.1 * i
-        if value < 0:
-           value = 0
-        ctl.Set_Am2_Bias(value)
-       # ctl.Set_Am_Bias_2(bias_default -3 + 0.1*i)
+    bias_values = []
+
+    num_points = int(2 * range_val / step) + 1
+    prev_count = None
+    increase_count = 0
+
+    if bias_default >= 0:
+        direction = -1
+    else:
+        direction = 1
+
+    for i in range(num_points):
+        bias = bias_default + direction * (-range_val + step * i)
+        if bias < 0 or bias > 10:
+            continue
+
+        ctl.Set_Am2_Bias(bias)
         sendc(bob, 'get counts')
-        counts.append(rcv_i(bob))
+        count = rcv_i(bob)
+        counts.append(count)
+        bias_values.append(bias)
+
+        if prev_count is not None:
+            if step == 1:
+                if count <= 0.7 * counts[0]:
+                    break
+            else:
+                if (count - prev_count) > 200:
+                    increase_count += 1
+                else:
+                    increase_count = 0
+                if increase_count >= 2:
+                    break
+        prev_count = count
+
     min_counts = min(counts)
     min_idx = counts.index(min_counts)
-    print("Min count: ", min_counts , "index: ", min_idx)
-    am_bias_opt = bias_default -3 + 0.1*min_idx
-    ctl.Set_Am2_Bias(max(0, round(am_bias_opt + 2, 2))) 
-    #ctl.Set_Am_Bias(bias_default_1)
-    sendc(conn, 'find_am_bias done. '+f"min count: {min_counts}, index: {min_idx}")
+    am2_bias_opt = bias_values[min_idx]
+
+    ctl.Set_Am2_Bias(am2_bias_opt)
+    sendc(bob, 'done')
+
+    update_tmp('am2_mode', am2_mode_backup)
+    ctl.Update_Dac()
+
+    if sendresult:
+        sendc(conn, 'find_am2_bias done')
+
+    print(f"Min count: {min_counts}, optimal am2_bias: {am2_bias_opt}\n")
+    return am2_bias_opt
+
+
+
+def verify_am2_bias(conn, sendresult=True):
+    sendc(bob, 'verify_am2_bias')
+    t = get_tmp()
+    am2_mode_backup = t['am2_mode']
+
+    update_tmp('am2_mode', 'off')
+    ctl.Update_Dac()
+    time.sleep(0.2)
+
+    sendc(bob, 'get counts')
+    count_off = rcv_i(bob)
+
+    bias = t['am2_bias']
+    if bias + 2 <= 10:
+        am2_final = bias + 2
+    else:
+        am2_final = bias - 2
+
+    ctl.Set_Am2_Bias(am2_final)
+    ctl.Update_Dac()
+    time.sleep(0.2)
+
+    sendc(bob, 'get counts')
+    count_ref = rcv_i(bob)
+
+    ratio = count_ref / count_off
+    if ratio >= 1.5:
+        m = colored(f"success: ref/off = {ratio:.2f} ({count_ref}/{count_off}) \n", "green", force_color=True)
+        result = True
+    else:
+        m = colored(f"fail ref/off = {ratio:.2f} ({count_ref}/{count_off}) \n", "yellow", force_color=True)
+        result = False
+
+    ctl.Set_Am2_Bias(bias)
+    update_tmp('am2_mode', am2_mode_backup)
+    ctl.Update_Dac()
+
+    if sendresult:
+        sendc(conn, 'verify_am2_bias ' + m)
+
+    print(m)
+    return result, count_ref, count_off
+
+
+def loop_find_am2_bias(conn, x=2):
+
+    sendc(bob, 'find_am2_bias')
+    t = get_tmp()
+    bias_1 = t['am_bias']
+    bias_2 = t['am2_bias_min']
+    best_count = 0
+    best_v = 0
+    for v in [0, 2.5, 5]:
+      ctl.Set_Am_Bias(v)
+      time.sleep(0.2)
+      sendc(bob,'get counts')
+      c = rcv_i(bob)
+      if c > best_count:
+        best_count = c
+        best_v = v
+
+    ctl.Set_Am_Bias(best_v)
+    ctl.Set_Am2_Bias(bias_2)
+    sendc(bob, 'done')
+
+    am2_bias_opt = find_am2_bias(conn, 0.8, step=0.2, sendresult=False)
+    result, count_double, count_off = verify_am2_bias(conn, sendresult=False)
+
+    ratio = count_double / count_off
+
+    if ratio < 5:
+        am2_bias_opt = find_am2_bias(conn, 0.3, step=0.1, sendresult=False)
+        result, count_double, count_off = verify_am2_bias(conn, sendresult=False)
+        ratio = count_double / count_off
+
+    if not result:
+        am2_bias_opt = find_am2_bias(conn, 20, step=1, sendresult=False)
+        am2_bias_opt = find_am2_bias(conn, 1, step=0.2, sendresult=False)
+
+        result, count_double, count_off = verify_am2_bias(conn, sendresult=False)
+        ratio = count_double / count_off
+
+        if ratio < 5:
+            am2_bias_opt = find_am2_bias(conn, 0.3, step=0.1, sendresult=False)
+            result, count_double, count_off = verify_am2_bias(conn, sendresult=False)
+            ratio = count_double / count_off
+
+    if result:
+        m = colored(f"success: fake_rng/off = {ratio:.2f} ({count_double}/{count_off})\n", "green", force_color=True)
+        update_tmp('am2_bias_min', am2_bias_opt)
+        if am2_bias_opt + x <= 10:
+            am2_final = round(am2_bias_opt + x, 2)
+        else:
+            am2_final = round(am2_bias_opt - x, 2)
+        ctl.Set_Am2_Bias(am2_final)
+        ctl.Update_Dac()
+    else:
+        m = colored(f"fail fake_rng/off = {ratio:.2f} ({count_double}/{count_off})\n", "yellow", force_color=True)
+        if count_off > 3500:
+           print(colored("Run the find_vca function or manually reduce the power (manual attenuator) before retrying.", "red",force_color=True))
+
+    print(m)
+    ctl.Set_Am_Bias(bias_1)
+    sendc(conn, 'loop_find_am2_bias ' + m)
+
+
+
+
+##########################################################################
+
+
+
+
+
+
+
+
+
 
 def pol_bob(conn):
     sendc(bob, 'pol_bob')
@@ -674,6 +953,7 @@ def verify_gates(conn, sendresult=True):
 
 def fs_b(conn):
     sendc(bob, 'fs_b')
+   # backup = ctl.backup_params_alice()
     t = get_tmp()
     t['am_mode'] = 'double'
     t['pm_mode'] = 'off'
@@ -686,11 +966,13 @@ def fs_b(conn):
     else:
         m = colored("Fail: pm_shift_Bob is None\n", "red", force_color=True)
         print(m)
+   # ctl.restore_params_alice(backup)
     sendc(conn, 'fs_b '+m)
 
 
 def fs_a(conn):
     sendc(bob, 'fs_a')
+    backup = ctl.backup_params_alice()
     t = get_tmp()
     t['am_mode'] = 'double'
     t['pm_mode'] = 'seq64'
@@ -713,45 +995,54 @@ def fs_a(conn):
     else:
         m = colored("fail: pm_shift_Alice is None\n", "red", force_color=True)
         print(m)
+    ctl.restore_params_alice(backup)
     sendc(conn, 'fs_a '+m)
 
 
 def fd_b(conn):
     sendc(bob, 'fd_b')
+    backup = ctl.backup_params_alice()
     update_tmp('am_mode', 'double')
     update_tmp('pm_mode', 'fake_rng')
     update_tmp('insert_zeros', 'off')
     ctl.Write_To_Fake_Rng(gen_seq.seq_rng_zeros())
     ctl.Update_Dac()
     rcvc(bob)
+    ctl.restore_params_alice(backup)
     sendc(conn, 'fd_b done')
 
 def fd_b_long(conn):
     sendc(bob, 'fd_b_long')
+    backup = ctl.backup_params_alice()
     update_tmp('am_mode', 'double')
     update_tmp('pm_mode', 'fake_rng')
     update_tmp('insert_zeros', 'off')
     ctl.Write_To_Fake_Rng(gen_seq.seq_rng_zeros())
     ctl.Update_Dac()
     rcvc(bob)
+    ctl.restore_params_alice(backup)
     sendc(conn, 'fd_b_long done')
 
 def fd_a(conn):
     sendc(bob, 'fd_a')
-    ctl.Write_To_Fake_Rng(gen_seq.seq_rng_single())
+    backup = ctl.backup_params_alice()
+
     update_tmp('pm_mode', 'fake_rng')
     update_tmp('am_mode', 'double')
     update_tmp('insert_zeros', 'off')
+    ctl.Write_To_Fake_Rng(gen_seq.seq_rng_single())
     ctl.Update_Dac()
     fiber_delay = rcv_i(bob)
     t = get_tmp()
     t['fiber_delay_mod'] = fiber_delay
     t['fiber_delay'] = (fiber_delay-1)%80 + t['fiber_delay_long']
     save_tmp(t)
+    ctl.restore_params_alice(backup)
     sendc(conn, 'fd_a done')
 
 def fd_a_long(conn):
     sendc(bob, 'fd_a_long')
+    backup = ctl.backup_params_alice()
     t = get_tmp()
     t['pm_mode'] = 'fake_rng'
     t['am_mode'] = 'double'
@@ -766,11 +1057,13 @@ def fd_a_long(conn):
     t['fiber_delay'] = t['fiber_delay_mod'] + fiber_delay_long*80 
     t['decoy_delay'] = t['fiber_delay'] 
     save_tmp(t)
+    ctl.restore_params_alice(backup)
     sendc(conn, 'fd_a_long done')
 
 
 def fz_b(conn):
     sendc(bob, 'fz_b')
+    backup = ctl.backup_params_alice()
     update_tmp('am_mode', 'double')
     update_tmp('pm_mode', 'fake_rng')
     update_tmp('insert_zeros', 'off')
@@ -780,7 +1073,9 @@ def fz_b(conn):
     update_tmp('insert_zeros', 'on')
     ctl.Write_To_Fake_Rng(gen_seq.seq_rng_zeros())
     ctl.Update_Dac()
+    ctl.restore_params_alice(backup)
     sendc(conn, 'fz_b done')
+
 
 
 
@@ -788,8 +1083,10 @@ def fz_b(conn):
 
 def fz_a(conn):
     sendc(bob, 'fz_a')
+    backup = ctl.backup_params_alice()
     #d = get_default()
     t = get_tmp()
+    t['am_mode'] = 'double'
     t['pm_mode'] = 'fake_rng'
     t['insert_zeros'] = 'on'
     #t['zero_pos'] = d['zero_pos']
@@ -830,7 +1127,11 @@ def fz_a(conn):
     #update_default('zero_pos', zero_pos)
     ctl.Update_Dac()
     rcvc(bob)
+    ctl.restore_params_alice(backup)
     sendc(conn, 'fz_a done')
+
+
+
 
 
 
@@ -889,6 +1190,7 @@ def set_angles_a(conn):
 def adjust_am(conn):
     sendc(bob, 'adjust_am')
     t = get_tmp()
+    t['am_mode'] = 'double'
     t['pm_mode'] = 'true_rng'
     t['insert_zeros'] = 'on'
     save_tmp(t)
@@ -1023,6 +1325,13 @@ def single_peak(conn, sendresult=True):
 
 
 
+
+
+
+
+
+
+
 def start(conn):
     sendc(bob, 'start')
     t = get_tmp()
@@ -1067,6 +1376,8 @@ functionmap['verify_am_bias'] = verify_am_bias
 functionmap['loop_find_am_bias'] = loop_find_am_bias
 functionmap['loop_find_gates'] = loop_find_gates
 functionmap['find_am2_bias'] = find_am2_bias
+functionmap['verify_am2_bias'] = verify_am2_bias
+functionmap['loop_find_am2_bias'] = loop_find_am2_bias
 functionmap['pol_bob'] = pol_bob
 functionmap['ad'] = ad
 functionmap['find_sp'] = find_sp
@@ -1113,6 +1424,10 @@ while True:
                 limit = int(command.split('_')[-1])
                 print('command: ', command)
                 functionmap['find_vca'](conn, limit)
+            elif command.startswith('loop_find_am2_bias_'):
+                x = float(command.split('_')[-1])
+                print('command: ', command)
+                functionmap['loop_find_am2_bias'](conn, x)
             elif command.startswith('vca_per_'):
                 per = int(command.split('_')[-1])
                 print('command: ', command)
