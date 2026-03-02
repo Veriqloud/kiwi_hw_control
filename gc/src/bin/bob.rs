@@ -84,9 +84,9 @@ fn send_gc(alice: &mut TcpStream) -> std::io::Result<()> {
     let mut loop_counter = 0;
     let mut total_counts = 0;
     loop {
-        if loop_counter % 100 == 99{
-            thread::sleep(time::Duration::from_millis(60));
-        }
+        //if loop_counter % 100 == 99{
+        //    thread::sleep(time::Duration::from_millis(60));
+        //}
         let (gc, result, num_clicks, time_ms) = process_gcr_stream(&mut file_gcr, read_length)?;
         if !&CONFIG.get().unwrap().ignore_gcr_timeout{
             // keep read time between 6ms and 12ms
