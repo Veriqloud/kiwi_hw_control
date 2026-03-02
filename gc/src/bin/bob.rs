@@ -111,8 +111,8 @@ fn send_gc(alice: &mut TcpStream) -> std::io::Result<()> {
             tracing::warn!("time_send_to_alice: {:?} ms", time_send_to_alice);
         }
         let now_write_to_fpga = Instant::now();
-        while !fifo_status_gc().gc_in_empty {
-        }
+        //while !fifo_status_gc().gc_in_empty {
+        //}
         //if loop_counter % 1000 == 999{
         //    thread::sleep(time::Duration::from_millis(60));
         //}

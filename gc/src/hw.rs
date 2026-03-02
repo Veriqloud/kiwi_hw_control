@@ -119,6 +119,7 @@ pub struct FifoStatus {
     pub gc_out_full: bool,
     pub gc_in_empty: bool,
     pub vfifo_full: bool,
+    pub vfifo_empty: bool,
 }
 
 pub fn fifo_status_gc() -> FifoStatus {
@@ -126,12 +127,31 @@ pub fn fifo_status_gc() -> FifoStatus {
     let gc_out_full = (value & 0x4) >> 2;
     let gc_in_empty = (value & 0x2) >> 1;
     let vfifo_full = (value & 0x60) >> 5;
+    let vfifo_empty = (value & 0x18) >> 3;
     let fifo_status = FifoStatus {
         gc_out_full: gc_out_full == 1,
         gc_in_empty: gc_in_empty == 1,
-        vfifo_full: vfifo_full != 0,
+        vfifo_full: vfifo_full != 2,
+        vfifo_empty: vfifo_empty == 3,
     };
     return fifo_status;
+}
+
+pub fn get_gc() -> (u64, bool, bool) {
+    let offset = 0x1000;
+    xdma_write(4, 0, offset);
+    xdma_write(4, 1, offset);
+    let value1 = xdma_read(60, offset);
+    let value2 = xdma_read(64, offset);
+
+    // bit 46 = m_axi_rvalid
+    // bit 47 = m_axi_rready
+    let mask = 1<<(45-32);
+    let gc = (((value2 as u64) << 32) & mask) | value1 as u64;
+    let m_axi_rvalid = (value2 >> (46-32)) & 1;
+    let m_axi_rready= (value2 >> (47-32)) & 1;
+    return (gc, m_axi_rvalid==1, m_axi_rready==1)
+
 }
 
 

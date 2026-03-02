@@ -3,7 +3,7 @@ use comm::gc_comms::{Request, Response};
 use comm::{read_message, write_message};
 use gc::comm::{Comm, HwControl};
 use gc::config::Configuration;
-use gc::hw::{BATCHSIZE, CONFIG, decompose_num_clicks, init_ddr, read_gc_from_bob, sync_at_pps, wait_for_pps, write_gc_to_fpga, fifo_status_gc};
+use gc::hw::{BATCHSIZE, CONFIG, decompose_num_clicks, fifo_status_gc, get_gc, init_ddr, read_gc_from_bob, sync_at_pps, wait_for_pps, write_gc_to_fpga};
 use std::fs::{OpenOptions, File};
 //use std::io::Write;
 use std::net::TcpStream;
@@ -82,8 +82,8 @@ fn recv_gc(bob: &mut TcpStream) -> std::io::Result<()> {
             }
         } else {
             // only write when gc_in is empty
-            while !fifo_status_gc().gc_in_empty {
-            }
+            //while !fifo_status_gc().gc_in_empty {
+            //}
             //if loop_counter % 1000 == 999{
             //    println!("xxxxxxxxxxxxx         extra delay");
             //    thread::sleep(time::Duration::from_millis(30));
@@ -100,19 +100,36 @@ fn recv_gc(bob: &mut TcpStream) -> std::io::Result<()> {
             //} else {
             //    write_gc_to_fpga(gc, &mut file_gcw, num_clicks)?;
             //}
-            if loop_counter % 1000 == 999{
-                println!("sleeping...");
-                thread::sleep(time::Duration::from_millis(50));
+            if loop_counter%100  == 0{
+                println!("loop {:?}, gc {:?}", loop_counter, get_gc());
+
+            }
+            if loop_counter  == 1000{
+                thread::sleep(time::Duration::from_millis(51));
+                //for _i in 0..16{
+                //    println!("loop {:?}, sleeping...", loop_counter);
+                //    thread::sleep(time::Duration::from_millis(11));
+                //    println!("loop {:?}, gc {:?}", loop_counter, get_gc());
+                //}
             }
 
-            if fifo_status_gc().vfifo_full{
-                println!("xxxxxxxxxx VFIFO full! xxxxxxxxxxxxxx");
+            if (loop_counter > 998) & (loop_counter<1010){
+                println!("loop {:?}, gc {:?},  writing {:?} values to gc_in", loop_counter, get_gc(), num_clicks);
             }
+
+            //let fifo_status = fifo_status_gc();
+            //if fifo_status.vfifo_full{
+            //    println!("loop {:?} VFIFO full! xxxxxxxxxxxxxx", loop_counter);
+            //}
+            //if fifo_status.vfifo_empty{
+            //    println!("loop {:?} VFIFO empty! xxxxxxxxxxxxxx", loop_counter);
+            //}
             
             //if now_finished_writing_to_fpga.elapsed().as_millis() < 5{
             //    println!("sleeping 5ms");
             //    thread::sleep(time::Duration::from_millis(5));
             //}
+           
             write_gc_to_fpga(gc, &mut file_gcw, num_clicks)?;
             now_finished_writing_to_fpga = Instant::now();
 
