@@ -16,6 +16,27 @@ HW_CONTROL = '/home/vq-user/hw_control/'
 LOG = '/home/vq-user/log/calibration/'
 
 
+
+def backup_params_bob():
+    t = get_tmp()
+    backup = {
+        'pm_mode': t['pm_mode'],
+        'feedback': t['feedback'],
+        'soft_gate': t['soft_gate'],
+        'insert_zeros': t['insert_zeros']
+    }
+    return backup
+
+def restore_params_bob(backup):
+    t = get_tmp()
+    t['pm_mode'] = backup['pm_mode']
+    t['feedback'] = backup['feedback']
+    t['soft_gate'] = backup['soft_gate']
+    t['insert_zeros'] = backup['insert_zeros']
+    save_tmp(t)
+    Update_Softgate()
+    Update_Dac()
+
 def update_spd():
     t = get_tmp()
     aurea = Aurea()
@@ -632,6 +653,7 @@ def diff_counts():
 def Find_Opt_Delay_A():
     # generate a sequence of 64 angles where the first one stands out
     t = get_tmp()
+    t['pm_mode'] = 'fake_rng'
     t['feedback'] = 'on'
     t['soft_gate'] = 'on'
     t['insert_zeros'] = 'off'
@@ -670,6 +692,7 @@ def Find_Opt_Delay_A():
 def Find_Opt_Delay_A_long(fiber_delay_mod):
     # generate a sequence of 64 angles where the first one stands out
     t = get_tmp()
+    t['pm_mode'] = 'fake_rng'
     t['feedback'] = 'on'
     t['soft_gate'] = 'on'
     t['insert_zeros'] = 'off'
@@ -988,9 +1011,22 @@ def init_ttl():
 def init_ddr():
     Ddr_Data_Init()
 
+
+
+
+def init_dpram():
+    write(0x00030000, 28, 16000)
+    write(0x00030000, [12, 12], [0x1, 0x0])
+    write(0x00030000, 16, 0x0000a0a0)
+    write(0x00030000, [4, 32, 12, 12], [943718451, 1000, 1, 0])
+    write(0x00030000, [8, 24, 12, 12], [4089445888, 4240797368, 1, 0])
+
+
+
 def init_hw():
     init_ltc()
     init_sync()
+    init_dpram()
     init_fda()
     init_sda()
     init_jic()

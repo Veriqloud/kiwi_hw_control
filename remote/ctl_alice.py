@@ -13,6 +13,24 @@ from lib.fpga import *
 LOG_FILE = os.path.expanduser("~/bin/qber_total.log")
 
 
+def backup_params_alice():
+    t = get_tmp()
+    backup = {
+        'pm_mode': t['pm_mode'],
+        'am_mode': t['am_mode'],
+        'am2_mode': t['am2_mode'],
+        'insert_zeros': t['insert_zeros']
+    }
+    return backup
+
+def restore_params_alice(backup):
+    t = get_tmp()
+    t['pm_mode'] = backup['pm_mode']
+    t['am_mode'] = backup['am_mode']
+    t['am2_mode'] = backup['am2_mode']
+    t['insert_zeros'] = backup['insert_zeros']
+    save_tmp(t)
+    Update_Dac()
 
 
 def read_data_qber():
@@ -333,8 +351,9 @@ def init_fda():
     #t['pm_mode'] = 'off'
     #t['qdistance'] = d['qdistance']
     #save_tmp(t)
-    #Update_Angles()
+#   Update_Angles()
     #Update_Dac()
+    init_dpram()
     Config_Fda()
 
 def init_sda():
@@ -351,6 +370,15 @@ def init_decoy():
     with open(HW_CONTROL+'config/decoy_delayf.txt', 'w') as f:
         f.write('0\n0\n0\n')
     gen_decoy()
+
+def init_dpram():
+    write(0x00030000, 28, 16000)
+    write(0x00030000, [12, 12], [0x1, 0x0])
+    write(0x00030000, 16, 0x0000a0a0)
+    write(0x00030000, [4, 32, 12, 12], [943718451, 1000, 1, 0])
+    write(0x00030000, [8, 24, 12, 12], [4089445888, 4240797368, 1, 0])
+
+
 
 def init_hw():
     init_ltc()

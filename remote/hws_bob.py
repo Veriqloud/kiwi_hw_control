@@ -135,6 +135,8 @@ while True:
                 sendc('Alice and Bob init done')    
                 print(colored('Alice and Bob init done \n', 'cyan', force_color=True))
 
+
+
             elif command == 'clean':
                 ctl.clean_config()
             
@@ -186,10 +188,13 @@ while True:
 
             elif command == 'adjust_am':
                 print(colored('adjust_am', 'cyan', force_color=True))
+                t = get_tmp()
                 t['pm_mode'] = 'true_rng'
                 t['insert_zeros'] = 'on'
                 t['feedback'] = 'on'
+                t['soft_gate'] = 'on'
                 save_tmp(t)
+                ctl.Update_Softgate()
                 ctl.Update_Dac()
 
                 while rcvc() == 'get counts':
@@ -217,13 +222,11 @@ while True:
                     send_i(count)
 
             elif command == 'find_am2_bias':
-                #print(colored('find_am2_bias', 'cyan', force_color=True))
-                for i in range(21):
-                    rcvc()
+                #print(colored('find_am_bias', 'cyan', force_color=True))
+                while rcvc() == 'get counts':
                     time.sleep(0.2)
                     count = ctl.counts_fast()[0]
                     send_i(count)
-
 
 
 
@@ -234,6 +237,16 @@ while True:
                     time.sleep(0.2)
                     count = ctl.counts_fast()[0]
                     send_i(count)
+
+
+            elif command == 'verify_am2_bias':
+                #print(colored('verify_am_bias', 'cyan', force_color=True))
+                for i in range(2):
+                    rcvc()
+                    time.sleep(0.2)
+                    count = ctl.counts_fast()[0]
+                    send_i(count)
+
 
 
 
@@ -336,6 +349,7 @@ while True:
 
             elif command == 'fs_b':
                 print(colored('fs_b', 'cyan', force_color=True))
+                backup = ctl.backup_params_bob()
                 ctl.Ensure_Spd_Mode('gated')
                 t = get_tmp()
                 t['pm_mode'] = 'seq64'
@@ -355,11 +369,13 @@ while True:
                    ctl.Update_Dac()
                 else:
                    pm_shift=1000
+                ctl.restore_params_bob(backup)
                 send_i(pm_shift)
 
            
             elif command == 'fs_a':
                 print(colored('fs_a', 'cyan', force_color=True))
+                backup = ctl.backup_params_bob()
                 ctl.Ensure_Spd_Mode('gated')
                 t = get_tmp()
                 t['pm_mode'] = 'off'
@@ -375,6 +391,7 @@ while True:
                 pm_shift = ctl.Find_Best_Shift('alice')
                 if pm_shift is None:
                    pm_shift = 1000
+                ctl.restore_params_bob(backup)
                 send_i(pm_shift)
 
 
@@ -382,6 +399,7 @@ while True:
            
             elif command == 'fd_b':
                 print(colored('fd_b', 'cyan', force_color=True))
+                backup = ctl.backup_params_bob()
                 ctl.Ensure_Spd_Mode('gated')
                 fiber_delay = ctl.Find_Opt_Delay_B()
                 response = 'Find delay bob done'
@@ -389,10 +407,12 @@ while True:
                 t['fiber_delay_mod'] = fiber_delay
                 t['fiber_delay'] = fiber_delay % 80 + t['fiber_delay_long']
                 save_tmp(t)
+                ctl.restore_params_bob(backup)
                 sendc('ok')
             
             elif command == 'fd_b_long':
                 print(colored('fd_b_long', 'cyan', force_color=True))
+                backup = ctl.backup_params_bob()
                 ctl.Ensure_Spd_Mode('gated')
                 fiber_delay = ctl.Find_Opt_Delay_B_long()
                 response = 'Find delay bob done'
@@ -400,35 +420,50 @@ while True:
                 t['fiber_delay_long'] = fiber_delay
                 t['fiber_delay'] = t['fiber_delay_mod']%80 + fiber_delay*80
                 save_tmp(t)
+                ctl.restore_params_bob(backup)
                 sendc('ok')
             
+
             elif command == 'fd_a':
                 print(colored('fd_a', 'cyan', force_color=True))
+                backup = ctl.backup_params_bob()
                 ctl.Ensure_Spd_Mode('gated')
                 fiber_delay = ctl.Find_Opt_Delay_A()
+                ctl.restore_params_bob(backup)
                 send_i(fiber_delay)
+
+
+
+
             
             elif command == 'fd_a_long':
                 print(colored('fd_a_long', 'cyan', force_color=True))
+                backup = ctl.backup_params_bob()
                 ctl.Ensure_Spd_Mode('gated')
                 fiber_delay_mod = rcv_i()
                 fiber_delay = ctl.Find_Opt_Delay_A_long(fiber_delay_mod)
+                ctl.restore_params_bob(backup)
                 send_i(fiber_delay)
             
             elif command == 'fz_b':
                 print(colored('fz_b', 'cyan', force_color=True))
+                backup = ctl.backup_params_bob()
                 ctl.Ensure_Spd_Mode('gated')
                 zero_pos = ctl.Find_Zero_Pos_B_new()
                 update_tmp('zero_pos', zero_pos)
-                #update_default('zero_pos', zero_pos)
                 ctl.Update_Dac()
+                ctl.restore_params_bob(backup)
                 sendc('ok')
             
+
+
             elif command == 'fz_a':
                 print(colored('fz_a', 'cyan', force_color=True))
+                backup = ctl.backup_params_bob()
                 ctl.Ensure_Spd_Mode('gated')
                 print("received command fz_a")
                 t = get_tmp()
+                t['pm_mode'] = 'fake_rng'
                 t['feedback'] = 'on'
                 t['soft_gate'] = 'on'
                 t['insert_zeros'] = 'off'
@@ -444,8 +479,8 @@ while True:
 
                 update_tmp('insert_zeros', 'on')
                 ctl.Update_Dac()
+                ctl.restore_params_bob(backup)
                 sendc('ok')
-
 
 
 
@@ -665,7 +700,9 @@ while True:
                 t['pm_mode'] = 'true_rng'
                 t['insert_zeros'] = 'on'
                 t['feedback'] = 'on'
+                t['soft_gate'] = 'on'
                 save_tmp(t)
+                ctl.Update_Softgate()
                 ctl.Update_Dac()
                 sendc('ok')
 
