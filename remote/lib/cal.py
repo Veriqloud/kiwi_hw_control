@@ -208,7 +208,7 @@ def plot_all_shifts(party, gc_comp=None):
 def plot_shift(party, shift,gc_comp):
     if shift is None:
         plot_all_shifts(party, gc_comp)
-        return
+        return 0.18
 
     times0, times1 = Shift_Unit(shift, party,gc_comp)
 
@@ -249,9 +249,14 @@ def plot_shift(party, shift,gc_comp):
     try:
         params0, _ = curve_fit(Sine_Function, bin_center0 / 64, n0, p0=guess0, bounds=bounds, maxfev=10000)
         fit0 = Sine_Function(bin_center0 / 64, *params0)
+        A0, B0, C0, D0 = params0
+        half_period0 = 1 / (2 * B0)
 
         params1, _ = curve_fit(Sine_Function, bin_center1 / 64, n1, p0=guess1, bounds=bounds, maxfev=10000)
         fit1 = Sine_Function(bin_center1 / 64, *params1)
+        A1, B1, C1, D1 = params1
+        half_period1 = 1 / (2 * B1)
+        half_period = (half_period0 + half_period1)/2
 
         plt.figure()
         plt.plot(bin_center0, n0, 'o', label='r=0 data', color='blue')
@@ -265,8 +270,10 @@ def plot_shift(party, shift,gc_comp):
         plt.ylabel("Counts")
         plt.savefig(f"{HW_CONTROL}data/calib_res/{party}_shift.png", dpi=300)
         plt.close()
+        return round(half_period, 3)
     except Exception as e:
         print(f"[Error in plot_shift for {party} shift={shift}]: {e}")
+        return 0.18
 
 # Best_Shift('bob')
 
@@ -310,4 +317,8 @@ def find_best_gc_comp(party):
        print(colored(" Low visibility: average max jump is high, signal may be noisy", 'yellow', force_color=True))
 
     return best_gc_comp
+
+
+
+
 

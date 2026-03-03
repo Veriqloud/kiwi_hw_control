@@ -363,7 +363,14 @@ while True:
                     save_tmp(t)
                     ctl.Update_Dac()
                     ctl.Download_Time(10000, 'pm_b_shift_'+str(s))
-                pm_shift = ctl.Find_Best_Shift('bob')
+                pm_shift, hp = ctl.Find_Best_Shift('bob')
+               # hp = hp+0.005
+                update_tmp('angle0', 0)
+                update_tmp('angle1', hp)
+                update_tmp('angle2', -hp)
+                update_tmp('angle3', 2*hp)
+                ctl.Update_Dac()
+
                 if pm_shift is not None:
                    update_tmp('pm_shift', pm_shift_coarse + pm_shift)
                    ctl.Update_Dac()
@@ -371,6 +378,7 @@ while True:
                    pm_shift=1000
                 ctl.restore_params_bob(backup)
                 send_i(pm_shift)
+
 
            
             elif command == 'fs_a':
@@ -388,12 +396,13 @@ while True:
                     rcvc()
                     ctl.Download_Time(10000, 'pm_a_shift_'+str(s))
                     sendc("ok")
-                pm_shift = ctl.Find_Best_Shift('alice')
+                pm_shift, hp = ctl.Find_Best_Shift('alice')
                 if pm_shift is None:
                    pm_shift = 1000
                 ctl.restore_params_bob(backup)
                 send_i(pm_shift)
-
+               # hp = hp-0.002
+                send_d(hp)
 
 
            

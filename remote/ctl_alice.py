@@ -8,7 +8,7 @@ import numpy as np
 #import mmap
 import lib.gen_seq as gen_seq
 from lib.fpga import *
-
+import scipy.constants as con
 
 LOG_FILE = os.path.expanduser("~/bin/qber_total.log")
 
@@ -179,6 +179,58 @@ def Set_Vca(voltage):
         time.sleep(0.05)
     update_tmp('vca', vcao)
     update_tmp('vca', voltage)
+
+
+
+
+def set_photons_number(N):
+    lam = 1550e-9
+    f = 80e6
+    P_5V = 0.025e-9
+    Att_5V = 3.8458
+    h = 6.62607015e-34
+    v = 2.05479e8
+
+    bias = np.array([
+        0,0.2,0.4,0.6,0.8,1,1.2,1.4,1.6,1.8,
+        2,2.2,2.4,2.6,2.8,3,3.2,3.4,3.6,3.8,
+        4,4.2,4.4,4.6,4.8,5
+    ])
+
+    att_db = np.array([
+        34.6693,34.5826,34.3622,34.0272,33.5902,33.0103,
+        32.2823,31.4722,30.4878,29.3695,28.0618,26.6379,
+        25.0515,23.3313,21.4342,19.4644,17.3283,15.0864,
+        12.7317,10.3386,7.9758,5.7369,5.5091,5.2288,
+        4.1173,3.8458
+    ])
+
+    P_ref = P_5V * 10**(Att_5V/10)
+
+    if N < 0.003 or N > 3:
+        print("Error: Please enter a number between 0.003 and 3 photons")
+        return None
+
+    E = h * v / lam
+    P_target = N * f * E
+    Att_needed = 10 * np.log10(P_ref / P_target)
+    vca = np.interp(Att_needed, att_db[::-1], bias[::-1])
+    Set_Vca(vca)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

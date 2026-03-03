@@ -857,7 +857,7 @@ def loop_find_am2_bias(conn, x=2):
 
     if result:
         m = colored(f"success: fake_rng/off = {ratio:.2f} ({count_double}/{count_off})\n", "green", force_color=True)
-        update_tmp('am2_bias_min', am2_bias_opt)
+        update_tmp('am2_bias_min', round(am2_bias_opt,2) )
         if am2_bias_opt + x <= 10:
             am2_final = round(am2_bias_opt + x, 2)
         else:
@@ -953,7 +953,7 @@ def verify_gates(conn, sendresult=True):
 
 def fs_b(conn):
     sendc(bob, 'fs_b')
-   # backup = ctl.backup_params_alice()
+    backup = ctl.backup_params_alice()
     t = get_tmp()
     t['am_mode'] = 'double'
     t['pm_mode'] = 'off'
@@ -966,7 +966,7 @@ def fs_b(conn):
     else:
         m = colored("Fail: pm_shift_Bob is None\n", "red", force_color=True)
         print(m)
-   # ctl.restore_params_alice(backup)
+    ctl.restore_params_alice(backup)
     sendc(conn, 'fs_b '+m)
 
 
@@ -987,6 +987,7 @@ def fs_a(conn):
         sendc(bob, 'download data')
         rcvc(bob)
     pm_shift = rcv_i(bob)
+    hp = rcv_d(bob)
     if pm_shift != 1000:
         update_tmp('pm_shift', pm_shift_coarse + pm_shift)
         ctl.Update_Dac()
@@ -995,6 +996,11 @@ def fs_a(conn):
     else:
         m = colored("fail: pm_shift_Alice is None\n", "red", force_color=True)
         print(m)
+    update_tmp('angle0', 0)
+    update_tmp('angle1', hp)
+    update_tmp('angle2', -hp)
+    update_tmp('angle3', 2*hp)
+    ctl.Update_Dac()
     ctl.restore_params_alice(backup)
     sendc(conn, 'fs_a '+m)
 
@@ -1139,17 +1145,15 @@ def fz_a(conn):
 def set_angles_a(conn):
     sendc(bob, 'set_angles_a')
 
-    d = get_default()
-    base_angles = [d['angle0'], d['angle1'], d['angle2'], d['angle3']]
+    base_angles = [0, 0.18, -0.18, 0.36]
 
     t = get_tmp()
-    t['pm_mode'] = 'fake_rng'
+    t['am_mode'] = 'double'
+    t['pm_mode'] = 'true_rng'
     t['insert_zeros'] = 'on'
     t['zero_pos'] = d['zero_pos']
     save_tmp(t)
     ctl.Write_To_Fake_Rng(gen_seq.seq_rng_all_one())
-    ctl.Update_Dac()
-
     update_tmp('angle0', base_angles[0])
     update_tmp('angle1', base_angles[1])
     update_tmp('angle2', base_angles[2])

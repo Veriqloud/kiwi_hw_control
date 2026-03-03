@@ -105,6 +105,9 @@ def set(args):
     if args.vca is not None:
         sendc("set_vca")
         send_d(args.vca)
+    elif args.photons is not None:
+        sendc("set_photons_number")
+        send_d(args.photons)
     elif args.am_bias is not None:
         sendc("set_am_bias")
         send_d(args.am_bias)
@@ -213,6 +216,8 @@ parser_init.add_argument("--load", type=str, metavar="filename",
 
 parser_set.add_argument("--vca", type=float, metavar=("voltage"), 
                         help="voltage controlled attenuator; float [0,5] V")
+parser_set.add_argument("--photons", type=float, metavar=("N"), 
+                        help="set number of photons per pulse (0.003 ≤ N ≤ 3)")
 parser_set.add_argument("--am_bias", type=float, metavar=("voltage"), 
                         help="bias of amplitude modulator; float [-10,10] V")
 parser_set.add_argument("--am2_bias", type=float, metavar=("voltage"), 

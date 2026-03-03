@@ -140,13 +140,13 @@ def Set_Pol(ch, vol):
         exit ("wrong channel in Set_Pol")
     if (vol<0) or (vol>5):
         exit ("wrong voltage in Set_Pol")
-    Set_vol(ch,vol)
+    Set_vol(ch,round(vol,2))
 
 def Update_Pol():
     t = get_tmp()
     p = [t['pol0'], t['pol1'], t['pol2'], t['pol3']]
     for ch,vol in enumerate(p):
-        Set_Pol(ch,vol)
+        Set_Pol(ch,round(vol,2))
 
 #def Optimize_Pos():
 #    t = get_tmp()
@@ -241,9 +241,8 @@ def Find_Best_Shift(party):
     else:
        gc_comp = cal_lib.find_best_gc_comp('bob')
     best_shift = cal_lib.Best_Shift(party,gc_comp)
-    cal_lib.plot_shift(party, best_shift,gc_comp)
-    return best_shift
-
+    half_period = cal_lib.plot_shift(party, best_shift, gc_comp)
+    return best_shift, half_period
     
 #---------------------------TDC CALIBRATION-----------------------------------------------
 
@@ -340,7 +339,7 @@ def Polarisation_Control():
         best = voltages[c.argmax()]
         bests.append(best)
         print("Best voltage on channel ", ch, "is", best)
-        Set_vol(ch,best)
+        Set_vol(ch,round(best, 2))
         time.sleep(0.2)
 
     t = get_tmp()
@@ -357,7 +356,7 @@ def Polarisation_Control():
         best = voltages[c.argmax()]
         bests2.append(best)
         print("Best voltage on channel ", ch, "is", best)
-        t['pol'+str(ch)] = best
+        t['pol'+str(ch)] = round(best, 2)
         Set_vol(ch,round(best, 2))
     save_tmp(t)
 
