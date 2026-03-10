@@ -5,7 +5,7 @@ use std::str::FromStr;
 use tracing_subscriber::fmt::writer::MakeWriterExt;
 use uuid::Uuid;
 use gc::hw::{
-    init_ddr, process_gcr_stream, sync_at_pps, write_gc_to_alice, write_gc_to_fpga, write_gc_to_user, CONFIG
+    CONFIG, fifo_status_gc, init_ddr, process_gcr_stream, sync_at_pps, write_gc_to_alice, write_gc_to_fpga, write_gc_to_user
 };
 use std::fs::OpenOptions;
 use std::io::prelude::*;
@@ -80,38 +80,23 @@ fn send_gc(alice: &mut TcpStream) -> std::io::Result<()> {
 
     let mut read_length = 1;
     let mut t_loop = Instant::now();
-    let mut dt_loop_max = 0;
-    let mut loop_counter = 0;
-    let mut total_counts = 0;
     loop {
-        //if loop_counter % 100 == 99{
-        //    thread::sleep(time::Duration::from_millis(60));
-        //}
         let (gc, result, num_clicks, time_ms) = process_gcr_stream(&mut file_gcr, read_length)?;
-        if !&CONFIG.get().unwrap().ignore_gcr_timeout{
-            // keep read time between 6ms and 12ms
-            // 50 ms is the limit above which a reset is requrired (debugging...)
-            if (time_ms < 6) & (read_length<BATCHSIZE/2){
-                read_length *= 2;
-            } else if (time_ms > 12) & (time_ms < 20) & (read_length>1) {
-                read_length /= 2;
-            } else if time_ms >= 20{
-                tracing::warn!("[gc-bob] took {:?} ms to read gcr (probably unrecoverable above 50ms)", time_ms);
-                read_length = 1;
-            }
-            if time_ms >= 50 {
-                tracing::warn!("[gc-bob] took {:?} ms to read gcr (probably unrecoverable above 50ms)", time_ms);
-                let gcr_timout_error = std::io::Error::new(std::io::ErrorKind::Other, "Gcr50msTimeout");
-                return Err(gcr_timout_error)
-            }
+        
+        // keep read time between 20ms and 80ms (500ms is the max limit)
+        if (time_ms < 20) & (read_length<=BATCHSIZE/2){
+            read_length *= 2;
+        } else if (time_ms > 80) & (time_ms < 160) & (read_length>1) {
+            read_length /= 2;
+        } else if time_ms >= 160{
+            tracing::warn!("[gc-bob] took {:?} ms to read gcr", time_ms);
+            read_length = 1;
         }
         write_gc_to_alice(gc, alice, num_clicks)?;
-        write_gc_to_fpga(gc, &mut file_gcw, num_clicks)?;
-
-        total_counts += num_clicks;
-        if loop_counter % 100 == 0{
-            println!("total counts {:?}", total_counts);
+        while !fifo_status_gc().gc_in_empty {
+            thread::sleep(time::Duration::from_millis(10));
         }
+        write_gc_to_fpga(gc, &mut file_gcw, num_clicks)?;
 
         file_result.write_all(&result[..num_clicks])?;
         match option_file_gcuser.as_mut(){
@@ -122,12 +107,10 @@ fn send_gc(alice: &mut TcpStream) -> std::io::Result<()> {
         }
         let t2_loop = Instant::now();
         let dt_loop = t2_loop.duration_since(t_loop).as_millis();
-        if dt_loop > dt_loop_max{
-            println!("max loop time: {:?} ms", dt_loop);
-            dt_loop_max = dt_loop;
+        if dt_loop > 200{
+            tracing::warn!("max loop time: {:?} ms", dt_loop);
         }
         t_loop = Instant::now();
-        loop_counter += 1;
     }
 }
 

@@ -11,6 +11,13 @@ use crate::config::Configuration;
 pub const PPS_ADDRESS: usize = 48;
 pub const PPS_OFFSET: u64 = 0x1000;
 
+pub const FIFO_ADDRESS: usize = 52;
+pub const FIFO_OFFSET: u64 = 0x1000;
+
+pub const BATCHSIZE: usize = 256; // max number of clicks to process in one batch; must be a power
+                                  // of 2
+pub const TCP_RCV_BATCHSIZE: usize = 1024; // max number of clicks to receive per TCP read on Alice
+
 pub static CONFIG: OnceLock<Configuration> = OnceLock::new();
 
 enum HwCurrentParam {
@@ -106,10 +113,44 @@ fn xdma_read(addr: usize, offset: u64) -> u32 {
     value
 }
 
-//fn get_counts() -> std::io::Result<u32>{
-//    let counts = xdma_read(56+8, 0);
-//    Ok(counts)
-//}
+pub struct FifoStatus {
+    pub gc_out_full: bool,
+    pub gc_in_empty: bool,
+    pub vfifo_full: bool,
+    pub vfifo_empty: bool,
+}
+
+pub fn fifo_status_gc() -> FifoStatus {
+    let value = xdma_read(FIFO_ADDRESS, FIFO_OFFSET);
+    let gc_out_full = (value & 0x4) >> 2;
+    let gc_in_empty = (value & 0x8) >> 3;
+    let vfifo_full = (value & 0x180) >> 7;
+    let vfifo_empty = (value & 0x60) >> 5;
+    let fifo_status = FifoStatus {
+        gc_out_full: gc_out_full == 1,
+        gc_in_empty: gc_in_empty == 1,
+        vfifo_full: vfifo_full == 1,
+        vfifo_empty: vfifo_empty == 3,
+    };
+    return fifo_status;
+}
+
+pub fn get_gc() -> (u64, bool, bool) {
+    let offset = 0x1000;
+    xdma_write(4, 0, offset);
+    xdma_write(4, 1, offset);
+    let value1 = xdma_read(60, offset);
+    let value2 = xdma_read(64, offset);
+
+    // bit 46 = m_axi_rvalid
+    // bit 47 = m_axi_rready
+    let mask = 1<<(45-32);
+    let gc = (((value2 as u64) << 32) & mask) | value1 as u64;
+    let m_axi_rvalid = (value2 >> (46-32)) & 1;
+    let m_axi_rready= (value2 >> (47-32)) & 1;
+    return (gc, m_axi_rvalid==1, m_axi_rready==1)
+
+}
 
 // write some parameters to the fpga (see fpga doc)
 fn ddr_data_reg(command: u32, gc_delay: u32, decoy_delay: u32, delay_ab: u32) {
@@ -217,9 +258,6 @@ fn gc_for_fpga(gc: u64) -> [u8; 16] {
     return buf;
 }
 
-pub const BATCHSIZE: usize = 128; // max number of clicks to process in one batch; must be a power
-                                  // of 2
-pub const TCP_RCV_BATCHSIZE: usize = 1024; // max number of clicks to receive per TCP read on Alice
 
 // read gcr from fpga and split gc and r
 // the number of clicks read is read_length
@@ -228,8 +266,16 @@ pub fn process_gcr_stream(file: &mut File, read_length: usize) -> std::io::Resul
     let mut buf: [u8; BATCHSIZE * 16] = [0; BATCHSIZE * 16];
 
     let now = Instant::now();
-    //println!("buflen {:?}", (&mut buf[..read_length*16]).len());
+
+    let mut fifo_full = false;
+    if fifo_status_gc().gc_out_full {
+        tracing::warn!("gc_out fifo full; you lost some counts");
+        fifo_full = true;
+    }
     let mut len = file.read(&mut buf[..read_length*16])?;
+    if fifo_full{
+        tracing::warn!("got {:?} counts from full fifo", len/16);
+    }
     let elapsed_time = now.elapsed();
     if len == 0 {
         tracing::error!("[gc] len = 0");
