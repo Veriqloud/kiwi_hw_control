@@ -1356,7 +1356,6 @@ functionmap['free_running'] = free_running
 functionmap['sync_gc'] = sync_gc
 functionmap['compare_gc'] = compare_gc
 functionmap['vca_per'] = vca_per
-functionmap['display_M41'] = display_M41
 functionmap['config_laser'] = config_laser
 functionmap['qdistance'] = qdistance
 functionmap['find_vca'] = find_vca
