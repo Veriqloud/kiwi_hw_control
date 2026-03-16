@@ -256,7 +256,15 @@ def plot_shift(party, shift,gc_comp):
         fit1 = Sine_Function(bin_center1 / 64, *params1)
         A1, B1, C1, D1 = params1
         half_period1 = 1 / (2 * B1)
-        half_period = (half_period0 + half_period1)/2
+
+        if 0.13 <= half_period0 <= 0.23 and 0.13 <= half_period1 <= 0.23:
+            half_period = (half_period0 + half_period1) / 2
+        elif 0.13 <= half_period0 <= 0.23:
+            half_period = half_period0
+        elif 0.13 <= half_period1 <= 0.23:
+            half_period = half_period1
+        else:
+            half_period = 0.18
 
         plt.figure()
         plt.plot(bin_center0, n0, 'o', label='r=0 data', color='blue')

@@ -12,7 +12,6 @@ import scipy.constants as con
 
 LOG_FILE = os.path.expanduser("~/bin/qber_total.log")
 
-
 def backup_params_alice():
     t = get_tmp()
     backup = {
@@ -33,7 +32,7 @@ def restore_params_alice(backup):
     Update_Dac()
 
 
-def read_data_qber():
+def read_data_qber(LOG_FILE):
     try:
         with open(LOG_FILE, 'r') as f:
             lines = f.readlines()
@@ -215,6 +214,7 @@ def set_photons_number(N):
     P_target = N * f * E
     Att_needed = 10 * np.log10(P_ref / P_target)
     vca = np.interp(Att_needed, att_db[::-1], bias[::-1])
+    vca=round(vca,2)
     Set_Vca(vca)
 
 
@@ -462,7 +462,7 @@ def rst_config():
     t['angle1'] = 0.18
     t['angle2'] = -0.18
     t['angle3'] = 0.36
-    t['qdistance'] = 0.095
+    t['qdistance'] = 0.11
     t['fiber_delay_mod'] = 0
     t['fiber_delay'] = 0
     t['fiber_delay_long'] = 0

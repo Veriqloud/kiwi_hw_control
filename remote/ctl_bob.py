@@ -16,7 +16,6 @@ HW_CONTROL = '/home/vq-user/hw_control/'
 LOG = '/home/vq-user/log/calibration/'
 
 
-
 def backup_params_bob():
     t = get_tmp()
     backup = {
@@ -792,6 +791,8 @@ def fall_edge(file_path):
 
 
 def verify_gate_double(input_file, input_file2, gate0, gate1, width, binstep=2):
+    if width == 0:
+        width = 30
     raw1 = np.loadtxt(input_file, usecols=1) % 625
     data1 = raw1
 
@@ -829,10 +830,10 @@ def verify_gate_double(input_file, input_file2, gate0, gate1, width, binstep=2):
     plt.figure()
     plt.plot(centers, h2, label=os.path.basename('off'), color='blue', linestyle='--')
     plt.plot(centers, h1, label=os.path.basename('double'), color='red')
-    plt.axvline(gate0, color='orange', linestyle='--', label='Gate0')
-    plt.axvline(gate0 + width, color='orange', linestyle='--')
-    plt.axvline(gate1, color='purple', linestyle='--', label='Gate1')
-    plt.axvline(gate1 + width, color='purple', linestyle='--')
+    plt.axvline(peak0_x - width/2, color='orange', linestyle='--', label='Gate0')
+    plt.axvline(peak0_x + width/2, color='orange', linestyle='--')
+    plt.axvline(peak1_x - width/2, color='purple', linestyle='--', label='Gate1')
+    plt.axvline(peak1_x + width/2, color='purple', linestyle='--')
     plt.ylim(0)
     plt.xlim(0)
     plt.xlabel("Time bin (ns)")
@@ -849,7 +850,35 @@ def verify_gate_double(input_file, input_file2, gate0, gate1, width, binstep=2):
     else:
         status = "fail"
 
+    if status == "fail":
+
+        idx0_fallback = np.where((centers >= 0) & (centers <= 150))[0]
+        idx1_fallback = np.where((centers >= 450) & (centers <= 623))[0]
+
+        peak0 = h1[idx0_fallback].max() if idx0_fallback.size else 0
+        peak1 = h1[idx1_fallback].max() if idx1_fallback.size else 0
+
+        peak0_local_index = np.argmax(h1[idx0_fallback]) if idx0_fallback.size else None
+        peak1_local_index = np.argmax(h1[idx1_fallback]) if idx1_fallback.size else None
+
+        peak0_x = centers[idx0_fallback[peak0_local_index]] if idx0_fallback.size else None
+        peak1_x = centers[idx1_fallback[peak1_local_index]] if idx1_fallback.size else None
+   
     return status, peak0_x, peak1_x
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 def plot_single_peak():
     names = [HW_CONTROL + 'data/tdc/single_peak.txt']

@@ -1,3 +1,4 @@
+
 #!/bin/python
 
 import socket, json, time, os, struct, datetime, os
@@ -9,6 +10,7 @@ from lib.fpga import get_tmp, save_tmp, update_tmp, Set_t0, Sync_Gc, get_gc
 from termcolor import colored
 
 from pathlib import Path
+import subprocess
 
 
 HW_CONTROL = '/home/vq-user/hw_control/'
@@ -117,6 +119,15 @@ while True:
         m = struct.pack('i', l) + data 
         conn.sendall(m)
 
+
+    def rcv_data():
+        m = recv_exact(4)
+        l = struct.unpack('i', m)[0]
+        data = recv_exact(l)
+        print(colored('received data', 'cyan', force_color=True))
+        return data
+
+
     try:
         while True:
             try:
@@ -134,7 +145,6 @@ while True:
                 rcvc()
                 sendc('Alice and Bob init done')    
                 print(colored('Alice and Bob init done \n', 'cyan', force_color=True))
-
 
 
             elif command == 'clean':
@@ -201,9 +211,14 @@ while True:
                     time.sleep(0.2)
                     count = ctl.counts_fast()[1] + ctl.counts_fast()[2]
                     send_i(count)
+#                  values = []
+#                  for _ in range(6):
+#                    count = ctl.counts_fast()[1] + ctl.counts_fast()[2]
+#                    values.append(count)
+#                    time.sleep(0.1)
+#                  avg_count = int(sum(values) / len(values))
+#                  send_i(avg_count)
 
-            elif command == 'adjust_angles_a':
-               print(colored('doing nothing', 'cyan', force_color=True))
 
 
             elif command == 'find_vca':
@@ -493,77 +508,126 @@ while True:
 
 
 
-            elif command == 'adjust_soft_gates':
-                t = get_tmp()
-                g0, g1, w0, w1 = t['soft_gate0'], t['soft_gate1'], t['w0'], t['w1']
-                best_g0, best_g1, best_w0, best_w1 = g0, g1, w0, w1
-                lowest_qber = None
 
-                #  gate 0
-                for delta in [-3, 0, 3]:
+
+            elif command == 'adjust_soft_gates':
+                backup = ctl.backup_params_bob()
+                t = get_tmp()
+                t['pm_mode'] = 'true_rng'
+                t['insert_zeros'] = 'on'
+                t['feedback'] = 'on'
+                t['soft_gate'] = 'on'
+                save_tmp(t)
+                ctl.Update_Softgate()
+                ctl.Update_Dac()
+                g0 = t['soft_gate0']
+                g1 = t['soft_gate1']
+                w0 = 30
+                w1 = 30
+
+                best_g0 = g0
+                best_g1 = g1
+                best_w0 = w0
+                best_w1 = w1
+                best_count = -1
+
+                for delta in [-6,-3, 0, 3,6]:
                     g0_test = max(0, g0 + delta)
-                    t['soft_gate0'] = g0_test
-                    save_tmp(t)
                     ctl.set_Softgate(g0_test, g1, w0, w1)
-                    sendc('get_qber')
-                    qber = rcv_d()
-                    print(f" g0={g0_test}, g1={g1}, w0={w0}, w1={w1}, QBER={qber}")
-                    if lowest_qber is None or qber < lowest_qber:
-                        lowest_qber, best_g0 = qber, g0_test
+                    time.sleep(0.2)
+                    count = ctl.counts_fast()[2]
+                    if count > best_count:
+                        best_count = count
+                        best_g0 = g0_test
 
                 t['soft_gate0'] = best_g0
                 save_tmp(t)
                 ctl.set_Softgate(best_g0, g1, w0, w1)
 
-                #  gate 1
-                for delta in [-3, 0, 3]:
+                best_count = -1
+                for delta in [-6,-3, 0, 3,6]:
                     g1_test = max(0, g1 + delta)
-                    t['soft_gate1'] = g1_test
-                    save_tmp(t)
                     ctl.set_Softgate(best_g0, g1_test, w0, w1)
-                    sendc('get_qber')
-                    qber = rcv_d()
-                    print(f" g0={best_g0}, g1={g1_test}, w0={w0}, w1={w1}, QBER={qber}")
-                    if qber < lowest_qber:
-                        lowest_qber, best_g1 = qber, g1_test
+                    time.sleep(0.2)
+                    count = ctl.counts_fast()[1]
+                    if count > best_count:
+                        best_count = count
+                        best_g1 = g1_test
 
                 t['soft_gate1'] = best_g1
                 save_tmp(t)
-                ctl.set_Softgate(best_g0, best_g1, w0, w1)
 
-                #  w0
-                for delta in [-3, 0, 3]:
-                    w0_test = max(25, w0 + delta)
-                    t['w0'] = w0_test
-                    save_tmp(t)
+                best_w0 = w0
+                max_count_w0 = ctl.counts_fast()[2]
+                for delta in [3, 6]:
+                    w0_test = max(0, w0 + delta)
                     ctl.set_Softgate(best_g0, best_g1, w0_test, w1)
-                    sendc('get_qber')
-                    qber = rcv_d()
-                    print(f" g0={best_g0}, g1={best_g1}, w0={w0_test}, w1={w1}, QBER={qber}")
-                    if qber < lowest_qber:
-                        lowest_qber, best_w0 = qber, w0_test
+                    time.sleep(0.2)
+                    counts = ctl.counts_fast()[2]
+                    if counts - max_count_w0 >= 50:
+                        best_w0 = w0_test
+                        max_count_w0 = counts
 
-                t['w0'] = best_w0
-                save_tmp(t)
-                ctl.set_Softgate(best_g0, best_g1, best_w0, w1)
-
-                #  w1
-                for delta in [-3, 0, 3]:
-                    w1_test = max(25, w1 + delta)
-                    t['w1'] = w1_test
-                    save_tmp(t)
+                best_w1 = w1
+                max_count_w1 = ctl.counts_fast()[1]
+                for delta in [3, 6]:
+                    w1_test = max(0, w1 + delta)
                     ctl.set_Softgate(best_g0, best_g1, best_w0, w1_test)
-                    sendc('get_qber')
-                    qber = rcv_d()
-                    print(f" g0={best_g0}, g1={best_g1}, w0={best_w0}, w1={w1_test}, QBER={qber}")
-                    if qber < lowest_qber:
-                        lowest_qber, best_w1 = qber, w1_test
+                    time.sleep(0.2)
+                    counts = ctl.counts_fast()[1]
+                    if counts - max_count_w1 >= 50:
+                        best_w1 = w1_test
+                        max_count_w1 = counts
 
-                t['w1'] = best_w1
-                save_tmp(t)
                 ctl.set_Softgate(best_g0, best_g1, best_w0, best_w1)
+                time.sleep(0.2)
+                counts = ctl.counts_fast()
 
-                sendc('ok')
+                if counts[1] > counts[2]:
+                    i = 1
+                else:
+                    i = 0
+
+                if i == 1:
+                    for delta in range(0, 16, 2):
+                        w1_test = max(0, best_w1 - delta)
+                        ctl.set_Softgate(best_g0, best_g1, best_w0, w1_test)
+                        time.sleep(0.2)
+                        counts = ctl.counts_fast()
+                        if abs(counts[1] - counts[2]) <= 60 or counts[1] < counts[2]:
+                            best_w1 = w1_test
+                            break
+                    else:
+                        best_w1 = w1_test
+                else:
+                    for delta in range(0, 16, 2):
+                        w0_test = max(0, best_w0 - delta)
+                        ctl.set_Softgate(best_g0, best_g1, w0_test, best_w1)
+                        time.sleep(0.2)
+                        counts = ctl.counts_fast()
+                        if abs(counts[2] - counts[1]) <= 60 or counts[2] < counts[1]:
+                            best_w0 = w0_test
+                            break
+                    else:
+                        best_w0 = w0_test
+
+                t = get_tmp()
+                t['soft_gate0'], t['soft_gate1'] = best_g0, best_g1
+                t['w0'], t['w1'] = best_w0, best_w1
+                save_tmp(t)
+
+                ctl.set_Softgate(best_g0, best_g1, best_w0, best_w1)
+                ctl.restore_params_bob(backup)
+                sendc('done')
+
+
+
+
+
+
+
+
+
 
 
 
@@ -662,22 +726,53 @@ while True:
 
 
 
-            elif command == 'set_angles_a':
-                t = get_tmp()
-                t['feedback'] = 'on'
-                t['soft_gate'] = 'on'
-                t['insert_zeros'] = 'off'
-                save_tmp(t)
-                ctl.Write_To_Fake_Rng(gen_seq.seq_rng_zeros())
-                ctl.Update_Softgate()
-                ctl.Update_Dac()
-                time.sleep(0.3)
-
-                ctl.Ensure_Spd_Mode('continuous')
+            elif command == 'adjust_angles_a':
                 while rcvc() == 'get counts':
-                    count = ctl.diff_counts()
+                    counts = ctl.counts_fast()
+                    count = abs(counts[1] + counts[2])
+                   # count = ctl.diff_counts()
                     send_i(count)
 
+            elif command == 'adjust_angles_b':
+
+                t = get_tmp()
+                base_angle1 = t['angle1']
+                best_angle1 = base_angle1
+                max_diff = 0
+
+                for delta in [-0.006,-0.003, 0, 0.003,0.006]:
+                    angle1_test = base_angle1 + delta
+                    angle0 = 0.0
+                    angle1 = angle1_test
+                    angle2 = -angle1_test
+                    angle3 = 2 * angle1_test
+
+                    update_tmp('angle0', angle0)
+                    update_tmp('angle1', angle1)
+                    update_tmp('angle2', angle2)
+                    update_tmp('angle3', angle3)
+                    ctl.Update_Dac()
+                    time.sleep(0.4)
+                    counts = ctl.counts_fast()
+                    diff = abs(counts[1] + counts[2])
+
+ #                   diff = ctl.diff_counts()   
+                    if diff > max_diff:
+                        min_diff = diff
+                        best_angle1 = angle1_test
+
+
+                angle0 = 0.0
+                angle1 = best_angle1
+                angle2 = -best_angle1
+                angle3 = 2 * best_angle1
+
+                update_tmp('angle0', round(angle0, 3))
+                update_tmp('angle1', round(angle1, 3))
+                update_tmp('angle2', round(angle2, 3))
+                update_tmp('angle3', round(angle3, 3))
+                ctl.Update_Dac()
+                sendc('adjust_angles_b done')
 
 
             elif command == 'single_peak':

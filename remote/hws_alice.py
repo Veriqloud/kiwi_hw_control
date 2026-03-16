@@ -135,7 +135,6 @@ server_socket.listen()
 print(f"Server listening on {host}:{port}")
 
 
-
 ####### config functions ###########
 
 def init(conn):
@@ -649,30 +648,6 @@ def loop_find_am_bias(conn):
     print(m)
     ctl.Set_Am2_Bias(bias_2)
     sendc(conn, 'loop_find_am_bias ' + m)
-
-
-
-
-def loop_find_gates(conn):
-    for _ in range(2):
-        ad(conn, sendresult=False)
-        find_sp(conn, sendresult=False)
-        ad(conn, sendresult=False)
-
-        for _ in range(1):
-            result, pic = verify_gates(conn, sendresult=False)
-            if result:
-                send_data(conn, pic)
-                m = colored("success: good gates found \n", "green", force_color=True)
-                sendc(conn, 'loop_find_gates ' + m)
-                return
-            print(colored("verify_gates failed retrying...", "yellow", force_color=True))
-
-        print(colored("verify_gates failed after 1 retry, restarting find_gate sequence...", "red", force_color=True))
-
-    send_data(conn, pic)
-    m = colored("verify_gates failed", "red", force_color=True)
-    sendc(conn, 'loop_find_gates ' + m)
 
 
 
@@ -1205,7 +1180,7 @@ def adjust_am(conn):
     best_am = am_tmp
     best_count = -1
 
-    for delta in [-0.2, -0.1, 0, 0.1, 0.2]:
+    for delta in [-0.15, -0.1,-0.05, 0, 0.05,0.1,0.15]:
         am_test = round(am_tmp + delta, 2)
         ctl.Set_Am_Bias(am_test)
         time.sleep(0.2)
@@ -1229,17 +1204,15 @@ def adjust_am(conn):
 
 def adjust_soft_gates(conn):
     sendc(bob, 'adjust_soft_gates')
-
-    while rcvc(bob) == 'get_qber':
-        prev_qber = ctl.read_data_qber()[2]
-        qber = prev_qber
-        while qber == prev_qber:
-            time.sleep(0.5)
-            qber = ctl.read_data_qber()[2]
-        send_d(bob, qber)
-
+    backup = ctl.backup_params_alice()
+    t = get_tmp()
+    t['pm_mode'] = 'true_rng'
+    t['insert_zeros'] = 'on'
+    save_tmp(t)
+    ctl.Update_Dac()
+    rcvc(bob)
+    ctl.restore_params_alice(backup)
     sendc(conn, 'adjust_soft_gates done')
-
 
 
 
@@ -1268,38 +1241,50 @@ def adjust_angles_a(conn):
     sendc(bob, 'adjust_angles_a')
 
     t = get_tmp()
-    angle3 = t['angle3']
+    base_angle1 = t['angle1']
+    best_angle1 = base_angle1
+    max_diff = 0
 
-    while True:
+    for delta in [-0.006,-0.003, 0, 0.003,0.006]:
+        angle1_test = base_angle1 + delta
+        angle0 = 0.0
+        angle1 = angle1_test
+        angle2 = -angle1_test
+        angle3 = 2 * angle1_test
+
+        update_tmp('angle0', angle0)
+        update_tmp('angle1', angle1)
+        update_tmp('angle2', angle2)
         update_tmp('angle3', angle3)
         ctl.Update_Dac()
-        time.sleep(0.2)
+        time.sleep(0.4)
 
-        try:
-            v41 = ctl.read_data_qber()[1]
-            print(v41)
-        except:
-            continue
+        sendc(bob, 'get counts')
+        diff = rcv_i(bob)
 
-        if v41 is None:
-            continue
+        if diff > max_diff:
+            max_diff = diff
+            best_angle1 = angle1_test
 
-        if 0.95 <= v41 <= 1.05:
-            break
-        elif v41 < 0.95:
-            angle3 += 0.1
-        elif v41 > 1.05:
-            angle3 -= 0.1
+    angle0 = 0.0
+    angle1 = best_angle1
+    angle2 = -best_angle1
+    angle3 = 2 * best_angle1
 
-    angle1 = angle3 / 2
-    angle2 = -angle3 / 2
-
-    update_tmp('angle1', angle1)
-    update_tmp('angle2', angle2)
-    update_tmp('angle3', angle3)
+    update_tmp('angle0', round(angle0, 3))
+    update_tmp('angle1', round(angle1, 3))
+    update_tmp('angle2', round(angle2, 3))
+    update_tmp('angle3', round(angle3, 3))
     ctl.Update_Dac()
 
+    sendc(bob, 'done')
     sendc(conn, 'adjust_angles_a done')
+
+def adjust_angles_b(conn):
+    sendc(bob, 'adjust_angles_b')
+    rcvc(bob)
+    sendc(conn, 'adjust_angles_b done')
+
 
 
 def single_peak(conn, sendresult=True):
@@ -1371,7 +1356,7 @@ functionmap['free_running'] = free_running
 functionmap['sync_gc'] = sync_gc
 functionmap['compare_gc'] = compare_gc
 functionmap['vca_per'] = vca_per
-#functionmap['vca_max'] = vca_max
+functionmap['display_M41'] = display_M41
 functionmap['config_laser'] = config_laser
 functionmap['qdistance'] = qdistance
 functionmap['find_vca'] = find_vca
@@ -1397,6 +1382,7 @@ functionmap['fz_b'] = fz_b
 functionmap['set_angles_a'] = set_angles_a
 functionmap['adjust_am'] = adjust_am
 functionmap['adjust_angles_a'] = adjust_angles_a
+functionmap['adjust_angles_b'] = adjust_angles_b
 functionmap['adjust_soft_gates'] = adjust_soft_gates
 functionmap['set_soft_gates'] = set_soft_gates
 functionmap['single_peak'] = single_peak
