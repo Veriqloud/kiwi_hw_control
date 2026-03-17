@@ -1,0 +1,18 @@
+[Unit]
+Description=key management server
+Requires=network-online.target
+After=network-online.target
+
+[Service] 
+EnvironmentFile=/etc/environment
+ExecStart=/home/vq-user/server/km-server -c ../config/kms.json
+Restart=always
+RestartSec=10
+StartLimitBurst=5
+User=vq-user
+WorkingDirectory=/home/vq-user/server
+StandardOutput=append:/home/vq-user/log/kms.log
+StandardError=append:/home/vq-user/log/kms.log
+
+[Install] 
+WantedBy=multi-user.target

@@ -26,41 +26,41 @@ gc(){
     cd ../gc/target/release
     ssh $Alice "mkdir -p server"
     ssh $Alice "mkdir -p bin"
-    rsync -v alice $Alice:~/server/gc
-    rsync -v controller $Alice:~/bin/
+    scp alice $Alice:~/server/gc
+    scp controller $Alice:~/bin/
     ssh $Bob "mkdir -p server"
-    rsync -v bob $Bob:~/server/gc
+    scp bob $Bob:~/server/gc
     cd -
 }
 
 qber(){
     cd ../qber/target/release
     ssh $Alice "mkdir -p bin"
-    rsync -v alice $Alice:~/bin/qber
+    scp alice $Alice:~/bin/qber
     ssh $Bob "mkdir -p server"
-    rsync -v bob $Bob:~/server/qber
+    scp bob $Bob:~/server/qber
     cd -
 }
 
 control(){
     cd ../remote
-    rsync -v hw_alice.py hws_alice.py ctl_alice.py mon_alice.py $Alice:~/hw_control/
-    rsync -v lib/*.py $Alice:~/hw_control/lib/
-    rsync -v alice_server/*.py $Alice:~/server/
-    rsync -v lib/laser/* $Alice:~/hw_control/lib/laser/
+    scp hw_alice.py hws_alice.py ctl_alice.py mon_alice.py $Alice:~/hw_control/
+    scp lib/*.py $Alice:~/hw_control/lib/
+    scp alice_server/*.py $Alice:~/server/
+    scp lib/laser/* $Alice:~/hw_control/lib/laser/
 
-    rsync -v hw_bob.py ctl_bob.py hws_bob.py mon_bob.py $Bob:~/hw_control/
-    rsync -v lib/*.py $Bob:~/hw_control/lib/
-    rsync -v lib/test_tdc/dma_from_device lib/test_tdc/tdc_bin2txt $Bob:~/hw_control/lib/test_tdc
-    rsync -v lib/aurea/* $Bob:~/hw_control/lib/aurea/
-    rsync -v bob_server/*.py $Bob:~/server/
+    scp hw_bob.py ctl_bob.py hws_bob.py mon_bob.py $Bob:~/hw_control/
+    scp lib/*.py $Bob:~/hw_control/lib/
+    scp lib/test_tdc/dma_from_device lib/test_tdc/tdc_bin2txt $Bob:~/hw_control/lib/test_tdc
+    scp lib/aurea/* $Bob:~/hw_control/lib/aurea/
+    scp bob_server/*.py $Bob:~/server/
     cd -
 }
 
 config(){
     cd $qline_config_dir
-    rsync -v alice/*.json $Alice:~/config/
-    rsync -v bob/*.json $Bob:~/config/
+    scp alice/*.json $Alice:~/config/
+    scp bob/*.json $Bob:~/config/
     cd -
 }
 
@@ -73,8 +73,8 @@ registers(){
 
 rng(){
     cd ../remote
-    rsync -v rng_fpga/rng2fpga $Alice:~/rng_fpga/
-    rsync -v rng_fpga/rng2fpga $Bob:~/rng_fpga/
+    scp rng_fpga/rng2fpga $Alice:~/rng_fpga/
+    scp rng_fpga/rng2fpga $Bob:~/rng_fpga/
 }
 
 # Check that exactly one argument is provided
