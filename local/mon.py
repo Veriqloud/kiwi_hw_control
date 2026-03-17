@@ -8,7 +8,6 @@ import struct
 import time
 import os
 import matplotlib.pylab as plt, numpy as np
-import pickle
 from tabulate import tabulate
 
 network_file = os.path.join(os.environ['QLINE_CONFIG_DIR'], 'alice/network.json')
@@ -105,6 +104,20 @@ def rcv_data(socket):
         m += socket.recv(l - len(m))
     return m
 
+# [length_of_message, first_dimension, second_dimension, flattened_array]
+def rcv_nai(socket):
+    m = recv_exact(socket, 4)
+    l = struct.unpack('i', m)[0]
+    m = bytes(0)
+    while len(m)<l:
+        m += socket.recv(l - len(m))
+    shape = struct.unpack('2i', m[:8])
+    farray = struct.unpack(str(l//4 - 2)+'i', m[8:])
+    farray = np.array(farray, dtype=np.int32)
+    if shape[1] == 0:
+        return farray
+    else:
+        return farray.reshape(shape)
 
 def update_errorflag():
     global errorflag
@@ -125,8 +138,7 @@ def get_counts():
 
 def get_gates():
     sendc(bob, 'get_gates')
-    data = rcv_data(bob)
-    h = pickle.loads(data)
+    h = rcv_nai(bob)
     return h
 
 def rng_status(socket):
@@ -368,8 +380,7 @@ elif args.calfigures:
 
     # falling edge
     sendc(bob, 'get_calfigures')
-    m = rcv_data(bob)
-    data = pickle.loads(m)
+    data = rcv_nai(bob)
     ax[0,0].set_title("falling edge detection")
     ax[0,0].plot(data[:,0])
     edge = np.where(data[:,1]==1)
@@ -378,8 +389,7 @@ elif args.calfigures:
     ax[0,0].set_xlim(0)
     
     # find_sp 
-    m = rcv_data(bob)
-    data = pickle.loads(m)
+    data = rcv_nai(bob)
     ax[0,1].set_title("find single peak")
     ax[0,1].plot(data[:,0], data[:,1])
     edge = data[:,0][np.where(data[:,2]==1)]
@@ -388,25 +398,21 @@ elif args.calfigures:
     ax[0,1].set_xlim(0)
     
     # fd_
-    m = rcv_data(bob)
-    data = pickle.loads(m)
+    data = rcv_nai(bob)
     
     ax[1,0].set_title("find delay")
     ax[1,0].plot(data, '-x', label='Bob')
-    m = rcv_data(bob)
-    data = pickle.loads(m)
+    data = rcv_nai(bob)
     ax[1,0].plot(data, '-+', label='Alice')
     ax[1,0].set_ylim(0)
     ax[1,0].set_xlim(0)
     ax[1,0].legend()
     
     # fd__long
-    m = rcv_data(bob)
-    data = pickle.loads(m)
+    data = rcv_nai(bob)
     ax[1,1].set_title("find delay long")
     ax[1,1].plot(data, '-x', label='Bob')
-    m = rcv_data(bob)
-    data = pickle.loads(m)
+    data = rcv_nai(bob)
     ax[1,1].plot(data, '-+', label='Alice')
     ax[1,1].set_ylim(0)
     ax[1,1].set_xlim(0)
