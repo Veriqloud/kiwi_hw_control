@@ -7,7 +7,7 @@ import datetime
 from lib.fpga import update_tmp, save_tmp, get_tmp
 import lib.gen_seq as gen_seq
 from lib.fpga import get_arrival_time, ddr_status2, get_gc, get_ltc_info, get_sda_info, get_fda_info
-import numpy as np, pickle
+import numpy as np
 import subprocess
 from pathlib import Path
 
@@ -80,6 +80,43 @@ def send_data(socket, data):
     m = struct.pack('i', l) + data
     socket.sendall(m)
 
+# send numpy 2d-array of dtpe=int32
+# all integers are encoded as 4 bytes little endian
+# message structure:
+# [length_of_message_in_bytes_excluding_these_first_four, first_dimension, second_dimension, flattened_array]
+# example: [[1,2,3],[4,5,6]] becomes [32, 2,3, 1,2,3,4,5,6]
+def send_nai(socket, array):
+    array = np.array(array, dtype=np.int32)
+    if len(array.shape) == 1:
+        x = array.shape[0]
+        y = 0
+    else:
+        x = array.shape[0]
+        y = array.shape[1]
+
+    farray = array.flatten()
+    l = len(farray)
+    m1 = struct.pack('i', (l+2)*4)
+    m2 = struct.pack('i', x) + struct.pack('i', y)
+    m3 = struct.pack(str(l)+'i', *farray)
+    socket.sendall(m1+m2+m3)
+
+
+# [length_of_message, first_dimension, second_dimension, flattened_array]
+def rcv_nai(socket):
+    m = recv_exact(socket, 4)
+    l = struct.unpack('i', m)[0]
+    m = bytes(0)
+    while len(m)<l:
+        m += socket.recv(l - len(m))
+    shape = struct.unpack('2i', m[:8])
+    farray = struct.unpack(str(l//4 - 2)+'i', m[8:])
+    farray = np.array(farray, dtype=np.int32)
+    if shape[1] == 0:
+        return farray
+    else:
+        return farray.reshape(shape)
+
 
 
 
@@ -127,33 +164,27 @@ def handle_client(conn, addr):
 
                 # falling edge
                 data = np.loadtxt(LOG+'fall_edge.txt')
-                serialized = pickle.dumps(data)
-                send_data(conn, serialized)
+                send_nai(conn, data)
                 
                 # find_sp
                 data = np.loadtxt(LOG+'find_sp.txt')
-                serialized = pickle.dumps(data)
-                send_data(conn, serialized)
+                send_nai(conn, data)
                 
                 # fd_b
                 data = np.loadtxt(LOG+'fd_b.txt')
-                serialized = pickle.dumps(data)
-                send_data(conn, serialized)
+                send_nai(conn, data)
                 
                 # fd_a
                 data = np.loadtxt(LOG+'fd_a.txt')
-                serialized = pickle.dumps(data)
-                send_data(conn, serialized)
+                send_nai(conn, data)
 
                 # fd_b_long
                 data = np.loadtxt(LOG+'fd_b_long.txt')
-                serialized = pickle.dumps(data)
-                send_data(conn, serialized)
+                send_nai(conn, data)
                 
                 # fd_a_long
                 data = np.loadtxt(LOG+'fd_a_long.txt')
-                serialized = pickle.dumps(data)
-                send_data(conn, serialized)
+                send_nai(conn, data)
 
             elif command == 'get_gates':
                 #ctl.Download_Time(10000, 'get_gates')
@@ -162,8 +193,7 @@ def handle_client(conn, addr):
                 data = get_arrival_time('/dev/xdma0_c2h_2', 10000)
                 bins = np.arange(0, 625, 2)
                 h1, _ = np.histogram(data, bins=bins)
-                serialized = pickle.dumps(h1)
-                send_data(conn, serialized)
+                send_nai(conn, h1)
         
 
             elif command == 'get_rng_status':
