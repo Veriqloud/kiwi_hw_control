@@ -11,11 +11,10 @@ use comm::write_message;
 use std::fmt;
 use std::fs::{File, OpenOptions};
 use std::io::Read;
-use std::io::Write;
 use std::net::TcpStream;
 use std::os::unix::net::UnixStream;
 use std::path::PathBuf;
-
+use std::io::{Write, Seek, SeekFrom};
 use std::time::Instant;
 
 use qber::config::AliceConfig;
@@ -83,6 +82,12 @@ fn recv_angles(
         .open(&config.angle_file_path)
         .expect("opening angle file");
 
+    let mut file_qber_out = OpenOptions::new()
+        .write(true)
+        .create(true)
+        .open("/tmp/qber.txt")
+        .expect("opening qber_out file");
+
 
     // angles stream is 128bit = 32 angles;
     let mut aa: [u8; BATCHSIZE/2] = [0; BATCHSIZE/2];
@@ -147,6 +152,22 @@ fn recv_angles(
 
         let elapsed_time = now.elapsed();
         let counts  = (num / BATCHSIZE as u32) * BATCHSIZE as u32;
+
+        let line = mdiv.iter().map(|row| {
+            row.iter()
+                .map(|v| format!("{:.4}", v)) // rounding
+                .collect::<Vec<_>>()
+                .join(", ")
+        })
+        .collect::<Vec<_>>()
+        .join("\n") + "\n" + &format!("{:.6}", qber)[..] + "\n";
+
+        // Move cursor to start and overwrite
+        file_qber_out.seek(SeekFrom::Start(0)).expect("seek to 0 on qber_out.txt");
+        file_qber_out.write_all(line.as_bytes()).expect("write to qber_out.txt");
+        file_qber_out.set_len(line.len() as u64).expect("truncate qber_out.txt"); // truncate if new line is shorter
+        file_qber_out.flush()?; // ensure it's written to disk
+
 
         println!(
             "counts: {:} ({:6.0} counts/s ) \n{:}",
