@@ -122,10 +122,10 @@ pub struct FifoStatus {
 
 pub fn fifo_status_gc() -> FifoStatus {
     let value = xdma_read(FIFO_ADDRESS, FIFO_OFFSET);
-    let gc_out_full = (value & 0x4) >> 2;
-    let gc_in_empty = (value & 0x8) >> 3;
-    let vfifo_full = (value & 0x180) >> 7;
-    let vfifo_empty = (value & 0x60) >> 5;
+    let gc_out_full = (value >> 2) & 1;
+    let gc_in_empty = (value >> 1) & 1;
+    let vfifo_full = (value >> 7) & 0b11;
+    let vfifo_empty = (value >> 5) & 0b11;
     let fifo_status = FifoStatus {
         gc_out_full: gc_out_full == 1,
         gc_in_empty: gc_in_empty == 1,
@@ -295,6 +295,7 @@ pub fn process_gcr_stream(file: &mut File, read_length: usize) -> std::io::Resul
         len = len + check;
     }
     let mut num_clicks = len/16;
+    //tracing::info!("num_clicks {:?}; read_length {:?}", num_clicks, read_length);
     if num_clicks > read_length {
         tracing::warn!("num_clicks {:?}; read_length {:?}", num_clicks, read_length);
         // apparently rust cannot guarantee that read returns the right number of bytes read

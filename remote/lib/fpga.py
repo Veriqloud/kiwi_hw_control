@@ -1134,12 +1134,12 @@ def Ddr_Status():
     vfifo_idle = (ddr_fifos_status & 0x600)>>9
     vfifo_full = (ddr_fifos_status & 0x180)>>7
     vfifo_empty = (ddr_fifos_status & 0x60)>>5
-    gc_out_full = (ddr_fifos_status & 0x4)>>2
-    gc_in_empty = (ddr_fifos_status & 0x8)>>3
+    gc_out_full = (ddr_fifos_status >> 2) &1 
+    gc_in_empty = (ddr_fifos_status >> 1) & 1
     alpha_out_full = ddr_fifos_status & 0x1
 
     gc_out_empty = (fifos_status & 0x4)>>2
-    gc_in_full = (fifos_status & 0x10)>>4
+    gc_in_full = (fifos_status >> 1) & 1
     alpha_out_empty = fifos_status & 0x1
     s = f'VF: {vfifo_full} VE: {vfifo_empty}, VI: {vfifo_idle} | gc_out_f,e: {gc_out_full},{gc_out_empty} | gc_in_f,e: {gc_in_full},{gc_in_empty} | alpha_out_f,e: {alpha_out_full},{alpha_out_empty}'
     return s
@@ -1159,6 +1159,27 @@ def ddr_status2():
     alpha_out_empty = fifos_status & 0x1
     return vfifo_full, gc_out_full, gc_in_full, alpha_out_full
 
+
+#------------------------------RNG-----------------------------------
+#reset rng fifos
+def rng_reset():
+    offset = 0x12000
+    addr = 28
+    write(offset, addr, 1)
+    write(offset, addr, 0)
+
+def rng_fifos_mon():
+    offset = 0x30000
+    addr = 0
+    write(offset, [addr, addr], [0, 2])
+    time.sleep(0.01)
+    #Read reg
+    mon_reg = read(offset, 36)
+    rng_almost_full = (mon_reg & 0x8)>>3
+    rng_empty = (mon_reg & 0x4)>>2
+    de_rng_almost_full = (mon_reg & 0x2)>>1
+    de_rng_empty = mon_reg & 0x1
+    return rng_almost_full, rng_empty, de_rng_almost_full, de_rng_empty
 
 
 def Angle(num, save=False):
