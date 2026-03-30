@@ -12,7 +12,12 @@
 #include <signal.h>
 #include <fcntl.h>
 #include <time.h>
+#include <immintrin.h>
+#include <openssl/evp.h>
 
+// this program takes true random numbers from a USB stick,
+// xors them with PRNGs from the CPU
+// and write to fpga
 
 // write a zeros to the fpga upon exit
 void sigint_handler (int signum) {
@@ -29,10 +34,46 @@ void sigint_handler (int signum) {
     _exit(0);
 }
 
+// true rng seed from CPU
+void get_seed(uint8_t *seed, int len){
+    unsigned long long *buf = (unsigned long long *)(seed);  // 256 bit
+    for (int i=0; i<len/8; i++){
+        while (_rdseed64_step(&buf[i])!=1){
+            continue;
+        }
+    }
+}
+
+// aes expansion from seed
+// expand seed by a factor of 256 
+void aes_ctr_rng(uint8_t *buf, int len) {
+    uint8_t seed[32] = {0};
+    int batchsize = 8192;   // 256 * len(seed)
+    uint8_t nonce[16] = {0}; // 128-bit IV (CTR nonce)
+    
+    int current_len = (batchsize < len) ? batchsize: len;
+    int current_pos = 0;
+    int len_left = len;
+    // use a new seed every batch
+    while (len_left>0){
+        get_seed(seed, 32);
+        EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
+        if (!ctx) exit(1);
+        EVP_EncryptInit_ex(ctx, EVP_aes_256_ctr(), NULL, seed, nonce);
+        int outlen = 0;
+        EVP_EncryptUpdate(ctx, buf+current_pos, &outlen, buf+current_pos, current_len);
+        if (outlen != current_len) {
+            printf("[aes_ctr_rng] warning: expected outlen%i\t but got: %i\n", current_len, outlen);
+        }
+        current_pos += current_len;
+        len_left = len-current_pos;
+        current_len = (batchsize < len_left) ? batchsize : len_left;
+        EVP_CIPHER_CTX_free(ctx);
+    }
+}
 
 
 
-//Main
 int main(){
     time_t t = time(NULL);
     struct tm tm = *localtime(&t);
@@ -109,7 +150,10 @@ int main(){
 	}
     signal(SIGINT, sigint_handler);
 	while(1){
-        char rbytes[16001];  
+        char rbytes[16001] = {0};  
+        uint8_t cpu_rbytes[16000] = {0};
+        aes_ctr_rng(cpu_rbytes, 16000);
+
         if (write(fd, "x", 1) != 1) {
 			printf("Could not write the data request command!\n");
     			return 1;
@@ -144,6 +188,9 @@ int main(){
                 return 1;
             }
         } 
+        for (int i=0; i<16000; i++){
+            rbytes[i] = rbytes[i] ^ cpu_rbytes[i];
+        }
 		ret_write = write(fpga_fd, rbytes, 16000);
         if (ret_write!=16000){
 		    printf("Wrong number of bytes written: %ld\n",ret_write);
