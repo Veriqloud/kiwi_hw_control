@@ -1150,8 +1150,8 @@ def ddr_status2():
     vfifo_idle = (ddr_fifos_status & 0x600)>>9
     vfifo_full = (ddr_fifos_status & 0x180)>>7
     vfifo_empty = (ddr_fifos_status & 0x60)>>5
-    gc_out_full = (ddr_fifos_status & 0x4)>>2
-    gc_in_empty = (ddr_fifos_status & 0x8)>>3
+    gc_out_full = (ddr_fifos_status >> 2) &1 
+    gc_in_empty = (ddr_fifos_status >> 1) & 1
     alpha_out_full = ddr_fifos_status & 0x1
 
     gc_out_empty = (fifos_status & 0x4)>>2
@@ -1179,6 +1179,7 @@ def rng_fifos_mon():
     rng_empty = (mon_reg & 0x4)>>2
     de_rng_almost_full = (mon_reg & 0x2)>>1
     de_rng_empty = mon_reg & 0x1
+    #print(rng_almost_full, rng_empty, de_rng_almost_full, de_rng_empty)
     return rng_almost_full, rng_empty, de_rng_almost_full, de_rng_empty
 
 

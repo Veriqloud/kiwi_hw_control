@@ -6,7 +6,7 @@ import json, struct
 import datetime
 from lib.fpga import update_tmp, save_tmp, get_tmp
 import lib.gen_seq as gen_seq
-from lib.fpga import get_arrival_time, ddr_status2, get_gc, get_ltc_info, get_sda_info, get_fda_info
+from lib.fpga import get_arrival_time, ddr_status2, get_gc, get_ltc_info, get_sda_info, get_fda_info, rng_fifos_mon
 import numpy as np, pickle
 import subprocess
 from pathlib import Path
@@ -132,9 +132,12 @@ def handle_client(conn, addr):
                     sendc(conn, 'missing')
             
             elif command == 'get_fifo_status':
-                status = ddr_status2()
+                status_ddr = ddr_status2()
+                status_rng = rng_fifos_mon()
                 for i in range(4):
-                    send_i(conn, status[i])
+                    send_i(conn, status_ddr[i])
+                send_i(conn, status_rng[1])
+                send_i(conn, status_rng[3])
             
             elif command == 'get_gc':
                 gc = get_gc()
@@ -154,15 +157,15 @@ def handle_client(conn, addr):
             
             elif command == 'get_server_status':
                 status = []
-                status.append(subprocess.run("systemctl is-active hw.service", shell=True).returncode)
-                status.append(subprocess.run("systemctl is-active hws.service", shell=True).returncode)
-                status.append(subprocess.run("systemctl is-active gc.service", shell=True).returncode)
-                status.append(subprocess.run("systemctl is-active rng.service", shell=True).returncode)
+                status.append(subprocess.run("systemctl is-active hw.service", shell=True, capture_output=True).returncode)
+                status.append(subprocess.run("systemctl is-active hws.service", shell=True, capture_output=True).returncode)
+                status.append(subprocess.run("systemctl is-active gc.service", shell=True, capture_output=True).returncode)
+                status.append(subprocess.run("systemctl is-active rng.service", shell=True, capture_output=True).returncode)
                 for i in range(4):
                     send_i(conn, status[i])
             
             elif command == 'get_wrs_ip_status':
-                r = subprocess.run("ip ad | grep 192.168.10", shell=True).returncode
+                r = subprocess.run("ip ad | grep 192.168.10", shell=True, capture_output=True).returncode
                 send_i(conn, r)
 
             elif command == 'get_node_stats':
@@ -173,7 +176,7 @@ def handle_client(conn, addr):
                         data = line.split(";")
                         key_length = int(data[0])
                         qber = float(data[1])
-                        print(key_length, qber)
+                        #print(key_length, qber)
                         send_i(conn, key_length)
                         send_d(conn, qber)
                 except:
