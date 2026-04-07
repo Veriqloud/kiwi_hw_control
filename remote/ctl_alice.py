@@ -295,7 +295,7 @@ def gen_decoy():
         direction2 = 1 if fine2 > 0 else 0
 
         de_write_delay_master(coarse, abs(fine0), direction0) 
-        write_delay_slaves(abs(fine1), direction1, abs(fine2), direction2)
+        de_write_delay_slaves(abs(fine1), direction1, abs(fine2), direction2)
 
         de_params_en()
         de_trigger_fine_master()
@@ -438,6 +438,7 @@ def init_hw():
     init_fda()
     init_sda()
     init_decoy()
+    rng_reset()
 
 def apply_config():
     Update_Dac()
