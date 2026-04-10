@@ -101,6 +101,9 @@ fn recv_angles(
         // 4x4 matrix for statistics
         let mut m0: [[u32; 4]; 4] = [[0; 4]; 4];
         let mut m1: [[u32; 4]; 4] = [[0; 4]; 4];
+        // decoy statistics
+        let mut d: [u32; 4] = [0; 4];
+
         let now = Instant::now();
         for _ in 0..num / BATCHSIZE as u32 {
             if *STOP.lock().unwrap() {
@@ -115,10 +118,13 @@ fn recv_angles(
             // expand angles to array
             let mut aa_expanded: [u8; BATCHSIZE] = [0; BATCHSIZE];
             let mut ab_expanded: [u8; BATCHSIZE] = [0; BATCHSIZE];
+            // decoy
+            let mut da_expanded: [u8; BATCHSIZE] = [0; BATCHSIZE];
             for i in 0..BATCHSIZE/2 {
                 for j in 0..2 {
                     aa_expanded[2 * i + j] = (aa[i] & (0b11 << j * 4)) >> j * 4;
                     ab_expanded[2 * i + j] = (ab[i] & (0b11 << j * 4)) >> j * 4;
+                    da_expanded[2 * i + j] = (aa[i] & (0b1100 << j * 4)) >> (j * 4 + 2)
                 }
             }
             for i in 0..BATCHSIZE {
@@ -129,8 +135,16 @@ fn recv_angles(
                 } else {
                     m1[x][y] += 1;
                 }
+                // decoy
+                for j in 0..4 {
+                    if da_expanded[i] == j as u8 {
+                        d[j] += 1;
+                    }
+                }
             }
         }
+        println!("decoy {:?}", d);
+
         let mut mdiv: [[f64; 4]; 4] = [[0.; 4]; 4];
         for i in 0..4 {
             for j in 0..4 {
