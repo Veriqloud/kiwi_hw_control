@@ -18,9 +18,9 @@ HW_CONTROL = '/home/vq-user/hw_control/'
 qlinepath = '/home/vq-user/'
 
 networkfile = qlinepath+'config/network.json'
-connection_logfile = qlinepath+'log/ip_connections_to_mon.log'
-mon_logfile = qlinepath+'log/mon.log'
-rng_errorfile = qlinepath+'rng_fpga/errorflag'
+connection_logfile = '/tmp/log/ip_connections_to_mon.log'
+mon_logfile = '/tmp/log/mon.log'
+rng_errorfile = '/tmp/rng_errorflag'
 
 
 ####### convenient send and receive commands ########
