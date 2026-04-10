@@ -52,6 +52,12 @@ pull(){
 }
 
 build(){
+    cd ../remote/rng_fpga
+    printf "${blue}building rng2fpga...${NC}\n"
+    make
+    cd $OLDPWD
+
+
     cd ../gc
     printf "${blue}building gc...${NC}\n"
     cargo update
