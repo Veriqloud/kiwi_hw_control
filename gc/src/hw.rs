@@ -29,7 +29,7 @@ impl ToString for HwCurrentParam {
     fn to_string(&self) -> String {
         match self {
             HwCurrentParam::FiberDelay => "fiber_delay".to_string(),
-            HwCurrentParam::DecoyDelay => "decoy_delay".to_string(),
+            HwCurrentParam::DecoyDelay => "decoy_fiber_delay".to_string(),
         }
     }
 }

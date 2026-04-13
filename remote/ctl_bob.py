@@ -1060,6 +1060,7 @@ def init_hw():
     init_jic()
     init_tdc()
     init_ttl()
+    rng_reset()
 
 def apply_config():
     Update_Dac()

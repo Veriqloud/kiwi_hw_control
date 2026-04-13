@@ -307,6 +307,7 @@ def gen_decoy():
         f.write(str(fine0_abs)+'\n')
         f.write(str(fine1_abs)+'\n')
         f.write(str(fine2_abs)+'\n')
+        f.truncate()
 
     print("decoy pulse delay set to", delay/1000, "sn")
     print(coarse, fine0, fine1, fine2)
