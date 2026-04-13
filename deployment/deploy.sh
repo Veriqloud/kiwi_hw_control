@@ -62,6 +62,9 @@ config(){
     scp alice/*.json $Alice:~/config/
     scp bob/*.json $Bob:~/config/
     cd -
+    cd ../remote/rng_fpga
+    scp rng.conf decoy_rng.conf $Alice:~/config/
+    scp rng.conf $Bob:~/config/
 }
 
 registers(){

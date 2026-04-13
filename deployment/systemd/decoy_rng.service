@@ -2,14 +2,14 @@
 Description=SwiftRNG Service
 
 [Service]
-ExecStart=/home/vq-user/rng_fpga/rng2fpga /home/vq-user/config/rng.conf
+ExecStart=/home/vq-user/rng_fpga/rng2fpga /home/vq-user/config/decoy_rng.conf
 Restart=always
 RestartSec=10
 StartLimitBurst=5
 User=vq-user
 WorkingDirectory=/home/vq-user/rng_fpga
-StandardOutput=append:/home/vq-user/log/rng.log
-StandardError=append:/home/vq-user/log/rng.log
+StandardOutput=append:/home/vq-user/log/decoy_rng.log
+StandardError=append:/home/vq-user/log/decoy_rng.log
 
 [Install]
 WantedBy=multi-user.target

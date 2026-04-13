@@ -61,10 +61,16 @@ sudo vim /etc/apt/apt.conf.d/20auto-upgrades    # set both lines to "0"
 
 to make usb devices user accessible add the following lines to `/etc/udev/rules.d/usb.rules` 
 
-for the RNG 
+for the RNG on Bob 
 
 
 `SUBSYSTEM=="tty", ATTRS{idVendor}=="1fc9", ATTRS{idProduct}=="8111", MODE="0666", GROUP="vq-user", SYMLINK+="ttyRNG0"`
+
+for the two identical RNGs on Alice, lookup the serail number with `lsusb -v -d 1fc9:8111 | grep iSerial` and do
+
+`SUBSYSTEM=="tty", ATTRS{idVendor}=="1fc9", ATTRS{idProduct}=="8111", ATTRS{serial}=="SERIALNUMBER1", MODE="0666", GROUP="vq-user", SYMLINK+="ttyRNG0"`
+
+`SUBSYSTEM=="tty", ATTRS{idVendor}=="1fc9", ATTRS{idProduct}=="8111", ATTRS{serial}=="SERIALNUMBER2", MODE="0666", GROUP="vq-user", SYMLINK+="ttyRNG1"`
 
 for the APD
 
@@ -206,7 +212,7 @@ scp check_systemd.sh SSH_BOB:~/bin/
 
 ```
 
-on remote machines
+on remote machines (decoy_rng.service is for Alice only)
 
 ```.bash
 sudo rsync --chown root:root *.service  /etc/systemd/system/
@@ -238,17 +244,6 @@ ExecStart=/usr/lib/systemd/systemd-networkd-wait-online --interface=eth_wrs --in
 
 
 
-Create the second service decoy_rng similar to the rng.service on Alice when she use decoy state.
-
-```
-ExecStart=/home/vq-user/qline/hw_control/rng_fpga/decoy_rng2file
-```
-Start both service and check status
-
-```
-service rng status
-service decoy_rng status
-```
 
 # First run
 

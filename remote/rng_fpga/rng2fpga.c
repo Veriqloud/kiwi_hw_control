@@ -14,10 +14,69 @@
 #include <time.h>
 #include <immintrin.h>
 #include <openssl/evp.h>
+#include <string.h>
 
 // this program takes true random numbers from a USB stick,
 // xors them with PRNGs from the CPU
 // and write to fpga
+
+struct Config {
+    char rng_target[64];
+    int use_trng;
+    char trng_source[64];
+    int use_prng;
+};
+
+int print_config(struct Config *config){
+    printf("rng_target\t\t%s\n", config->rng_target);
+    printf("use_trng\t\t%d\n", config->use_trng);
+    printf("trng_source\t\t%s\n", config->trng_source);
+    printf("use_prng\t\t%d\n", config->use_prng);
+    return 0;
+}
+
+int get_config(char *filename, struct Config *c){
+    FILE *file = fopen(filename, "r");
+    if (file == NULL) {
+        perror("Error opening config file");
+        return 1;
+    }
+    char line[128] = {0};
+
+    while (fgets(line, sizeof(line), file)) {
+        if ((line[0] == '#') | (line[0] == '\n')) {
+            continue;
+        } else {
+            char s1[32] = {0};
+            char s2[64] = {0};
+            if (sscanf(line, "%31s %63s", s1, s2) == 2) {
+                if (strcmp(s1, "rng_target") == 0) {
+                    strcpy(c->rng_target, s2);
+                } else if (strcmp(s1, "use_trng") == 0) {
+                    if (strcmp("0", s2) == 0){
+                        c->use_trng = 0;
+                    } else {
+                        c->use_trng = 1;
+                    }
+                } else if (strcmp(s1, "trng_source") == 0) {
+                    strcpy(c->trng_source, s2);
+                } else if (strcmp(s1, "use_prng") == 0) {
+                    if (strcmp("0", s2) == 0){
+                        c->use_prng = 0;
+                    } else {
+                        c->use_prng = 1;
+                    }
+                }
+            } else {
+                printf("config file format error in line: %s\n", line);
+                return 1;
+            }
+        }
+    }
+    print_config(c);
+    fclose(file);
+    return 0;
+}
 
 // write a zeros to the fpga upon exit
 void sigint_handler (int signum) {
@@ -74,14 +133,31 @@ void aes_ctr_rng(uint8_t *buf, int len) {
 
 
 
-int main(){
+int main(int argc, char *argv[]){
+    if (argc != 2) {
+        printf("usage: rng2fpga <config_file>\n");
+        return 0;
+    }
+    char *config_filename = argv[1];
+    struct Config config = {0};
+    if (get_config(config_filename, &config)) {
+        printf("error in get_config()\n");
+        return 0;
+    }
+    if (config.use_trng == 0) {
+        printf("WARNING: trng is not used");
+    }
+    if (config.use_prng == 0) {
+        printf("WARNING: prng is not used");
+    }
+
     time_t t = time(NULL);
     struct tm tm = *localtime(&t);
     printf("%d-%02d-%02d %02d:%02d:%02d starting program\n", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
     fflush(stdout);
 
 	//printf("Open SwiftPro RNG device! \n");
-	int fd = open("/dev/ttyRNG0", O_RDWR | O_NOCTTY);
+	int fd = open(config.trng_source, O_RDWR | O_NOCTTY);
 	if (fd < 0){
 		printf("Could not open the USB! \n");
 		return 1;
@@ -140,7 +216,7 @@ int main(){
 
     
     //Send rng data to xdma_h2c0
-	char *devname = "/dev/xdma0_h2c_1";
+	char *devname = config.rng_target;
 	int fpga_fd = open(devname,O_RDWR);
 	if (fpga_fd < 0) {
 		fprintf(stderr, "unable to open device %s, %d.\n",
@@ -182,7 +258,7 @@ int main(){
             printf("RNG ERROR. closing and reopening device %d\n", error);
             fflush(stdout);
 	        close(fd);
-            int fd = open("/dev/ttyRNG0", O_RDWR | O_NOCTTY);
+            int fd = open(config.trng_source, O_RDWR | O_NOCTTY);
             if (fd < 0){
                 printf("Could not reopen the USB! \n");
                 return 1;
