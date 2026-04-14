@@ -1202,6 +1202,71 @@ def adjust_am(conn):
 
 
 
+
+
+def adjust_am_qber(conn):
+    sendc(bob, 'adjust_am_qber')
+
+    t = get_tmp()
+    am_tmp = t['am_bias']
+
+    best_am = am_tmp
+    lowest_qber = 1e9
+
+    last_qber = None
+    increase_count = 0
+
+    for delta in [-0.05, -0.025, 0, 0.025, 0.05]:
+        am_test = round(am_tmp + delta, 2)
+
+        ctl.Set_Am_Bias(am_test)
+
+        stable_qber = None
+
+        while True:
+            time.sleep(0.1)
+            qber = ctl.read_qber()
+
+            if qber is None:
+                continue
+
+            if stable_qber is None:
+                stable_qber = qber
+            elif abs(qber - stable_qber) > 1e-6:
+                stable_qber = qber
+                break
+
+        print(f"AM {am_test:.2f} → QBER {stable_qber:.6f}")
+
+        if stable_qber < lowest_qber:
+            lowest_qber = stable_qber
+            best_am = am_test
+
+        if last_qber is not None:
+            if stable_qber > last_qber:
+                increase_count += 1
+            else:
+                increase_count = 0
+
+        if increase_count >= 2:
+            break
+
+        last_qber = stable_qber
+
+    print(f"Best AM: {best_am} with QBER {lowest_qber:.6f}")
+
+    ctl.Set_Am_Bias(best_am)
+
+    sendc(bob, 'done')
+    sendc(conn, 'adjust_am_qber done')
+
+
+
+
+
+
+
+
 def adjust_soft_gates(conn):
     sendc(bob, 'adjust_soft_gates')
     backup = ctl.backup_params_alice()
@@ -1280,10 +1345,158 @@ def adjust_angles_a(conn):
     sendc(bob, 'done')
     sendc(conn, 'adjust_angles_a done')
 
+
+
+def adjust_angles_a_qber(conn):
+    sendc(bob, 'adjust_angles_a_qber')
+
+    t = get_tmp()
+    base_angle1 = t['angle1']
+
+    best_angle1 = base_angle1
+    lowest_qber = 1e9
+
+    last_qber = None
+    increase_count = 0
+
+    for delta in [-0.006, -0.003, 0, 0.003, 0.006]:
+        angle1_test = base_angle1 + delta
+
+        angle0 = 0.0
+        angle1 = angle1_test
+        angle2 = -angle1_test
+        angle3 = 2 * angle1_test
+
+        update_tmp('angle0', angle0)
+        update_tmp('angle1', angle1)
+        update_tmp('angle2', angle2)
+        update_tmp('angle3', angle3)
+        ctl.Update_Dac()
+
+        time.sleep(0.4)
+
+        stable_qber = None
+
+        while True:
+            time.sleep(0.1)
+            qber = ctl.read_qber()
+
+            if qber is None:
+                continue
+
+            if stable_qber is None:
+                stable_qber = qber
+            elif abs(qber - stable_qber) > 1e-6:
+                stable_qber = qber
+                break
+
+        print(f"ANGLE1 {angle1_test:.4f} → QBER {stable_qber:.6f}")
+
+        if stable_qber < lowest_qber:
+            lowest_qber = stable_qber
+            best_angle1 = angle1_test
+
+        if last_qber is not None:
+            if stable_qber > last_qber:
+                increase_count += 1
+            else:
+                increase_count = 0
+
+        if increase_count >= 2:
+            break
+
+        last_qber = stable_qber
+
+    angle0 = 0.0
+    angle1 = best_angle1
+    angle2 = -best_angle1
+    angle3 = 2 * best_angle1
+
+    update_tmp('angle0', round(angle0, 3))
+    update_tmp('angle1', round(angle1, 3))
+    update_tmp('angle2', round(angle2, 3))
+    update_tmp('angle3', round(angle3, 3))
+    ctl.Update_Dac()
+
+    sendc(bob, 'done')
+    sendc(conn, 'adjust_angles_a_qber done')
+
+
+
+
+
+
+
+
+
+
 def adjust_angles_b(conn):
     sendc(bob, 'adjust_angles_b')
     rcvc(bob)
     sendc(conn, 'adjust_angles_b done')
+
+
+
+
+def adjust_angles_b_qber(conn):
+    sendc(bob, 'adjust_angles_b_qber')
+    time.sleep(0.1)
+    sendc(bob, 'get_angle1')
+    base_angle1 = rcv_d(bob)
+
+    best_angle1 = base_angle1
+    lowest_qber = 1e9
+
+    last_qber = None
+    increase_count = 0
+
+    for delta in [-0.006, -0.003, 0, 0.003, 0.006]:
+        angle1_test = base_angle1 + delta
+
+        sendc(bob, 'set_angle1')
+        send_d(bob, angle1_test)
+
+        time.sleep(0.5)
+
+        stable_qber = None
+
+        while True:
+            time.sleep(0.1)
+            qber = ctl.read_qber()
+
+            if qber is None:
+                continue
+
+            if stable_qber is None:
+                stable_qber = qber
+            elif abs(qber - stable_qber) > 1e-6:
+                stable_qber = qber
+                break
+
+        print(f"ANGLE1 {angle1_test:.4f} → QBER {stable_qber:.6f}")
+
+        if stable_qber < lowest_qber:
+            lowest_qber = stable_qber
+            best_angle1 = angle1_test
+
+        if last_qber is not None:
+            if stable_qber > last_qber:
+                increase_count += 1
+            else:
+                increase_count = 0
+
+        if increase_count >= 2:
+            break
+
+        last_qber = stable_qber
+
+    sendc(bob, 'set_angle1')
+    send_d(bob, best_angle1)
+
+    sendc(bob, 'done')
+    sendc(conn, 'adjust_angles_b_qber done')
+
+
 
 
 
@@ -1380,8 +1593,11 @@ functionmap['fz_a'] = fz_a
 functionmap['fz_b'] = fz_b
 functionmap['set_angles_a'] = set_angles_a
 functionmap['adjust_am'] = adjust_am
+functionmap['adjust_am_qber'] = adjust_am_qber
 functionmap['adjust_angles_a'] = adjust_angles_a
+functionmap['adjust_angles_a_qber'] = adjust_angles_a_qber
 functionmap['adjust_angles_b'] = adjust_angles_b
+functionmap['adjust_angles_b_qber'] = adjust_angles_b_qber
 functionmap['adjust_soft_gates'] = adjust_soft_gates
 functionmap['set_soft_gates'] = set_soft_gates
 functionmap['single_peak'] = single_peak

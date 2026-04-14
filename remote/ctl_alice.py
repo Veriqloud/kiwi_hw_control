@@ -10,7 +10,9 @@ import lib.gen_seq as gen_seq
 from lib.fpga import *
 import scipy.constants as con
 
-LOG_FILE = os.path.expanduser("~/bin/qber_total.log")
+#LOG_FILE = os.path.expanduser("~/bin/qber_total.log")
+LOG_FILE = os.path.expanduser("/tmp/node_stats.csv")
+
 
 def backup_params_alice():
     t = get_tmp()
@@ -55,7 +57,41 @@ def read_data_qber(LOG_FILE):
     return None
 
 
-#################### Config_laser #####################
+
+def read_qber():
+    try:
+        with open(LOG_FILE, 'rb') as f:
+            f.seek(0, 2)
+            pos = f.tell() - 1
+
+            line = b""
+
+            while pos >= 0:
+                f.seek(pos)
+                char = f.read(1)
+
+                if char == b'\n' and line:
+                    break
+
+                line += char
+                pos -= 1
+
+            line = line[::-1].decode().strip()
+            parts = line.split(';')
+
+            if len(parts) >= 2:
+                return float(parts[1])
+
+    except Exception as e:
+        print(f"[ERROR] {e}")
+
+    return None
+
+
+
+
+
+################### Config_laser #####################
 from math import exp
 from lib.laser.koheron_control import Controller
 
@@ -464,13 +500,14 @@ def rst_config():
     t['angle1'] = 0.18
     t['angle2'] = -0.18
     t['angle3'] = 0.36
-    t['qdistance'] = 0.11
+    t['qdistance'] = 0.25
     t['fiber_delay_mod'] = 0
     t['fiber_delay'] = 0
     t['fiber_delay_long'] = 0
     t['zero_pos'] = 0
     t['insert_zeros'] = 'off'
     t['decoy_delay'] = 0
+    t['decoy_fiber_delay'] = 0
     save_tmp(t)
 
 def clean_config():
