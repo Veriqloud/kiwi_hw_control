@@ -221,6 +221,45 @@ while True:
 
 
 
+            elif command == 'adjust_am_qber':
+                print(colored('adjust_am_qber', 'cyan', force_color=True))
+
+                while rcvc() != 'done':
+                    time.sleep(0.2)
+
+            elif command == 'adjust_angles_a_qber':
+                print(colored('adjust_angles_a_qber', 'cyan', force_color=True))
+
+                while rcvc() != 'done':
+                    time.sleep(0.2)
+
+            elif command == 'adjust_angles_b_qber':
+                print(colored('adjust_angles_b_qber', 'cyan', force_color=True))
+
+                while True:
+                    cmd = rcvc()
+
+                    if cmd == 'get_angle1':
+                        t = get_tmp()
+                        send_d(t['angle1'])
+
+                    elif cmd == 'set_angle1':
+                        angle1 = rcv_d()
+
+                        angle0 = 0.0
+                        angle2 = -angle1
+                        angle3 = 2 * angle1
+
+                        update_tmp('angle0', angle0)
+                        update_tmp('angle1', angle1)
+                        update_tmp('angle2', angle2)
+                        update_tmp('angle3', angle3)
+
+                        ctl.Update_Dac()
+
+                    elif cmd == 'done':
+                        break
+
             elif command == 'find_vca':
                 #print(colored('find_vca', 'cyan', force_color=True))
                 #ctl.Ensure_Spd_Mode('continuous')

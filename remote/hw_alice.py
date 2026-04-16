@@ -137,6 +137,9 @@ while True:
             elif command == 'set_vca':
                 value = rcv_d()
                 ctl.Set_Vca(value)
+            elif command == 'set_photons_number':
+                value = rcv_d()
+                ctl.set_photons_number(value)
             elif command == 'set_am_bias':
                 value = rcv_d()
                 ctl.Set_Am_Bias(value)

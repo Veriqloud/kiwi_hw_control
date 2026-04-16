@@ -161,6 +161,9 @@ parser.add_argument("--command", type=str, nargs="+",
 parser.add_argument("--monitoring", action="store_true",
                     help="run monitoring loop")
 
+parser.add_argument("--auto_control", action="store_true",
+                    help="run monitoring loop")
+
 parser.add_argument("--full_init", action="store_true",
                     help="to be replaced")
 
@@ -201,7 +204,7 @@ if args.full_init:
     interact('free_running')
     interact('find_vca')
     interact('loop_find_am_bias')
-    interact('loop_find_am2_bias')
+#    interact('loop_find_am2_bias')
 #    interact('find_am2_bias')
     interact('pol_bob')
     interact('vca_per_90')
@@ -222,10 +225,12 @@ if args.full_init:
 #    interact('adjust_angles_b')
     interact('start')
 
-if args.monitoring:
-    for _ in range(3):
+if args.auto_control:
+   # for _ in range(3):
         interact('adjust_soft_gates')
-        interact('adjust_am')
+        interact('adjust_am_qber')
+        interact('adjust_angles_a_qber')
+        interact('adjust_angles_b_qber')
 
 
 elif args.command is not None:
