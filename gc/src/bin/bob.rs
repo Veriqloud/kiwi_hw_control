@@ -80,21 +80,23 @@ fn send_gc(alice: &mut TcpStream) -> std::io::Result<()> {
 
     let mut read_length = 1;
     let mut t_loop = Instant::now();
+    let time_target = 20;
+
     loop {
         let (gc, result, num_clicks, time_ms) = process_gcr_stream(&mut file_gcr, read_length)?;
         
         // keep read time between 20ms and 80ms (500ms is the max limit)
-        if (time_ms < 20) & (read_length<=BATCHSIZE/2){
+        if (time_ms < time_target) & (read_length<=BATCHSIZE/2){
             read_length *= 2;
-        } else if (time_ms > 80) & (time_ms < 160) & (read_length>1) {
+        } else if (time_ms > time_target*4) & (time_ms < time_target*8) & (read_length>1) {
             read_length /= 2;
-        } else if time_ms >= 160{
+        } else if time_ms >= time_target*8{
             tracing::warn!("[gc-bob] took {:?} ms to read gcr", time_ms);
             read_length = 1;
         }
         write_gc_to_alice(gc, alice, num_clicks)?;
         while !fifo_status_gc().gc_in_empty {
-            thread::sleep(time::Duration::from_millis(10));
+            thread::sleep(time::Duration::from_millis(2));
         }
         write_gc_to_fpga(gc, &mut file_gcw, num_clicks)?;
 

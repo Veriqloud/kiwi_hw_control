@@ -58,6 +58,7 @@ fn recv_gc(bob: &mut TcpStream) -> std::io::Result<()> {
     while *RUNNING.lock().unwrap() {
         let now = Instant::now();
         let (gc, num_clicks) = read_gc_from_bob(bob)?;
+        //println!("num_clicks from bob: {:?}",  num_clicks);
         let t_read_gc = now.elapsed().as_millis();
         if t_read_gc > 160 {
             tracing::warn!("[gc-alice] took {:?} ms to get {:?} gcs from Bob", t_read_gc, num_clicks);
@@ -73,7 +74,7 @@ fn recv_gc(bob: &mut TcpStream) -> std::io::Result<()> {
             gc_tmp[0..num].copy_from_slice(&gc[pos..pos+num]);
             pos = pos + num;
             while !fifo_status_gc().gc_in_empty {
-                thread::sleep(time::Duration::from_millis(10));
+                thread::sleep(time::Duration::from_millis(2));
             }
             write_gc_to_fpga(gc_tmp, &mut file_gcw, num)?;
         }
