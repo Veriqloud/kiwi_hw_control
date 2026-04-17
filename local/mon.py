@@ -152,7 +152,7 @@ def rng_status(socket):
         errorflag = 1
     return rng_s
 
-def fifo_status(socket):
+def fifo_status(socket, with_decoy=True):
     global errorflag
     sendc(socket, 'get_fifo_status')
     vfifo_f = rcv_i(socket)
@@ -172,8 +172,9 @@ def fifo_status(socket):
         fifo_s += 'alpha_out_full'
     if rng_empty:
         fifo_s += 'rng_empty'
-    if de_rng_empty:
-        fifo_s += 'decoy_rng_empty'
+    if with_decoy:
+        if de_rng_empty:
+            fifo_s += 'decoy_rng_empty'
     if fifo_s == "":
         fifo_s = colored('ok', 'green')
     else:
@@ -445,7 +446,7 @@ elif args.status:
 
         # fifos
         fifo_alice = fifo_status(alice)
-        fifo_bob = fifo_status(bob)
+        fifo_bob = fifo_status(bob, with_decoy=False)
         
         # servers
         server_alice = server_status(alice)

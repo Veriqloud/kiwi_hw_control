@@ -1036,7 +1036,7 @@ def fd_a_long(conn):
     t = get_tmp()
     t['fiber_delay_long'] = fiber_delay_long
     t['fiber_delay'] = t['fiber_delay_mod'] + fiber_delay_long*80 
-    t['decoy_fiber_delay'] = t['fiber_delay'] 
+    t['decoy_fiber_delay'] = t['fiber_delay'] - 25
     save_tmp(t)
     ctl.restore_params_alice(backup)
     sendc(conn, 'fd_a_long done')
