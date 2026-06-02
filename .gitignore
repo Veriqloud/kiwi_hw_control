@@ -11,6 +11,10 @@ gc/target/
 gc/Cargo.lock
 gc/.config/*
 gc/justfile
+gc/default_config_alice.json
+gc/default_config_bob.json
+gc/schema.json
+
 
 # Ignore build artifacts for the comm crate
 comm/target/
