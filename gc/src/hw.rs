@@ -403,11 +403,19 @@ pub fn read_gc_from_bob(bob: &mut TcpStream) -> std::io::Result<([u64; TCP_RCV_B
 mod tests {
     use super::{HwCurrentParam, read_hw_current_int_param};
 
+    fn hw_params_file_path() -> String {
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("src/test_data/tmp.txt")
+            .to_str()
+            .expect("test data path is valid UTF-8")
+            .to_string()
+    }
+
     #[test]
     fn read_decoy_delay() {
         let decoy_delay = read_hw_current_int_param(
             &HwCurrentParam::DecoyDelay.to_string(),
-            "src/test_data/tmp.txt",
+            &hw_params_file_path(),
         );
         assert_eq!(123, decoy_delay)
     }
@@ -416,7 +424,7 @@ mod tests {
     fn read_fiber_delay() {
         let fiber_delay = read_hw_current_int_param(
             &HwCurrentParam::FiberDelay.to_string(),
-            "src/test_data/tmp.txt",
+            &hw_params_file_path(),
         );
         assert_eq!(34, fiber_delay)
     }

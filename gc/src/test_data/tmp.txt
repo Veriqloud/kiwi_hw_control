@@ -1,0 +1,2 @@
+fiber_delay	34
+decoy_fiber_delay	123

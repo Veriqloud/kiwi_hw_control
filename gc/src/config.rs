@@ -174,22 +174,23 @@ mod test {
 
     #[test]
     fn test_alice_config_parsing() {
-        let path = std::path::PathBuf::from("../config/sim/local_sim_gc_alice.json");
+        let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("config_alice.json");
         let conf_from_file = Configuration::from_pathbuf_alice(&path);
 
         let hardcoded_conf = Configuration {
             player: QlinePlayer::Alice(AliceConfig {
                 network: ConfigNetwork {
-                    ip_gc: "localhost:50051".to_string(),
+                    ip_gc: "127.0.0.1:53275".to_string(),
                 },
                 fifo: ConfigFifoAlice {
                     command_socket_path: "/tmp/gc_alice_command.socket".to_string(),
                     gc_file_path: "/tmp/gc_alice_gc.fifo".to_string(),
                 },
             }),
-            current_hw_parameters_file_path: "../config/alice_hw_params.txt".to_string(),
+            current_hw_parameters_file_path: "/tmp/hw_params_alice.txt".to_string(),
             fpga_start_socket_path: "/tmp/fpga_alice".to_string(),
-            log_level: "INFO".to_string(),
+            log_level: "Info".to_string(),
+            ignore_gcr_timeout: Configuration::default_ignore_gcr_timeout(),
         };
 
         assert_eq!(conf_from_file, hardcoded_conf);
@@ -199,24 +200,25 @@ mod test {
 
     #[test]
     fn test_bob_config_parsing() {
-        let path = std::path::PathBuf::from("../config/sim/local_sim_gc_bob.json");
+        let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("config_bob.json");
         let conf_from_file = Configuration::from_pathbuf_bob(&path);
 
         let hardcoded_conf = Configuration {
             player: QlinePlayer::Bob(BobConfig {
                 network: ConfigNetwork {
-                    ip_gc: "localhost:50051".to_string(),
+                    ip_gc: "127.0.0.1:53275".to_string(),
                 },
                 fifo: ConfigFifoBob {
                     gcr_file_path: "/tmp/gc_bob_gcr.fifo".to_string(),
                     gc_file_path: "/tmp/gc_bob_gc.fifo".to_string(),
                     click_result_file_path: "/tmp/gc_bob_click_result.fifo".to_string(),
-                    gcuser_file_path: "/tmp/gcuser_bob.fifo".to_string(),
+                    gcuser_file_path: "".to_string(),
                 },
             }),
-            current_hw_parameters_file_path: "../config/bob_hw_params.txt".to_string(),
+            current_hw_parameters_file_path: "/tmp/hw_params_bob.txt".to_string(),
             fpga_start_socket_path: "/tmp/fpga_bob".to_string(),
-            log_level: "INFO".to_string(),
+            log_level: "Info".to_string(),
+            ignore_gcr_timeout: Configuration::default_ignore_gcr_timeout(),
         };
 
         assert_eq!(conf_from_file, hardcoded_conf);
@@ -231,6 +233,7 @@ mod test {
             current_hw_parameters_file_path: "/path/to/dyn/params/file.txt".to_string(),
             fpga_start_socket_path: Configuration::default_fpga_start_socket_path(),
             log_level: Configuration::default_log_level(),
+            ignore_gcr_timeout: Configuration::default_ignore_gcr_timeout(),
         };
 
         println!("{}", serde_json::to_string_pretty(&conf).unwrap());
