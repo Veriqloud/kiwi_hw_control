@@ -1,9 +1,10 @@
 use core::panic;
 use std::path::PathBuf;
 
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Deserialize, Serialize, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, PartialEq, JsonSchema)]
 pub struct Configuration {
     pub player: QlinePlayer,
     pub current_hw_parameters_file_path: String,
@@ -16,7 +17,7 @@ pub struct Configuration {
 }
 
 impl Configuration {
-    pub fn save_to_file(self, path: &PathBuf){
+    pub fn save_to_file(self, path: &PathBuf) {
         let s = serde_json::to_string_pretty(&self).unwrap();
         std::fs::write(path, s).expect("writing config to file");
     }
@@ -89,20 +90,20 @@ impl Configuration {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, PartialEq, JsonSchema)]
 pub enum QlinePlayer {
     Alice(AliceConfig),
     Bob(BobConfig),
     Charlie(CharlieConfig),
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, JsonSchema)]
 pub struct AliceConfig {
     pub fifo: ConfigFifoAlice,
     pub network: ConfigNetwork,
 }
 
-#[derive(Debug, Deserialize, Serialize, Default, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Default, Clone, PartialEq, JsonSchema)]
 pub struct ConfigFifoAlice {
     #[serde(default = "ConfigFifoAlice::default_command_socket_path")]
     pub command_socket_path: String,
@@ -120,18 +121,18 @@ impl ConfigFifoAlice {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, JsonSchema)]
 pub struct ConfigNetwork {
     pub ip_gc: String,
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, JsonSchema)]
 pub struct BobConfig {
     pub fifo: ConfigFifoBob,
     pub network: ConfigNetwork,
 }
 
-#[derive(Debug, Deserialize, Serialize, Default, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Default, Clone, PartialEq, JsonSchema)]
 pub struct ConfigFifoBob {
     #[serde(default = "ConfigFifoBob::default_gcr_file_path")]
     pub gcr_file_path: String,
@@ -160,7 +161,7 @@ impl ConfigFifoBob {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, JsonSchema)]
 pub struct CharlieConfig {}
 
 #[cfg(test)]
@@ -193,10 +194,7 @@ mod test {
 
         assert_eq!(conf_from_file, hardcoded_conf);
 
-        println!(
-            "{}",
-            serde_json::to_string_pretty(&conf_from_file).unwrap()
-        );
+        println!("{}", serde_json::to_string_pretty(&conf_from_file).unwrap());
     }
 
     #[test]
@@ -223,10 +221,7 @@ mod test {
 
         assert_eq!(conf_from_file, hardcoded_conf);
 
-        println!(
-            "{}",
-            serde_json::to_string_pretty(&conf_from_file).unwrap()
-        );
+        println!("{}", serde_json::to_string_pretty(&conf_from_file).unwrap());
     }
 
     #[test]
@@ -239,5 +234,65 @@ mod test {
         };
 
         println!("{}", serde_json::to_string_pretty(&conf).unwrap());
+    }
+
+    #[test]
+    #[ignore]
+    fn export_schema() {
+        let schema = schemars::schema_for!(Configuration);
+        let schema_json = serde_json::to_string_pretty(&schema).unwrap();
+        std::fs::write("schema.json", schema_json).unwrap();
+
+        let alice_config = Configuration {
+            player: QlinePlayer::Alice(AliceConfig {
+                network: ConfigNetwork {
+                    ip_gc: "localhost:50051".to_string(),
+                },
+                fifo: ConfigFifoAlice {
+                    command_socket_path: ConfigFifoAlice::default_command_socket_path(),
+                    gc_file_path: ConfigFifoAlice::default_gc_file_path(),
+                },
+            }),
+            current_hw_parameters_file_path: "../config/alice_hw_params.txt".to_string(),
+            fpga_start_socket_path: Configuration::default_fpga_start_socket_path(),
+            log_level: Configuration::default_log_level(),
+            ignore_gcr_timeout: Configuration::default_ignore_gcr_timeout(),
+        };
+        let alice_json = serde_json::to_string_pretty(&alice_config).unwrap();
+        std::fs::write("default_config_alice.json", alice_json).unwrap();
+
+        let bob_config = Configuration {
+            player: QlinePlayer::Bob(BobConfig {
+                network: ConfigNetwork {
+                    ip_gc: "localhost:50051".to_string(),
+                },
+                fifo: ConfigFifoBob {
+                    gcr_file_path: ConfigFifoBob::default_gcr_file_path(),
+                    gc_file_path: ConfigFifoBob::default_gc_file_path(),
+                    click_result_file_path: ConfigFifoBob::default_click_result_file_path(),
+                    gcuser_file_path: ConfigFifoBob::default_gcuser_file_path(),
+                },
+            }),
+            current_hw_parameters_file_path: "../config/bob_hw_params.txt".to_string(),
+            fpga_start_socket_path: Configuration::default_fpga_start_socket_path(),
+            log_level: Configuration::default_log_level(),
+            ignore_gcr_timeout: Configuration::default_ignore_gcr_timeout(),
+        };
+        let bob_json = serde_json::to_string_pretty(&bob_config).unwrap();
+        std::fs::write("default_config_bob.json", bob_json).unwrap();
+    }
+
+    #[test]
+    #[ignore]
+    fn validate_generated_configs() {
+        let stack_config_dir =
+            std::env::var("STACK_CONFIG_DIR").unwrap_or_else(|_| "../../stack_config".to_string());
+        let generated_dir = std::path::Path::new(&stack_config_dir).join("generated");
+
+        let alice_path = generated_dir.join("alice_gc.json");
+        Configuration::from_pathbuf_alice(&alice_path);
+
+        let bob_path = generated_dir.join("bob_gc.json");
+        Configuration::from_pathbuf_bob(&bob_path);
     }
 }
