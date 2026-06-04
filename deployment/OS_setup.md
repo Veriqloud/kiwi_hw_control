@@ -53,6 +53,8 @@ then update with `sudo netplan apply`. check with `ip ad`.
 - check networks card: `sudo ethtool enp3s0 | grep Wake` should show `pumbg` and `g`
 - on some machine in the netowork: `wakeonlan a8:a1:59:b7:de:fe`
 
+beware: BIOS can reset upon a power cut or failed boot etc. If you notice the wakeonlan does not work any more, recheck the bios settings.
+
 dispable automatic updates
 
 ~~~~.bash
