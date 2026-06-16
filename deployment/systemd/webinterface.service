@@ -1,0 +1,18 @@
+[Unit]
+Description=web server for monitoring qkd
+Requires=network-online.target
+After=network-online.target
+
+[Service] 
+EnvironmentFile=/etc/environment
+ExecStart=/home/vq-user/hw-socket-adapter/start.sh
+Restart=always
+RestartSec=10
+StartLimitBurst=5
+User=vq-user
+WorkingDirectory=/home/vq-user/hw-socket-adapter
+StandardOutput=append:/home/vq-user/log/webinterface.log
+StandardError=append:/home/vq-user/log/webinterface.log
+
+[Install] 
+WantedBy=multi-user.target

@@ -224,6 +224,7 @@ sudo systemctl enable hws.service
 sudo systemctl enable mon.service
 sudo systemctl enable gc.service
 sudo systemctl enable rng.service
+sudo systemctl enable webinterface.service
 check_status.sh     # make sure they are up
 ```
 
