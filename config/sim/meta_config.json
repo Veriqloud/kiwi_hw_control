@@ -14,7 +14,8 @@
         "gc": 13005,
         "qber": 13006,
         "node_alice": 13007,
-        "node_bob": 13008
+        "node_bob": 13008,
+        "showlogs": 13009
     },
     "file": {
         "gcr": "/tmp/gcr.fifo",
@@ -41,7 +42,17 @@
     "node": {
         "key_path": "/home/georg/qline/keys/node.pk8",
         "qtol": 0.09,
-        "key_size_per_round": 1000000
+        "key_size_per_round": 1000000,
+        "key_basis_mode": "Symmetrical",
+        "decoystates": {
+            "mu1": 0.5,
+            "mu2": 0.1,
+            "p1": 0.7,
+            "esec": 1e-10,
+            "ecor": 1e-10,
+            "K": 19,
+            "intensity_bit_mapping": "TrueMeansMu1"
+        }
     }
 }
 

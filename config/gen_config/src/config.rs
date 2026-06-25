@@ -1,4 +1,4 @@
-use node::{LibP2P, LibP2PBootNode, PathedKeypair};
+use node::{DecoyStates, KeyBasisMode, LibP2P, LibP2PBootNode, PathedKeypair};
 use serde::{Deserialize, Serialize};
 use simulator_configs::ipc::{AliceIpcConfig, BobIpcConfig};
 use std::path::PathBuf;
@@ -78,6 +78,12 @@ struct Node {
     key_path: String,
     qtol: f64,
     key_size_per_round: usize,
+    // decoy-state parameters; absent means decoy mode is disabled
+    #[serde(default)]
+    decoystates: Option<DecoyStates>,
+    // which bases are retained for the final key; defaults to Symmetrical
+    #[serde(default)]
+    key_basis_mode: KeyBasisMode,
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
@@ -416,6 +422,7 @@ pub fn write_node_config(config_alice: &Config, config_bob: &Config) {
         hardware_type: node::HardwareType::Source {
             command_socket_path: config_alice.file.startstop.clone(),
             angles_file_path: config_alice.file.angle.clone(),
+            decoystates: config_alice.node.decoystates.clone(),
         },
         external_address: Some(external_address_alice),
         peers: vec![
@@ -444,6 +451,7 @@ pub fn write_node_config(config_alice: &Config, config_bob: &Config) {
         log_file_path_prefix: None,
         key_size_per_round: Some(config_alice.node.key_size_per_round),
         qtol: config_alice.node.qtol,
+        key_basis_mode: config_alice.node.key_basis_mode.clone(),
         rounds_limit_per_session: 10000000,
         requested_final_key_size: Some(config_alice.kms.default_key_size as usize),
         hw_read_buf_size: None,
@@ -457,6 +465,7 @@ pub fn write_node_config(config_alice: &Config, config_bob: &Config) {
         hardware_type: node::HardwareType::Detector {
             angles_file_path: config_bob.file.angle.clone(),
             click_results_file_path: config_bob.file.result.clone(),
+            decoystates: config_bob.node.decoystates.clone(),
         },
         external_address: Some(external_address_bob),
         peers: vec![
@@ -485,6 +494,7 @@ pub fn write_node_config(config_alice: &Config, config_bob: &Config) {
         log_file_path_prefix: None,
         key_size_per_round: Some(config_bob.node.key_size_per_round),
         qtol: config_bob.node.qtol,
+        key_basis_mode: config_bob.node.key_basis_mode.clone(),
         rounds_limit_per_session: 10000000,
         requested_final_key_size: Some(config_bob.kms.default_key_size as usize),
         hw_read_buf_size: None,
