@@ -34,6 +34,8 @@ struct Port {
     node_alice: u16,
     node_bob: u16,
     showlogs: u16,
+    // remote service supervisor (restartd), on client side ethernet
+    restartd: u16,
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]

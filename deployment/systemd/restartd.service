@@ -1,0 +1,18 @@
+[Unit]
+Description=remote service supervisor (kill-based restart over TCP, no sudo)
+Requires=network-online.target
+After=network-online.target
+
+[Service]
+EnvironmentFile=/etc/environment
+ExecStart=/home/vq-user/server/restartd.py
+Restart=always
+RestartSec=10
+StartLimitBurst=5
+User=vq-user
+WorkingDirectory=/home/vq-user/server
+StandardOutput=append:/home/vq-user/log/restartd.log
+StandardError=append:/home/vq-user/log/restartd.log
+
+[Install]
+WantedBy=multi-user.target
