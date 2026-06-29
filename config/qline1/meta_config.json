@@ -16,7 +16,8 @@
         "node_alice": 13007,
         "node_bob": 13008,
         "showlogs": 13009,
-        "restartd": 13010
+        "restartd": 13010,
+        "logd": 13011
     },
     "file": {
         "trng": "/dev/xdma0_h2c_1",

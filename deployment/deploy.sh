@@ -49,6 +49,7 @@ control(){
     scp alice_server/*.py $Alice:~/server/
     scp lib/laser/* $Alice:~/hw_control/lib/laser/
     scp restartd.py $Alice:~/server/
+    scp logd.py $Alice:~/server/
 
     scp hw_bob.py ctl_bob.py hws_bob.py mon_bob.py $Bob:~/hw_control/
     scp lib/*.py $Bob:~/hw_control/lib/
@@ -56,6 +57,7 @@ control(){
     scp lib/aurea/* $Bob:~/hw_control/lib/aurea/
     scp bob_server/*.py $Bob:~/server/
     scp restartd.py $Bob:~/server/
+    scp logd.py $Bob:~/server/
     cd -
 }
 

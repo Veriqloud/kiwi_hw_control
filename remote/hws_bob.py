@@ -11,6 +11,16 @@ from termcolor import colored
 
 from pathlib import Path
 import subprocess
+import builtins
+
+
+# Prefix every log line with a timestamp (see hws_alice.py). hws logs to
+# ~/log/hws.log via systemd with no time information; shadowing the module-level
+# `print` timestamps all existing calls without touching each one. Timestamps
+# stay uncolored so the showlogs/logd ANSI parser renders the rest as before.
+def print(*args, **kwargs):
+    ts = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
+    builtins.print(ts, *args, **kwargs)
 
 
 HW_CONTROL = '/home/vq-user/hw_control/'

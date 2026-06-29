@@ -230,6 +230,7 @@ sudo systemctl enable rng.service
 sudo systemctl enable kms.service
 sudo systemctl enable node.service
 sudo systemctl enable restartd.service
+sudo systemctl enable logd.service
 sudo systemctl enable webinterface.service
 check_status.sh     # make sure they are up
 ```
@@ -297,6 +298,27 @@ To reload restartd after updating `restartd.py`: re-`deploy all` then
 `kill $(systemctl show -p MainPID --value restartd.service)` (systemd respawns the
 new code). Do **not** `pkill -f restartd.py` — the pattern matches your own ssh
 shell and drops the session.
+
+
+# read logs without ssh (logd)
+
+`logd.service` is the read-only sibling of restartd (port `logd` = 13011 in
+network.json): it serves the node log files under `~/log` over TCP so the control
+host can list/tail/grep them without ssh. `logd.py` is deployed to `~/server/` by
+`deploy all` (control). Drive it from `local/`:
+
+```.bash
+export QLINE_CONFIG_DIR=YOURPATH/kiwi_hw_control/config/qlineX
+python3 logs.py <alice|bob> list                  # available logs + sizes
+python3 logs.py <alice|bob> tail <name> [n]        # last n lines (e.g. tail hws 50)
+python3 logs.py <alice|bob> grep <pattern> <name>  # last matching lines
+```
+
+It's read-only and confined to `*.log` in `~/log` (no path traversal); output is
+capped and `tail` seeks from the end so a multi-GB log stays cheap. To reload after
+updating `logd.py`: re-`deploy all` then
+`kill $(systemctl show -p MainPID --value logd.service)` (systemd respawns it); do
+**not** `pkill -f logd.py` (matches your own ssh shell).
 
 
 # routine bring-up

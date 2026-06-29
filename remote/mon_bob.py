@@ -190,9 +190,24 @@ def handle_client(conn, addr):
                 #ctl.Download_Time(10000, 'get_gates')
                 #input_file = HW_CONTROL+'data/tdc/get_gates.txt'
                 #data = np.loadtxt(input_file, usecols=1) % 625
-                data = get_arrival_time('/dev/xdma0_c2h_2', 10000)
                 bins = np.arange(0, 625, 2)
-                h1, _ = np.histogram(data, bins=bins)
+                # Skip the exclusive c2h_2 DMA read while hws calibration is in
+                # progress. Calibration (find_sp etc.) needs that same channel and
+                # the two collide ("can not open the xdma device", exit 234), which
+                # crashes hws and stalls calibration. Return a zero histogram so the
+                # client protocol is unaffected. Flag is set/cleared by hws
+                # (set_flag_calibrating/clear_flag_calibrating -> /tmp/calibrating.txt).
+                calibrating = False
+                try:
+                    with open('/tmp/calibrating.txt') as f:
+                        calibrating = f.read().strip() == 'calibrating'
+                except OSError:
+                    pass
+                if calibrating:
+                    h1 = np.zeros(len(bins) - 1, dtype=int)
+                else:
+                    data = get_arrival_time('/dev/xdma0_c2h_2', 10000)
+                    h1, _ = np.histogram(data, bins=bins)
                 send_nai(conn, h1)
         
 

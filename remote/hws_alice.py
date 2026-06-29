@@ -8,6 +8,18 @@ import lib.gen_seq as gen_seq
 from termcolor import colored
 import numpy as np
 from pathlib import Path
+import builtins
+
+
+# Prefix every log line with a timestamp. hws logs to ~/log/hws.log via
+# systemd, but the messages had no time information, which made it impossible to
+# correlate calibration steps (and failures like fs_a) with events on the other
+# node. Shadowing the module-level `print` timestamps all existing calls without
+# touching each one. Timestamps stay uncolored so the showlogs/logd ANSI parser
+# renders the rest of the line as before.
+def print(*args, **kwargs):
+    ts = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
+    builtins.print(ts, *args, **kwargs)
 
 
 ####### convenient send and receive commands ########
@@ -1653,7 +1665,20 @@ while True:
                     continue
 
             print(colored('... '+command+' done \n', 'blue', force_color=True))
-            
+
+            # Auto-manage the node's QKD-ready flag so it doesn't need a manual touch:
+            # arm it when calibration finishes (start), drop it when a re-calibration
+            # begins (init). The node idles until /tmp/qkd_ready exists. /tmp clears on
+            # reboot, so a power-cycle correctly leaves it down until the next full_init.
+            # auto_control's adjust steps touch neither, so tuning won't stop a running node.
+            if command == 'start':
+                open('/tmp/qkd_ready', 'w').close()
+            elif command == 'init':
+                try:
+                    os.remove('/tmp/qkd_ready')
+                except FileNotFoundError:
+                    pass
+
             clear_flag_calibrating()
 
 

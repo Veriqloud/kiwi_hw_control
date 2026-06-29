@@ -36,6 +36,8 @@ struct Port {
     showlogs: u16,
     // remote service supervisor (restartd), on client side ethernet
     restartd: u16,
+    // read-only log server (logd), on client side ethernet
+    logd: u16,
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
@@ -453,6 +455,7 @@ pub fn write_node_config(config_alice: &Config, config_bob: &Config) {
             path: config_alice.file.kms.clone(),
         },
         log_level: Some("Info".to_string()),
+        ready_flag_path: "/tmp/qkd_ready".to_string(),
     };
     
     let node_conf_bob = node::Configuration {
@@ -494,6 +497,7 @@ pub fn write_node_config(config_alice: &Config, config_bob: &Config) {
             path: config_bob.file.kms.clone(),
         },
         log_level: Some("Info".to_string()),
+        ready_flag_path: "/tmp/qkd_ready".to_string(),
 
     };
 
