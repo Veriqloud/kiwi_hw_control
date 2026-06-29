@@ -17,11 +17,14 @@ localhost_mon_bob=$(jq '.mon_bob' $QLINE_CONFIG_DIR/ports_for_localhost.json)
 
 
 # get ip and ports on machines
-ip_alice=$(jq '.ip.alice' $QLINE_CONFIG_DIR/network.json | tr -d '"')
-ip_bob=$(jq '.ip.bob' $QLINE_CONFIG_DIR/network.json | tr -d '"')
-hw_port=$(jq '.port.hw' $QLINE_CONFIG_DIR/network.json)
-hws_port=$(jq '.port.hws' $QLINE_CONFIG_DIR/network.json)
-mon_port=$(jq '.port.mon' $QLINE_CONFIG_DIR/network.json)
+# network.json is generated per-node by gen_config; alice/network.json holds the
+# full ip struct (alice, bob, *_wrs) and full port struct, so it has all we need.
+NETWORK_FILE=$QLINE_CONFIG_DIR/alice/network.json
+ip_alice=$(jq '.ip.alice' $NETWORK_FILE | tr -d '"')
+ip_bob=$(jq '.ip.bob' $NETWORK_FILE | tr -d '"')
+hw_port=$(jq '.port.hw' $NETWORK_FILE)
+hws_port=$(jq '.port.hws' $NETWORK_FILE)
+mon_port=$(jq '.port.mon' $NETWORK_FILE)
 
 # hw
 ssh -N -L $localhost_hw_alice:$ip_alice:$hw_port vq &
