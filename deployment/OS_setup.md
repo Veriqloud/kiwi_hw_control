@@ -208,6 +208,8 @@ on local machine
 cd deployment/systemd
 scp *.service SSH_ALICE:~/
 scp *.service SSH_BOB:~/
+scp wait-for-boot-node.sh SSH_ALICE:~/    # ExecStartPre helper for node.service
+scp wait-for-boot-node.sh SSH_BOB:~/
 cd ..
 scp check_systemd.sh SSH_ALICE:~/bin/
 scp check_systemd.sh SSH_BOB:~/bin/
@@ -219,14 +221,21 @@ on remote machines (decoy_rng.service is for Alice only)
 ```.bash
 sudo rsync --chown root:root *.service  /etc/systemd/system/
 sudo systemctl daemon-reload
+chmod +x ~/wait-for-boot-node.sh     # used by node.service ExecStartPre (stays in ~)
 sudo systemctl enable hw.service
 sudo systemctl enable hws.service
 sudo systemctl enable mon.service
 sudo systemctl enable gc.service
 sudo systemctl enable rng.service
+sudo systemctl enable kms.service
+sudo systemctl enable node.service
+sudo systemctl enable restartd.service
 sudo systemctl enable webinterface.service
 check_status.sh     # make sure they are up
 ```
+
+Note: `node.service` requires the gc/kms binaries and configs to be in place
+(`deploy all` + `gen_config`) before it will start, so enable it after a deploy.
 
 logfiles are in /tmp/log/
 
@@ -246,6 +255,48 @@ ExecStart=/usr/lib/systemd/systemd-networkd-wait-online --interface=eth_wrs --in
 
 
 
+
+
+# node start ordering
+
+`node.service` is ordered after `kms.service` and `gc.service` (its local IPC
+peers via `/tmp/kms.fifo` and `/tmp/gc_startstop`) and has an
+`ExecStartPre=/home/vq-user/wait-for-boot-node.sh`. That helper reads the libp2p
+boot node ip:port from `~/config/node.json` and blocks until it is reachable: the
+Source node is its own boot node and returns immediately, while the Detector node
+waits for the Source. This gives correct cross-host startup (Source `node` comes
+up before Detector `node`) on a cold boot of both machines. No extra config — just
+ensure `~/wait-for-boot-node.sh` exists and is executable (see systemctl setup).
+
+
+# remote control + shutdown (restartd)
+
+`restartd.service` is a small TCP supervisor (port `restartd` = 13010 in
+network.json) that lets the control host restart services and power the node off
+**without ssh**, and **without sudo for restarts**. `restartd.py` is deployed to
+`~/server/` by `deploy all` (control). Drive it from `local/`:
+
+```.bash
+export QLINE_CONFIG_DIR=YOURPATH/kiwi_hw_control/config/qlineX
+python3 restart.py <alice|bob> list                       # service states
+python3 restart.py <alice|bob> restart <gc|node|kms|...>   # kill MainPID, systemd respawns
+python3 shutdown.py <alice|bob|both> --yes                 # power off (recover with wake.sh)
+```
+
+Restarts need no sudo: services run as `User=vq-user` with `Restart=always`, so
+restartd kills the (vq-user-owned) MainPID and systemd respawns it. Shutdown DOES
+need a one-time per-node sudoers rule:
+
+```.bash
+echo 'vq-user ALL=(root) NOPASSWD: /usr/sbin/shutdown' | sudo tee /etc/sudoers.d/vq-user-shutdown
+sudo chmod 440 /etc/sudoers.d/vq-user-shutdown
+sudo visudo -c
+```
+
+To reload restartd after updating `restartd.py`: re-`deploy all` then
+`kill $(systemctl show -p MainPID --value restartd.service)` (systemd respawns the
+new code). Do **not** `pkill -f restartd.py` — the pattern matches your own ssh
+shell and drops the session.
 
 
 # First run
