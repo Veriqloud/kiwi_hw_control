@@ -17,6 +17,7 @@ Commands:
     list                 -> state + MainPID of every allowed service
     status <service>     -> state + MainPID of one service
     restart <service>    -> kill MainPID, wait for systemd to respawn, report
+    shutdown             -> power the node off (needs NOPASSWD sudo for shutdown)
 
 Only the services in ALLOWED may be acted on (restartd refuses anything else,
 and intentionally cannot restart itself).
@@ -130,6 +131,23 @@ def restart(svc):
             f"(state={unit_info(svc).get('ActiveState','?')}; check StartLimitBurst)")
 
 
+# ---- node shutdown ----
+
+# Requires vq-user NOPASSWD sudo for /usr/sbin/shutdown. `sudo -n` never prompts,
+# so without that rule this returns a clear error instead of hanging. shutdown
+# forks and returns, so the reply is sent before the box actually halts. Recover
+# a powered-off node with local/wake.sh (wake-on-LAN).
+SHUTDOWN_CMD = ['sudo', '-n', '/usr/sbin/shutdown', '-h', '+0']
+
+def do_shutdown():
+    r = subprocess.run(SHUTDOWN_CMD, capture_output=True, text=True)
+    if r.returncode == 0:
+        return "shutdown initiated (shutdown -h +0); node powering off. Recover with local/wake.sh"
+    msg = r.stderr.strip() or r.stdout.strip() or "unknown error"
+    return (f"shutdown FAILED (rc={r.returncode}): {msg}. "
+            "vq-user needs NOPASSWD sudo for /usr/sbin/shutdown.")
+
+
 # ---- request dispatch ----
 
 def handle_request(line):
@@ -142,6 +160,8 @@ def handle_request(line):
         return 'ok'
     if cmd == 'list':
         return '\n'.join(status_line(s) for s in ALLOWED)
+    if cmd == 'shutdown':
+        return do_shutdown()
     if cmd in ('status', 'restart'):
         if len(parts) < 2:
             return f"error: usage '{cmd} <service>'"
@@ -149,7 +169,8 @@ def handle_request(line):
         if svc not in ALLOWED:
             return f"error: '{svc}' not allowed; choose one of: {', '.join(ALLOWED)}"
         return status_line(svc) if cmd == 'status' else restart(svc)
-    return f"error: unknown command '{cmd}'; try: ping, list, status <svc>, restart <svc>"
+    return ("error: unknown command '" + cmd +
+            "'; try: ping, list, status <svc>, restart <svc>, shutdown")
 
 
 def handle_client(conn, addr):
