@@ -2,9 +2,18 @@
 Description=post processing for qkd
 Requires=network-online.target
 After=network-online.target
+# Local ordering: node writes keys into kms over /tmp/kms.fifo and drives gc over
+# /tmp/gc_startstop, so start it after both. Wants (not Requires) keeps node up and
+# riding its own restart loop if either is briefly down.
+Wants=kms.service gc.service
+After=kms.service gc.service
 
-[Service] 
+[Service]
 EnvironmentFile=/etc/environment
+# Cross-host ordering: on the Detector node this blocks until the Source node
+# (the libp2p boot_node, read from config) is reachable; on the Source node it
+# returns immediately. See wait-for-boot-node.sh.
+ExecStartPre=/home/vq-user/wait-for-boot-node.sh
 ExecStart=/home/vq-user/server/node -c ../config/node.json
 Restart=always
 RestartSec=10
