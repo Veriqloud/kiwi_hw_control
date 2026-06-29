@@ -299,6 +299,19 @@ new code). Do **not** `pkill -f restartd.py` — the pattern matches your own ss
 shell and drops the session.
 
 
+# routine bring-up
+
+After the one-time setup above, bring the pair up from the control host with one
+command (wake -> wait for boot -> check WRS/PCIe -> wait for services -> recover a
+wedged gc -> report QBER + stored key count):
+
+```.bash
+export QLINE_CONFIG_DIR=YOURPATH/kiwi_hw_control/config/qline1
+cd local
+./run_qkd.sh qline1            # add --init to recalibrate, --tune to fix high QBER, --status to only report
+```
+
+
 # First run
 
 ```.bash
