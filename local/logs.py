@@ -11,6 +11,8 @@ Examples:
     python3 logs.py alice tail hws 50         # last 50 lines
     python3 logs.py bob   head node 30        # first 30 lines of node.log
     python3 logs.py alice grep fs_a hws       # last 200 lines of hws.log matching 'fs_a'
+    python3 logs.py alice stats               # /tmp/node_stats.csv (keylength/qber/ts)
+    python3 logs.py alice stats 50            # last 50 lines of node_stats.csv
     python3 logs.py alice ping
     python3 logs.py --use_localhost alice tail hws   # over port_forwarding.sh tunnels
 
@@ -51,7 +53,7 @@ def main():
     use_localhost = '--use_localhost' in args
     args = [a for a in args if a != '--use_localhost']
     if len(args) < 2:
-        sys.exit("usage: logs.py [--use_localhost] <alice|bob> <ping|list|tail|head|grep> [args]")
+        sys.exit("usage: logs.py [--use_localhost] <alice|bob> <ping|list|tail|head|grep|stats> [args]")
     node = args[0].lower()
     command = ' '.join(args[1:])
 

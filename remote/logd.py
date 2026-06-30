@@ -18,9 +18,12 @@ Commands:
     tail <name> [n]           -> last n lines of <name>      (default 200)
     head <name> [n]           -> first n lines of <name>     (default 200)
     grep <pat> <name> [n]     -> last n lines matching <pat> (default 200)
+    stats [n]                 -> node_stats.csv (keylength/qber/timestamps);
+                                 whole file, or its last n lines if n given
 
 Only *.log files directly inside LOG_DIR may be read (the name is resolved and
-must live in LOG_DIR - no path traversal). Output is capped (MAX_LINES /
+must live in LOG_DIR - no path traversal). The one exception is the fixed
+STATS_FILE served read-only by 'stats'. Output is capped (MAX_LINES /
 MAX_BYTES) and large files are tailed by seeking from the end, so serving a
 multi-gigabyte gc.log stays cheap.
 """
@@ -29,6 +32,7 @@ import socket, threading, json, os, datetime
 
 NETWORK_FILE = '/home/vq-user/config/network.json'
 LOG_DIR = '/home/vq-user/log'
+STATS_FILE = '/tmp/node_stats.csv'   # per-round keylength/qber/timestamp log
 
 DEFAULT_LINES = 200
 MAX_LINES = 10000           # hard cap on lines returned
@@ -142,6 +146,15 @@ def do_head(path, n):
             out.append(line.decode(errors='replace').rstrip('\n'))
     return cap_payload('\n'.join(out))
 
+def do_stats(n):
+    """Return node_stats.csv: the whole file, or its last n lines if n given."""
+    if not os.path.isfile(STATS_FILE):
+        return f"error: {STATS_FILE} not found"
+    if n is None:
+        with open(STATS_FILE, 'rb') as f:
+            return cap_payload(f.read().decode(errors='replace'))
+    return do_tail(STATS_FILE, n)
+
 def do_grep(path, pattern, n):
     """Return up to the last n lines containing <pattern>, scanning at most the
     last GREP_SCAN_LIMIT bytes so a giant log can't stall the daemon."""
@@ -175,6 +188,9 @@ def handle_request(line):
         return 'ok'
     if cmd == 'list':
         return do_list()
+    if cmd == 'stats':
+        n = parts[1] if len(parts) > 1 else None
+        return do_stats(n)
     if cmd in ('tail', 'head'):
         if len(parts) < 2:
             return f"error: usage '{cmd} <name> [lines]'"
@@ -193,7 +209,8 @@ def handle_request(line):
         n = parts[3] if len(parts) > 3 else None
         return do_grep(path, pattern, n)
     return ("error: unknown command '" + cmd +
-            "'; try: ping, list, tail <name> [n], head <name> [n], grep <pat> <name> [n]")
+            "'; try: ping, list, tail <name> [n], head <name> [n], "
+            "grep <pat> <name> [n], stats [n]")
 
 
 def handle_client(conn, addr):
