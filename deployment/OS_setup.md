@@ -354,6 +354,35 @@ just `pkill -f wrs_logger.py` and re-run the `setsid ...` line (the `@reboot` en
 restarts it on the next boot regardless).
 
 
+# detector counts history (counts_logger, cron)
+
+`counts_logger.py` is the sibling of wrs_logger for the **detector node (Bob)**: it
+records detector counts to `~/log/counts.log` and flags drops to zero. It polls the
+*nonblocking* counts query every 5 s -- a pure mmap READ of the
+`[click0, click1, total]` registers at offset 56 of the shared `/dev/xdma0_user`
+(same path as `lib/fpga.get_counts()` / `ctl_bob.counts_fast()`; read-only, so safe
+to poll alongside hw/mon and a running session, unlike `request_counts()` which
+writes a start bit, or the exclusive c2h DMA channels). It logs a 60 s heartbeat for
+the rate trend plus an immediate **ALERT** the moment `total` counts drop to 0
+(detector dark / FPGA stopped / lost calibration) and a RECOVER when they return.
+
+```.bash
+python3 logs.py bob tail counts            # rate trend (total/click0/click1)
+python3 logs.py bob grep ALERT counts      # drops to zero, with timestamps
+```
+
+Deploy and persist exactly like wrs_logger (cron `@reboot` + `flock`, no root):
+
+```.bash
+scp -J vq remote/counts_logger.py vq-user@<bob_ip>:~/server/
+# on Bob:
+chmod +x ~/server/counts_logger.py
+( crontab -l 2>/dev/null | grep -vF counts_logger.py; \
+  echo "@reboot /usr/bin/flock -n /tmp/counts_logger.lock /home/vq-user/server/counts_logger.py 2>>/home/vq-user/log/counts.log" ) | crontab -
+setsid /usr/bin/flock -n /tmp/counts_logger.lock ~/server/counts_logger.py >/dev/null 2>>~/log/counts.log </dev/null &
+```
+
+
 # routine bring-up
 
 After the one-time setup above, bring the pair up from the control host with one
