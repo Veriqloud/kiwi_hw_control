@@ -14,6 +14,12 @@ localhost_hws=$(jq '.hws' $QLINE_CONFIG_DIR/ports_for_localhost.json)
 # mon
 localhost_mon_alice=$(jq '.mon_alice' $QLINE_CONFIG_DIR/ports_for_localhost.json)
 localhost_mon_bob=$(jq '.mon_bob' $QLINE_CONFIG_DIR/ports_for_localhost.json)
+# restartd
+localhost_restartd_alice=$(jq '.restartd_alice' $QLINE_CONFIG_DIR/ports_for_localhost.json)
+localhost_restartd_bob=$(jq '.restartd_bob' $QLINE_CONFIG_DIR/ports_for_localhost.json)
+# logd
+localhost_logd_alice=$(jq '.logd_alice' $QLINE_CONFIG_DIR/ports_for_localhost.json)
+localhost_logd_bob=$(jq '.logd_bob' $QLINE_CONFIG_DIR/ports_for_localhost.json)
 
 
 # get ip and ports on machines
@@ -25,6 +31,8 @@ ip_bob=$(jq '.ip.bob' $NETWORK_FILE | tr -d '"')
 hw_port=$(jq '.port.hw' $NETWORK_FILE)
 hws_port=$(jq '.port.hws' $NETWORK_FILE)
 mon_port=$(jq '.port.mon' $NETWORK_FILE)
+restartd_port=$(jq '.port.restartd' $NETWORK_FILE)
+logd_port=$(jq '.port.logd' $NETWORK_FILE)
 
 # hw
 ssh -N -L $localhost_hw_alice:$ip_alice:$hw_port vq &
@@ -34,6 +42,12 @@ ssh -N -L $localhost_hws:$ip_alice:$hws_port vq &
 # mon
 ssh -N -L $localhost_mon_alice:$ip_alice:$mon_port vq &
 ssh -N -L $localhost_mon_bob:$ip_bob:$mon_port vq &
+# restartd (restartd runs on each node bound to its own IP)
+ssh -N -L $localhost_restartd_alice:$ip_alice:$restartd_port vq &
+ssh -N -L $localhost_restartd_bob:$ip_bob:$restartd_port vq &
+# logd (logd runs on each node bound to its own IP)
+ssh -N -L $localhost_logd_alice:$ip_alice:$logd_port vq &
+ssh -N -L $localhost_logd_bob:$ip_bob:$logd_port vq &
 
 
 

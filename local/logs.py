@@ -3,7 +3,7 @@
 Client for logd - read qline log files on a node over TCP (no ssh).
 
 Usage:
-    QLINE_CONFIG_DIR=.../config/qline1 python3 logs.py <alice|bob> <command> [args]
+    QLINE_CONFIG_DIR=.../config/qline1 python3 logs.py [--use_localhost] <alice|bob> <command> [args]
 
 Examples:
     python3 logs.py alice list                # what logs exist, with sizes
@@ -12,9 +12,12 @@ Examples:
     python3 logs.py bob   head node 30        # first 30 lines of node.log
     python3 logs.py alice grep fs_a hws       # last 200 lines of hws.log matching 'fs_a'
     python3 logs.py alice ping
+    python3 logs.py --use_localhost alice tail hws   # over port_forwarding.sh tunnels
 
 The target host/port are read from <config>/alice/network.json (ip[node] and
 port['logd']); logd runs on both nodes bound to that node's own client IP.
+With --use_localhost, connect to localhost on the logd_<node> port from
+<config>/ports_for_localhost.json instead (requires port_forwarding.sh tunnels).
 Read-only: logd can only list/tail/head/grep the *.log files under ~/log.
 """
 
@@ -44,17 +47,25 @@ def recv_reply(s):
 
 
 def main():
-    if len(sys.argv) < 3:
-        sys.exit("usage: logs.py <alice|bob> <ping|list|tail|head|grep> [args]")
-    node = sys.argv[1].lower()
-    command = ' '.join(sys.argv[2:])
+    args = sys.argv[1:]
+    use_localhost = '--use_localhost' in args
+    args = [a for a in args if a != '--use_localhost']
+    if len(args) < 2:
+        sys.exit("usage: logs.py [--use_localhost] <alice|bob> <ping|list|tail|head|grep> [args]")
+    node = args[0].lower()
+    command = ' '.join(args[1:])
 
     if node not in ('alice', 'bob'):
         sys.exit(f"error: node must be 'alice' or 'bob', got '{node}'")
 
     network = json.load(open(os.path.join(CFG, 'alice', 'network.json')))
-    host = network['ip'][node]
-    port = int(network['port']['logd'])
+    if use_localhost:
+        lp = json.load(open(os.path.join(CFG, 'ports_for_localhost.json')))
+        host = 'localhost'
+        port = int(lp[f'logd_{node}'])
+    else:
+        host = network['ip'][node]
+        port = int(network['port']['logd'])
 
     s = socket.socket()
     s.settimeout(30)

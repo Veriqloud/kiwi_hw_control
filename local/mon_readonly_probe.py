@@ -6,10 +6,18 @@
 import socket, json, struct, os, sys
 
 CFG = os.environ.get('QLINE_CONFIG_DIR') or os.path.expanduser('~/kiwi_hw_control/config/qline1')
+# --use_localhost: connect via localhost tunnels (port_forwarding.sh) instead of node IPs.
+use_localhost = '--use_localhost' in sys.argv[1:]
 network = json.load(open(os.path.join(CFG, 'alice/network.json')))
-port = network['port']['mon']
 
-def conn(host):
+if use_localhost:
+    lp = json.load(open(os.path.join(CFG, 'ports_for_localhost.json')))
+    targets = {'alice': ('localhost', lp['mon_alice']), 'bob': ('localhost', lp['mon_bob'])}
+else:
+    mon_port = network['port']['mon']
+    targets = {'alice': (network['ip']['alice'], mon_port), 'bob': (network['ip']['bob'], mon_port)}
+
+def conn(host, port):
     s = socket.socket(); s.settimeout(10); s.connect((host, port)); return s
 def sendc(s, c):
     s.sendall(len(c).to_bytes(2, 'little') + c.encode())
@@ -25,9 +33,9 @@ def rcv_d(s): return struct.unpack('d', recv_exact(s, 8))[0]
 def p(*a):
     print(*a); sys.stdout.flush()
 
-alice = conn(network['ip']['alice'])
+alice = conn(*targets['alice'])
 p("connected alice")
-bob = conn(network['ip']['bob'])
+bob = conn(*targets['bob'])
 p("connected bob")
 
 out = {}

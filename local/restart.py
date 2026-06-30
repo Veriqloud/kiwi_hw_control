@@ -3,7 +3,7 @@
 Client for restartd - restart qline services on a node over TCP (no ssh, no sudo).
 
 Usage:
-    QLINE_CONFIG_DIR=.../config/qline1 python3 restart.py <alice|bob> <command> [service]
+    QLINE_CONFIG_DIR=.../config/qline1 python3 restart.py [--use_localhost] <alice|bob> <command> [service]
 
 Examples:
     python3 restart.py alice restart gc      # recover a wedged gc on Alice
@@ -11,9 +11,12 @@ Examples:
     python3 restart.py bob   status gc
     python3 restart.py alice list
     python3 restart.py bob   ping
+    python3 restart.py --use_localhost alice restart gc   # over port_forwarding.sh tunnels
 
 The target host/port are read from <config>/alice/network.json (ip[node] and
 port['restartd']); restartd runs on both nodes bound to that node's own IP.
+With --use_localhost, connect to localhost on the restartd_<node> port from
+<config>/ports_for_localhost.json instead (requires port_forwarding.sh tunnels).
 """
 
 import socket, json, os, sys
@@ -40,17 +43,25 @@ def recv_reply(s):
 
 
 def main():
-    if len(sys.argv) < 3:
-        sys.exit("usage: restart.py <alice|bob> <ping|list|status|restart> [service]")
-    node = sys.argv[1].lower()
-    command = ' '.join(sys.argv[2:])
+    args = sys.argv[1:]
+    use_localhost = '--use_localhost' in args
+    args = [a for a in args if a != '--use_localhost']
+    if len(args) < 2:
+        sys.exit("usage: restart.py [--use_localhost] <alice|bob> <ping|list|status|restart> [service]")
+    node = args[0].lower()
+    command = ' '.join(args[1:])
 
     if node not in ('alice', 'bob'):
         sys.exit(f"error: node must be 'alice' or 'bob', got '{node}'")
 
     network = json.load(open(os.path.join(CFG, 'alice', 'network.json')))
-    host = network['ip'][node]
-    port = int(network['port']['restartd'])
+    if use_localhost:
+        lp = json.load(open(os.path.join(CFG, 'ports_for_localhost.json')))
+        host = 'localhost'
+        port = int(lp[f'restartd_{node}'])
+    else:
+        host = network['ip'][node]
+        port = int(network['port']['restartd'])
 
     s = socket.socket()
     s.settimeout(30)          # restart waits ~10s for systemd to respawn
