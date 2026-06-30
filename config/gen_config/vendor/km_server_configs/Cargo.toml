@@ -1,0 +1,27 @@
+# Vendored copy of the config-relevant types from qline_backend/kms (package
+# "km-server", library "km_server_configs").
+#
+# This is the public "struct database" half of gen_config's two-step build: it lets
+# gen_config build without the private kms repo. It mirrors the kms config module
+# tree (kme/storage/sae_api/ipc/configuration) so the generated JSON is byte-identical.
+# Non-serialization concerns (schemars/snafu derives, runtime impls, tests) are dropped.
+#
+# Keep this in sync with the upstream kms crate. Drift is caught at compile time by
+# building gen_config with `--features upstream` (see gen_config/Cargo.toml), which
+# compiles the same construction code against the real km-server crate.
+# Distinct package name from upstream "km-server" so both can coexist in the
+# lockfile when building with --features upstream. gen_config references it via the
+# dependency key `km_server_vendored` and aliases it to `km_server_configs`.
+[package]
+name = "km-server-vendored"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "km_server_configs"
+path = "src/lib.rs"
+
+[dependencies]
+# "rc" is required to serialize the Arc<BindAddress> / Arc<KmeID> fields.
+serde = { version = "1", features = ["derive", "rc"] }
+base64 = "0.21.0"

@@ -25,6 +25,10 @@ config/gen_config/target/*
 # Ignore build artifacts for the gen_config crate
 config/gen_config/Cargo.lock
 
+# Maintainer-only upstream drift check (config/gen_config/upstream_check)
+config/gen_config/upstream_check/target/
+config/gen_config/upstream_check/Cargo.lock
+
 # Generated per-deployment configs (contain lab IPs + KMS peer IDs; keep meta_config.json)
 config/qline1/alice/
 config/qline1/bob/

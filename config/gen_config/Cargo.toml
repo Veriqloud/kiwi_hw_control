@@ -11,9 +11,27 @@ libp2p = { version = "0.56", features = ["identify", "rsa"] }
 
 gc = {path = "../../gc"}
 qber = {path = "../../qber"}
+# hw_sim is a public github repo, so keep it as a git dependency.
 simulator_configs = {git = "ssh://git@github.com/Veriqloud/hw_sim.git", branch = "master", package="configs"}
-km_server_configs = {git = "ssh://git@github.com/Veriqloud/qline_backend.git", branch = "master", package="km-server"}
-node = {git = "ssh://git@github.com/Veriqloud/qline_backend.git", package="node"}
+
+# node and kms (km-server) live in private repos. To keep this repo's default build
+# self-contained and free of private dependencies, gen_config builds against vendored
+# copies of their config types (the public "struct database" in ./vendor). See
+# vendor/README.md. src/lib.rs aliases these crates to `node` / `km_server_configs`,
+# so src/config.rs is identical whether built against the vendored or the real crates.
+#
+# The maintainer-only drift check against the real private repos lives in a separate
+# manifest (./upstream_check/Cargo.toml) so the private paths never enter this build's
+# dependency resolution. See upstream_check/README.md.
+node_vendored = { path = "vendor/node", package = "node-vendored" }
+km_server_vendored = { path = "vendor/km_server_configs", package = "km-server-vendored" }
+
+[features]
+# Selects the real private node/kms crates in src/lib.rs instead of the vendored
+# copies. This manifest intentionally carries NO upstream dependencies (they would
+# break the self-contained default build), so this entry only registers the cfg
+# name. The actual drift check is run via the separate ./upstream_check/Cargo.toml.
+upstream = []
 
 
 

@@ -1,0 +1,22 @@
+# Vendored copy of the config-relevant types from qline_backend/node (package "node").
+#
+# This is the public "struct database" half of gen_config's two-step build: it lets
+# gen_config build without the private node repo. It mirrors node's config types
+# (field names, types, serde attributes) so the generated JSON is byte-identical.
+# Non-serialization concerns (schemars/strum/snafu derives, runtime impls, tests)
+# are intentionally dropped.
+#
+# Keep this in sync with the upstream node crate. Drift is caught at compile time by
+# building gen_config with `--features upstream` (see gen_config/Cargo.toml), which
+# compiles the same construction code against the real node crate.
+# Distinct package name from upstream "node" so both can coexist in the lockfile
+# when building with --features upstream. gen_config references it via the
+# dependency key `node_vendored` and aliases it to `node` (see gen_config/src/lib.rs).
+[package]
+name = "node-vendored"
+version = "0.2.0"
+edition = "2021"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+libp2p = { version = "0.56", features = ["rsa", "pnet", "ed25519", "serde"] }

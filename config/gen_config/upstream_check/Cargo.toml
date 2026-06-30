@@ -1,0 +1,52 @@
+# Maintainer-only drift check (NOT part of gen_config's normal build).
+#
+# This manifest reuses gen_config's ../src/lib.rs but enables the `upstream` feature,
+# which makes lib.rs alias `node` / `km_server_configs` to the REAL private node/kms
+# crates instead of the vendored copies. Compiling it recompiles the exact same
+# construction code in src/config.rs against the real structs, so any field that was
+# added, removed or renamed upstream becomes a compile error here — the prompt to
+# update the vendored copies in ../vendor.
+#
+# Run it (requires access to the private repos):
+#     cargo check --manifest-path upstream_check/Cargo.toml
+#
+# It is kept in a separate manifest on purpose: the private path dependencies below
+# would otherwise have to live in ../Cargo.toml, where Cargo resolves them even when
+# the feature is off, breaking the self-contained default build for anyone without
+# the private repos.
+#
+# Keep the shared (public) dependencies below in sync with ../Cargo.toml, and the
+# two private paths in sync with wherever the node/kms repos are checked out.
+[package]
+name = "gen_config_upstream_check"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+path = "../src/lib.rs"
+
+[features]
+default = ["upstream"]
+# Consumed by ../src/lib.rs to select the real crates over the vendored ones.
+upstream = []
+
+[dependencies]
+# Shared, public dependencies — mirror of ../Cargo.toml (minus clap, which only
+# src/main.rs uses; this check builds the library only).
+serde_json = "1.0.132"
+serde = { version = "1.0.213", features = ["derive"] }
+libp2p = { version = "0.56", features = ["identify", "rsa"] }
+gc = { path = "../../../gc" }
+qber = { path = "../../../qber" }
+simulator_configs = { git = "ssh://git@github.com/Veriqloud/hw_sim.git", branch = "master", package = "configs" }
+
+# The real private repos. Aliased to `node` / `km_server_configs` by ../src/lib.rs
+# when the `upstream` feature is enabled.
+node_upstream = { package = "node", path = "/home/ai/qline_backend/node" }
+km_server_upstream = { package = "km-server", path = "/home/ai/qline_backend/kms" }
+
+# km-server pulls actix-web -> cookie 0.16, which fails to compile against time
+# >= 0.3.37 (the `time::parsing::Parsable::parse` signature changed). Pin time so
+# this check resolves to a compiling version even from a clean checkout (the
+# lockfile is gitignored). This only affects the maintainer drift check.
+time = "=0.3.36"
