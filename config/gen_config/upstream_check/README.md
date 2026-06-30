@@ -25,18 +25,33 @@ cargo check --manifest-path upstream_check/Cargo.toml
   Port the change into the matching file under `../vendor`, adapt `../src/config.rs`
   if the generated JSON needs to change, then re-run until it compiles.
 
-## The `comm` dependency
+## The `comm` dependency (avoiding a lockfile collision)
 
-The real `node` crate depends on `comm`, which lives in **this** repo. node's committed
-manifest references it via the `kiwi_hw_control.git` URL, and `Cargo.toml` here has a
-`[patch]` that redirects that to this repo's local `comm` via a relative path — so the
-check uses the in-repo copy and works regardless of where the repo is cloned.
+`comm` lives in **this** repo and is pulled in twice during the check:
 
-For the patch to apply, node must reference `comm` through that git URL (its committed
-state). If your local node checkout hardcodes an absolute path for `comm` (e.g.
-`/home/ai/kiwi_hw_control/comm`), the patch won't match and the check will use that
-absolute path — which breaks on a clone in a different location. Prefer leaving node's
-`comm` dependency as the committed git reference.
+- this repo's `gc` and `qber` depend on it via the relative path `../comm`, and
+- the real `node` crate depends on it too.
+
+Both must resolve to the **same** `comm` directory. If they don't, Cargo fails with:
+
+    error: package collision in the lockfile: packages comm v0.1.0 (<path A>) and
+    comm v0.1.0 (<path B>) are different, ...
+
+That happens when node's manifest hardcodes an absolute path to `comm` (e.g.
+`/home/ai/kiwi_hw_control/comm`) that differs from where this repo is cloned (so
+`gc`/`qber`'s `../comm` points somewhere else). Cargo cannot override a *path*
+dependency — neither `[patch]` nor a `paths` override fixes this — so the fix must be
+in **node's** `Cargo.toml`.
+
+Make node reference `comm` via its committed git URL (not a hardcoded absolute path):
+
+    comm = { git = "ssh://git@github.com/Veriqloud/kiwi_hw_control.git", branch = "master" }
+
+The `[patch]` in this manifest then redirects that git `comm` to this repo's local
+`comm` (the same one `gc`/`qber` use), so the whole graph resolves to a single `comm`
+regardless of clone location. (A node-side relative path like
+`../../kiwi_hw_control/comm` also works if you keep `kiwi_hw_control` and the node repo
+as siblings, in which case the `[patch]` is simply unused.)
 
 ## Notes
 
