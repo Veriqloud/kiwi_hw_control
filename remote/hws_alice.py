@@ -1566,6 +1566,21 @@ def clear_flag_calibrating():
     with open('/tmp/calibrating.txt', 'w') as f:
         f.write('not calibrating')
 
+def wait_for_node_idle(timeout=60):
+    """Block until the node raises /tmp/node_idle, i.e. it has stopped running
+    sessions and sent Stop to gc (gc is idle). Call this right after dropping
+    /tmp/qkd_ready and before reconfiguring hardware (init), so calibration never
+    races a mid-session node - that race decorrelates the link (QBER ~0.5) until a
+    manual gc+node restart. Returns True if the ack arrived, False on timeout."""
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        if os.path.isfile('/tmp/node_idle'):
+            print(colored('node idle ack received (/tmp/node_idle); gc released', 'green', force_color=True))
+            return True
+        time.sleep(0.5)
+    print(colored(f'WARNING: timed out after {timeout}s waiting for /tmp/node_idle; proceeding anyway', 'red', force_color=True))
+    return False
+
 
 
 
@@ -1637,6 +1652,23 @@ while True:
 
             set_flag_calibrating()
             print(colored(command+' ...\n', 'blue', force_color=True))
+
+            # Before re-calibrating (init reconfigures gc/FPGA), stop the node and
+            # wait for it to release gc: drop the QKD-ready flag, clear any stale ack,
+            # then block until the node re-raises /tmp/node_idle. Doing this BEFORE the
+            # init hardware function runs is what prevents the mid-session race that
+            # leaves the link decorrelated (QBER ~0.5).
+            if command == 'init':
+                try:
+                    os.remove('/tmp/qkd_ready')
+                except FileNotFoundError:
+                    pass
+                try:
+                    os.remove('/tmp/node_idle')   # force a fresh ack from the node
+                except FileNotFoundError:
+                    pass
+                wait_for_node_idle()
+
             if command.startswith('find_vca_'):
                 limit = int(command.split('_')[-1])
                 print('command: ', command)
@@ -1666,18 +1698,13 @@ while True:
 
             print(colored('... '+command+' done \n', 'blue', force_color=True))
 
-            # Auto-manage the node's QKD-ready flag so it doesn't need a manual touch:
-            # arm it when calibration finishes (start), drop it when a re-calibration
-            # begins (init). The node idles until /tmp/qkd_ready exists. /tmp clears on
-            # reboot, so a power-cycle correctly leaves it down until the next full_init.
-            # auto_control's adjust steps touch neither, so tuning won't stop a running node.
+            # Arm the QKD-ready flag when calibration finishes (start); the node then
+            # clears /tmp/node_idle and resumes. The init case (drop ready flag + wait
+            # for idle) is handled BEFORE dispatch above. /tmp clears on reboot, so a
+            # power-cycle leaves the flag down until the next full_init. auto_control's
+            # adjust steps touch neither flag, so tuning won't stop a running node.
             if command == 'start':
                 open('/tmp/qkd_ready', 'w').close()
-            elif command == 'init':
-                try:
-                    os.remove('/tmp/qkd_ready')
-                except FileNotFoundError:
-                    pass
 
             clear_flag_calibrating()
 
