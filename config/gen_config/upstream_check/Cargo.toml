@@ -50,3 +50,12 @@ km_server_upstream = { package = "km-server", path = "/home/ai/qline_backend/kms
 # this check resolves to a compiling version even from a clean checkout (the
 # lockfile is gitignored). This only affects the maintainer drift check.
 time = "=0.3.36"
+
+# The real `node` crate depends on `comm`, which lives in THIS repo. node's committed
+# manifest references it via the kiwi_hw_control git URL; redirect that to this repo's
+# local copy with a path relative to this manifest, so the check uses the in-repo comm
+# and works regardless of where the repo is cloned (no absolute paths, no git fetch).
+# Requires node to reference comm via this git URL (its committed state) rather than a
+# locally hardcoded absolute path.
+[patch."ssh://git@github.com/Veriqloud/kiwi_hw_control.git"]
+comm = { path = "../../../comm" }

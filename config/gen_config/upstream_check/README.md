@@ -25,6 +25,19 @@ cargo check --manifest-path upstream_check/Cargo.toml
   Port the change into the matching file under `../vendor`, adapt `../src/config.rs`
   if the generated JSON needs to change, then re-run until it compiles.
 
+## The `comm` dependency
+
+The real `node` crate depends on `comm`, which lives in **this** repo. node's committed
+manifest references it via the `kiwi_hw_control.git` URL, and `Cargo.toml` here has a
+`[patch]` that redirects that to this repo's local `comm` via a relative path — so the
+check uses the in-repo copy and works regardless of where the repo is cloned.
+
+For the patch to apply, node must reference `comm` through that git URL (its committed
+state). If your local node checkout hardcodes an absolute path for `comm` (e.g.
+`/home/ai/kiwi_hw_control/comm`), the patch won't match and the check will use that
+absolute path — which breaks on a clone in a different location. Prefer leaving node's
+`comm` dependency as the committed git reference.
+
 ## Notes
 
 - The private repo paths live here (not in `../Cargo.toml`) on purpose: Cargo resolves

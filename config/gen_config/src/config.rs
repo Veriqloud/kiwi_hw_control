@@ -456,6 +456,7 @@ pub fn write_node_config(config_alice: &Config, config_bob: &Config) {
         },
         log_level: Some("Info".to_string()),
         ready_flag_path: "/tmp/qkd_ready".to_string(),
+        idle_flag_path: "/tmp/node_idle".to_string(),
     };
     
     let node_conf_bob = node::Configuration {
@@ -498,6 +499,7 @@ pub fn write_node_config(config_alice: &Config, config_bob: &Config) {
         },
         log_level: Some("Info".to_string()),
         ready_flag_path: "/tmp/qkd_ready".to_string(),
+        idle_flag_path: "/tmp/node_idle".to_string(),
 
     };
 

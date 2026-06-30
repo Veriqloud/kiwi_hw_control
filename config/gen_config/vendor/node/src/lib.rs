@@ -124,6 +124,15 @@ pub struct Configuration {
     /// forces re-calibration before QKD resumes.
     #[serde(default = "default_ready_flag_path")]
     pub ready_flag_path: String,
+
+    /// Path of the "node idle" acknowledgement flag. The node raises this file
+    /// once it has stopped running sessions and sent Stop to gc (i.e. gc is idle)
+    /// after `ready_flag_path` disappears, and removes it again before resuming.
+    /// hws full_init waits for this flag after lowering the ready flag, so it
+    /// never reconfigures gc/FPGA while the node is mid-session. In /tmp like the
+    /// ready flag so a power-cycle clears it.
+    #[serde(default = "default_idle_flag_path")]
+    pub idle_flag_path: String,
 }
 
 #[derive(Deserialize, Debug, Clone, Serialize, Default)]
@@ -211,6 +220,10 @@ fn default_qtol() -> f64 {
 
 fn default_ready_flag_path() -> String {
     "/tmp/qkd_ready".to_string()
+}
+
+fn default_idle_flag_path() -> String {
+    "/tmp/node_idle".to_string()
 }
 
 fn default_rounds_limit_per_session() -> u32 {
