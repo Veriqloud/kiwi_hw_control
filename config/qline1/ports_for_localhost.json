@@ -9,5 +9,7 @@
     "restartd_alice": 12010,
     "restartd_bob": 12011,
     "logd_alice": 12012,
-    "logd_bob": 12013
+    "logd_bob": 12013,
+    "kms_alice": 12008,
+    "kms_bob": 12009
 }
