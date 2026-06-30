@@ -46,7 +46,7 @@
     "node": {
         "key_path": "/home/vq-user/authentication/private/node.pk8",
         "qtol": 0.09,
-        "key_size_per_round": 1000000
+        "key_size_per_round": 200000
     }
 }
 
