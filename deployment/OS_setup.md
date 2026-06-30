@@ -383,6 +383,33 @@ setsid /usr/bin/flock -n /tmp/counts_logger.lock ~/server/counts_logger.py >/dev
 ```
 
 
+# periodic auto-tune (autotune, cron */10)
+
+`autotune.py` runs on **Alice** and re-tunes a *running* link against slow drift every
+10 min: it connects to the local hws server and runs `pol_bob`, `adjust_soft_gates`,
+`adjust_am_qber` (one cycle == doing those three by hand via `hws.py --command`).
+Outcome goes to `~/log/autotune.log` (read over TCP: `logs.py alice tail autotune`).
+
+Conflict with manual commands is handled by design, not luck:
+* `hws_alice.py` is single-threaded / single-connection -- it accept()s the next
+  client only after the current one disconnects, so autotune can never run
+  *concurrently* with a manual `hws.py` session; they serialise.
+* each hws command sets/clears `/tmp/calibrating.txt` itself and only `start` arms
+  `/tmp/qkd_ready`, so the adjust steps neither stop the node nor leave it stuck
+  "calibrating".
+* autotune SKIPS unless `/tmp/qkd_ready` exists, `/tmp/calibrating.txt` != calibrating
+  (no full_init in progress), and `/tmp/node_stats.csv` is fresh (node producing
+  rounds -> live QBER to tune against); it re-checks the calibrating flag between
+  steps and bails on a socket timeout instead of queuing behind a manual op.
+* `flock` keeps runs from overlapping.
+
+```.bash
+scp -J vq remote/autotune.py vq-user@<alice_ip>:~/server/   ;  chmod +x ~/server/autotune.py
+# cron line on Alice (disable by removing it from `crontab -e`):
+*/10 * * * * /usr/bin/flock -n /tmp/autotune.lock /home/vq-user/server/autotune.py 2>>/home/vq-user/log/autotune.log
+```
+
+
 # routine bring-up
 
 After the one-time setup above, bring the pair up from the control host with one
