@@ -3,11 +3,14 @@
 Power off qline nodes remotely via restartd (no ssh) - in the spirit of restart.py.
 
 Usage:
-    QLINE_CONFIG_DIR=.../config/qline1 python3 shutdown.py <alice|bob|both> --yes
+    QLINE_CONFIG_DIR=.../config/qline1 python3 shutdown.py [--use_localhost] <alice|bob|both> --yes
 
 Sends the `shutdown` command to restartd (TCP port restartd in network.json), which
 runs `sudo -n /usr/sbin/shutdown -h +0` on the node. Requires vq-user to have
 NOPASSWD sudo for /usr/sbin/shutdown; otherwise restartd replies with a clear error.
+
+With --use_localhost, connect to localhost on the restartd_<node> port from
+ports_for_localhost.json instead (requires port_forwarding.sh tunnels).
 
 --yes is required (shutdown is destructive). Recover a powered-off node with
 local/wake.sh (wake-on-LAN).
@@ -36,9 +39,14 @@ def recv_reply(s):
     return recv_exact(s, length).decode(errors='replace')
 
 
-def shutdown_node(node, network):
-    host = network['ip'][node]
-    port = int(network['port']['restartd'])
+def shutdown_node(node, network, use_localhost=False):
+    if use_localhost:
+        lp = json.load(open(os.path.join(CFG, 'ports_for_localhost.json')))
+        host = 'localhost'
+        port = int(lp[f'restartd_{node}'])
+    else:
+        host = network['ip'][node]
+        port = int(network['port']['restartd'])
     s = socket.socket()
     s.settimeout(15)
     try:
@@ -58,8 +66,10 @@ def shutdown_node(node, network):
 
 def main():
     args = sys.argv[1:]
+    use_localhost = '--use_localhost' in args
+    args = [a for a in args if a != '--use_localhost']
     if len(args) < 1 or args[0].lower() not in ('alice', 'bob', 'both'):
-        sys.exit("usage: shutdown.py <alice|bob|both> --yes")
+        sys.exit("usage: shutdown.py [--use_localhost] <alice|bob|both> --yes")
     target = args[0].lower()
     if '--yes' not in args[1:]:
         sys.exit(f"refusing: shutdown is destructive. Re-run: shutdown.py {target} --yes "
@@ -68,7 +78,7 @@ def main():
     network = json.load(open(os.path.join(CFG, 'alice', 'network.json')))
     nodes = ['alice', 'bob'] if target == 'both' else [target]
     for n in nodes:
-        shutdown_node(n, network)
+        shutdown_node(n, network, use_localhost)
 
 
 if __name__ == '__main__':
