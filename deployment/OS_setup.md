@@ -321,6 +321,39 @@ updating `logd.py`: re-`deploy all` then
 **not** `pkill -f logd.py` (matches your own ssh shell).
 
 
+# WRS link history (wrs_logger, cron)
+
+`wrs_logger.py` records White Rabbit (`eth_wrs`) link state to `~/log/wrs.log` so
+"did the WRS drop?" is answerable after the fact (nothing else logs carrier/IP over
+time). It samples the carrier (`/sys/class/net/eth_wrs/carrier`) and the
+`192.168.10.x` IP every 5 s and appends a line on any **state change** plus a 5 min
+heartbeat. Runs on **both** nodes; read it over TCP through logd (no ssh):
+
+```.bash
+python3 logs.py <alice|bob> tail wrs              # recent state + heartbeats
+python3 logs.py <alice|bob> grep CHANGE wrs       # only transitions (a drop = carrier=0 / ip=none)
+```
+
+It needs no root, so instead of a systemd unit it is persisted with a **user-cron
+`@reboot` entry** (survives power-cycles) guarded by `flock` so only one instance
+runs. Deploy and (re)start:
+
+```.bash
+# from control host: push the script (no file-push over the TCP servers)
+scp -J vq remote/wrs_logger.py vq-user@<node_ip>:~/server/
+
+# on each node (once): install the cron entry and start it now
+chmod +x ~/server/wrs_logger.py
+( crontab -l 2>/dev/null | grep -vF wrs_logger.py; \
+  echo "@reboot /usr/bin/flock -n /tmp/wrs_logger.lock /home/vq-user/server/wrs_logger.py 2>>/home/vq-user/log/wrs.log" ) | crontab -
+setsid /usr/bin/flock -n /tmp/wrs_logger.lock ~/server/wrs_logger.py >/dev/null 2>>~/log/wrs.log </dev/null &
+```
+
+To reload after editing: re-`scp` then `flock -u` is automatic on process exit, so
+just `pkill -f wrs_logger.py` and re-run the `setsid ...` line (the `@reboot` entry
+restarts it on the next boot regardless).
+
+
 # routine bring-up
 
 After the one-time setup above, bring the pair up from the control host with one
