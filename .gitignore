@@ -37,3 +37,6 @@ config/qline1/bob/
 __pycache__/
 local/pics/
 
+
+# qline GUI per-line operator params (runtime state)
+local/gui/params_qline*.json
