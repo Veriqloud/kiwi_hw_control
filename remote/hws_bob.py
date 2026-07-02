@@ -71,7 +71,10 @@ while True:
     def recv_exact(l):
         m = bytes(0)
         while len(m)<l:
-            m += conn.recv(l - len(m))
+            chunk = conn.recv(l - len(m))
+            if not chunk:  # EOF: client closed the connection cleanly
+                raise ConnectionResetError("client disconnected")
+            m += chunk
         return m
 
     # send command
@@ -83,7 +86,10 @@ while True:
 
     # receive command
     def rcvc():
-        l = int.from_bytes(conn.recv(1), 'little')
+        b0 = conn.recv(1)
+        if not b0:  # EOF: client closed the connection cleanly (recv returns b'')
+            raise ConnectionResetError("client disconnected")
+        l = int.from_bytes(b0, 'little')
         mr = recv_exact(l)
         command = mr.decode().strip()
         print(colored(command, 'cyan', force_color=True))
@@ -872,6 +878,10 @@ while True:
 
     except KeyboardInterrupt:
         print("Server stopped by keyboard interrupt.")
+    except ConnectionResetError:
+        # Client went away (reset OR clean EOF) mid-command; close and re-accept
+        # instead of spinning on empty reads / flooding the log.
+        print("Client disconnected mid-command. Waiting for new connection.")
     finally:
         try:
             conn.shutdown(socket.SHUT_RDWR)  # Properly shutdown connection
