@@ -445,6 +445,40 @@ scp -J vq remote/autotune.py vq-user@<alice_ip>:~/server/   ;  chmod +x ~/server
 ```
 
 
+# log rotation (logrotate, root cron)
+
+Size-based rotation of `/home/vq-user/log/*.log`. The growing logs (`gc.log` ~13
+GB/day, `node.log`, and the other systemd-service logs) are **root-owned**: systemd
+opens `StandardOutput=append:` files as root before dropping to `User=vq-user`, so
+they are `root:root 0644` and vq-user (which has no general sudo) cannot truncate
+them. Hence rotation must run as **root**. Config: `deployment/logrotate/qline_logrotate.conf`
+(size 100M, rotate 7, compress+delaycompress, `copytruncate`). `copytruncate` is
+required because every writer -- the services (O_APPEND) and the cron loggers
+(fifo/wrs/counts/logd/autotune) -- holds the log fd open and never reopens; a
+rename would orphan them.
+
+Activation is a one-time root step **on each node** (`scp -J vq
+deployment/logrotate/qline_logrotate.conf vq-user@<ip>:~/server/` first, or it is
+already there via `deploy`). The config is copied into **/etc** (root-owned) rather
+than run from `~/server` because logrotate `postrotate` scripts run as root, so it
+must not read a vq-user-writable config (privilege-escalation vector). It is
+intentionally NOT placed in `/etc/logrotate.d/` (that would also be run by the
+distro's daily timer); instead a dedicated hourly root cron with its own state file
+handles it:
+
+```.bash
+sudo install -m 644 -o root -g root ~vq-user/server/qline_logrotate.conf /etc/qline_logrotate.conf
+sudo tee /etc/cron.d/qline-logrotate >/dev/null <<'EOF'
+17 * * * * root /usr/sbin/logrotate --state /var/lib/logrotate/qline.status /etc/qline_logrotate.conf
+EOF
+# optional: knock down the current oversized logs right now
+sudo /usr/sbin/logrotate -v --state /var/lib/logrotate/qline.status /etc/qline_logrotate.conf
+```
+
+Re-deploying an edited config means re-copying it to `/etc/qline_logrotate.conf`
+(the `~/server` copy is only the staging source).
+
+
 # routine bring-up
 
 After the one-time setup above, bring the pair up from the control host with one
