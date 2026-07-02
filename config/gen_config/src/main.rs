@@ -14,6 +14,10 @@ struct Cli {
     /// Path to hw_sim.json; Simulator only
     #[arg(short = 's', long)]
     sim: Option<PathBuf>,
+    /// Also generate the KMS mTLS certificate chain (needs `openssl`).
+    /// Overwrites any previously generated certificates.
+    #[arg(short = 'g', long = "gen-certs")]
+    gen_certs: bool,
 }
 
 
@@ -58,9 +62,11 @@ fn main() {
     config::write_network_alice(&config);
     config::write_network_bob(&config);
 
-
-
-
+    // Certificate generation is opt-in: it shells out to openssl and overwrites
+    // any previously generated chain, so it must not run on every config build.
+    if cli.gen_certs {
+        config::write_certs(&config, &config_alice, &config_bob);
+    }
 }
 
 

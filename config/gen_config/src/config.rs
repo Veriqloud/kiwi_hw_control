@@ -4,6 +4,8 @@ use simulator_configs::ipc::{AliceIpcConfig, BobIpcConfig};
 use std::path::PathBuf;
 use km_server_configs::{kme, storage::config::KeyPoolConfigType};
 use std::net::{IpAddr, Ipv4Addr};
+use std::path::Path;
+use std::process::Command;
 use std::sync::Arc;
 use libp2p::{Multiaddr, PeerId};
 use std::str::FromStr;
@@ -84,6 +86,48 @@ struct Node {
     key_size_per_round: usize,
 }
 
+// X.509 / mTLS material used by the KMS SAE API. Mirrors the manual
+// KMS_install/Gen_X509 flow: one EC root CA signs a server cert per KME plus a
+// client cert for the SAE (etsi_client). Optional in the meta_config; sensible
+// VeriQloud defaults are used when the block is absent.
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
+#[serde(default)]
+struct Tls {
+    // certificate subject fields shared by the root CA
+    country: String,
+    state: String,
+    locality: String,
+    org: String,
+    org_unit: String,
+    ca_cn: String,
+    // validity of every generated certificate, in days
+    validity_days: u32,
+    // elliptic curve for all keys, e.g. "secp384r1"
+    ec_curve: String,
+    // SAN entries appended to the auto IP-derived ones (e.g. "DNS:myhost")
+    extra_sans: Vec<String>,
+}
+
+impl Default for Tls {
+    fn default() -> Self {
+        Self {
+            country: "FR".to_string(),
+            state: "Paris".to_string(),
+            locality: "Paris".to_string(),
+            org: "VeriQloud".to_string(),
+            org_unit: "Veriqloud-KME".to_string(),
+            ca_cn: "VQKME".to_string(),
+            validity_days: 1095,
+            ec_curve: "secp384r1".to_string(),
+            extra_sans: Vec::new(),
+        }
+    }
+}
+
+// SAE identifier presented by the ETSI-14 client. Single source of truth shared
+// by the KMS SAE list and the generated client certificate's CN.
+const SAE_ID: &str = "sae_id";
+
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub struct Config {
     ip: Ip,
@@ -91,7 +135,8 @@ pub struct Config {
     file: File,
     kms: Kms,
     node: Node,
-
+    #[serde(default)]
+    tls: Tls,
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
@@ -154,9 +199,10 @@ impl Config {
         Config {
             ip: self.ip.clone(), 
             port: self.port.clone(),
-            file: self.file.append_extension(extension), 
+            file: self.file.append_extension(extension),
             kms: self.kms.append_extension(extension),
             node: self.node.append_extension(extension),
+            tls: self.tls.clone(),
         }
     }
 }
@@ -321,7 +367,7 @@ pub fn write_kms_config(config_alice: &Config, config_bob: &Config) {
 
     let saes_alice = km_server_configs::sae_api::config::SAES {
         saes: vec![km_server_configs::sae_api::config::SAE {
-            id: "sae_id".to_string()
+            id: SAE_ID.to_string()
         }],
         mtls: config_alice.kms.authentication,
         ca_certificate_path: config_alice.kms.ca_path.to_string(),
@@ -330,7 +376,7 @@ pub fn write_kms_config(config_alice: &Config, config_bob: &Config) {
     };
     let saes_bob = km_server_configs::sae_api::config::SAES {
         saes: vec![km_server_configs::sae_api::config::SAE {
-            id: "sae_id".to_string()
+            id: SAE_ID.to_string()
         }],
         mtls: config_bob.kms.authentication,
         ca_certificate_path: config_bob.kms.ca_path.to_string(),
@@ -531,6 +577,204 @@ pub fn write_network_bob(config: &Config) {
     };
     let network_json = serde_json::to_string_pretty(&network).expect("network conf struct to json");
     std::fs::write("bob/network.json", network_json).expect("writing network bob config to file");
+}
+
+
+// certificates
+//
+// Adapts the KMS_install/Gen_X509 OpenSSL flow (option A: shell out to
+// `openssl`) but fills the certificate SANs from the meta_config IPs, so the
+// manual per-run editing of the `.cnf` files is no longer needed. Produces, into
+// a working `certs/` directory, an EC root CA that signs:
+//   - a server certificate per KME  (clientAuth + serverAuth)
+//   - one client certificate for the SAE / etsi_client  (clientAuth)
+// The resulting files are then copied to `alice/`, `bob/` and `client/` under the
+// exact basenames the generated kms.json expects (respecting the sim
+// `_alice`/`_bob` suffixing), so deployment lines up with the KMS config paths.
+
+// Build a subjectAltName value for a KME server certificate reachable at
+// `client_ip`. Also covers the localhost port-forwarding tunnels.
+fn server_san(client_ip: &str, extra: &[String]) -> String {
+    let mut entries = vec![
+        format!("IP:{client_ip}"),
+        "DNS:localhost".to_string(),
+        "IP:127.0.0.1".to_string(),
+    ];
+    entries.extend(extra.iter().cloned());
+    entries.join(", ")
+}
+
+// OpenSSL config for the root CA, including one signing-extension section per
+// end-entity (referenced with `-extensions` when signing each CSR).
+fn rootca_cnf(tls: &Tls, san_alice: &str, san_bob: &str) -> String {
+    format!(
+        "[req]\n\
+         prompt = no\n\
+         distinguished_name = dn\n\
+         x509_extensions = v3_ext\n\
+         \n\
+         [dn]\n\
+         C = {c}\n\
+         ST = {st}\n\
+         L = {l}\n\
+         O = {o}\n\
+         OU = {ou}\n\
+         CN = {cn}\n\
+         \n\
+         [v3_ext]\n\
+         basicConstraints = critical, CA:TRUE\n\
+         keyUsage = critical, keyCertSign, cRLSign\n\
+         \n\
+         [ext_kms_alice]\n\
+         keyUsage = critical, digitalSignature\n\
+         extendedKeyUsage = clientAuth, serverAuth\n\
+         subjectAltName = {san_alice}\n\
+         \n\
+         [ext_kms_bob]\n\
+         keyUsage = critical, digitalSignature\n\
+         extendedKeyUsage = clientAuth, serverAuth\n\
+         subjectAltName = {san_bob}\n\
+         \n\
+         [ext_sae_client]\n\
+         keyUsage = critical, digitalSignature\n\
+         extendedKeyUsage = clientAuth\n\
+         subjectAltName = DNS:{sae}\n",
+        c = tls.country,
+        st = tls.state,
+        l = tls.locality,
+        o = tls.org,
+        ou = tls.org_unit,
+        cn = tls.ca_cn,
+        san_alice = san_alice,
+        san_bob = san_bob,
+        sae = SAE_ID,
+    )
+}
+
+// OpenSSL config for a certificate-signing request: subject CN plus the SAN
+// carried as a request extension.
+fn csr_cnf(tls: &Tls, cn: &str, san: &str) -> String {
+    format!(
+        "[req]\n\
+         prompt = no\n\
+         distinguished_name = dn\n\
+         req_extensions = ext\n\
+         \n\
+         [dn]\n\
+         C = {c}\n\
+         L = {l}\n\
+         O = {o}\n\
+         CN = {cn}\n\
+         \n\
+         [ext]\n\
+         subjectAltName = {san}\n",
+        c = tls.country,
+        l = tls.locality,
+        o = tls.org,
+        cn = cn,
+        san = san,
+    )
+}
+
+// The generated OpenSSL driver script (option A). Kept as a written, re-runnable
+// artifact under certs/ so the flow can also be inspected / run by hand.
+fn gen_certs_script(tls: &Tls) -> String {
+    format!(
+        "#!/bin/bash\n\
+         # Generated by gen_config. Regenerates the full KMS mTLS chain.\n\
+         set -euo pipefail\n\
+         cd \"$(dirname \"$0\")\"\n\
+         \n\
+         CURVE={curve}\n\
+         DAYS={days}\n\
+         \n\
+         # shared EC parameters\n\
+         openssl genpkey -genparam -algorithm EC -out ecp.pem \\\n\
+         \x20   -pkeyopt ec_paramgen_curve:$CURVE -pkeyopt ec_param_enc:named_curve\n\
+         \n\
+         # self-signed root CA\n\
+         openssl req -x509 -newkey param:ecp.pem -keyout ca.key -out ca.crt \\\n\
+         \x20   -days $DAYS -nodes -config fd_rootca.cnf\n\
+         \n\
+         # $1 name  $2 csr-config  $3 signing-extension-section\n\
+         gen_ee() {{\n\
+         \x20   openssl ecparam -in ecp.pem -genkey -noout -out ${{1}}_eckey.pem\n\
+         \x20   openssl pkcs8 -topk8 -inform PEM -outform PEM -nocrypt \\\n\
+         \x20       -in ${{1}}_eckey.pem -out ${{1}}_pkcs8.key\n\
+         \x20   openssl req -new -nodes -key ${{1}}_eckey.pem -out ${{1}}.csr -config $2\n\
+         \x20   openssl x509 -req -in ${{1}}.csr -CA ca.crt -CAkey ca.key -CAcreateserial \\\n\
+         \x20       -out ${{1}}.pem -days $DAYS -extfile fd_rootca.cnf -extensions $3\n\
+         \x20   rm -f ${{1}}_eckey.pem ${{1}}.csr\n\
+         }}\n\
+         \n\
+         gen_ee kms_alice  fd_kms_alice.cnf  ext_kms_alice\n\
+         gen_ee kms_bob    fd_kms_bob.cnf    ext_kms_bob\n\
+         gen_ee sae_client fd_sae_client.cnf ext_sae_client\n",
+        curve = tls.ec_curve,
+        days = tls.validity_days,
+    )
+}
+
+// Basename of a (possibly remote, sim-suffixed) config path, e.g.
+// "/home/vq-user/authentication/certs/ca.crt_alice" -> "ca.crt_alice".
+fn basename(path: &str) -> &str {
+    Path::new(path)
+        .file_name()
+        .and_then(|s| s.to_str())
+        .expect("cert path has a file name")
+}
+
+fn copy(from: &str, to: String) {
+    std::fs::copy(from, &to).expect(&format!("copying {from} -> {to}"));
+}
+
+pub fn write_certs(config: &Config, config_alice: &Config, config_bob: &Config) {
+    let tls = &config.tls;
+    let certs_dir = Path::new("certs");
+    std::fs::create_dir_all(certs_dir).expect("creating certs directory");
+    std::fs::create_dir_all("client").expect("creating client directory");
+
+    // SANs derived from the client-facing IPs the ETSI client connects to.
+    let san_alice = server_san(&config.ip.alice, &tls.extra_sans);
+    let san_bob = server_san(&config.ip.bob, &tls.extra_sans);
+
+    // OpenSSL config files and driver script.
+    std::fs::write(certs_dir.join("fd_rootca.cnf"), rootca_cnf(tls, &san_alice, &san_bob))
+        .expect("writing fd_rootca.cnf");
+    std::fs::write(certs_dir.join("fd_kms_alice.cnf"), csr_cnf(tls, "alice_kme", &san_alice))
+        .expect("writing fd_kms_alice.cnf");
+    std::fs::write(certs_dir.join("fd_kms_bob.cnf"), csr_cnf(tls, "bob_kme", &san_bob))
+        .expect("writing fd_kms_bob.cnf");
+    std::fs::write(certs_dir.join("fd_sae_client.cnf"), csr_cnf(tls, SAE_ID, &format!("DNS:{SAE_ID}")))
+        .expect("writing fd_sae_client.cnf");
+    let script_path = certs_dir.join("gen_certs.sh");
+    std::fs::write(&script_path, gen_certs_script(tls)).expect("writing gen_certs.sh");
+
+    // Run the OpenSSL flow.
+    let status = Command::new("bash")
+        .arg(&script_path)
+        .status()
+        .expect("running gen_certs.sh (is openssl installed?)");
+    assert!(status.success(), "gen_certs.sh failed with status {status}");
+
+    // Place outputs under the exact basenames the generated kms.json expects.
+    // For real hardware alice and bob share names; for the simulator the
+    // meta_config paths carry the _alice/_bob suffix, which basename() preserves.
+    copy("certs/ca.crt", format!("alice/{}", basename(&config_alice.kms.ca_path)));
+    copy("certs/kms_alice.pem", format!("alice/{}", basename(&config_alice.kms.cert_path)));
+    copy("certs/kms_alice_pkcs8.key", format!("alice/{}", basename(&config_alice.kms.key_path)));
+
+    copy("certs/ca.crt", format!("bob/{}", basename(&config_bob.kms.ca_path)));
+    copy("certs/kms_bob.pem", format!("bob/{}", basename(&config_bob.kms.cert_path)));
+    copy("certs/kms_bob_pkcs8.key", format!("bob/{}", basename(&config_bob.kms.key_path)));
+
+    // SAE / etsi_client identity stays local (the client runs off-node). These
+    // three feed MtlsConfiguration::new(id_cert, id_key, [ca]) in etsi_client.
+    copy("certs/sae_client.pem", "client/sae_cert.pem".to_string());
+    copy("certs/sae_client_pkcs8.key", "client/sae_key.pem".to_string());
+    copy("certs/ca.crt", "client/ca.crt".to_string());
+
+    println!("certificates written to certs/ and copied into alice/, bob/, client/");
 }
 
 
