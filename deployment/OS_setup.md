@@ -383,6 +383,41 @@ setsid /usr/bin/flock -n /tmp/counts_logger.lock ~/server/counts_logger.py >/dev
 ```
 
 
+# FIFO flag history (fifo_logger, cron)
+
+`fifo_logger.py` is the sibling of counts_logger/wrs_logger and records the **FPGA
+DDR FIFO status flags** to `~/log/fifo.log` over time -- previously these were only a
+momentary snapshot via mon's `get_fifo_status` (mon_readonly_probe), so "what were the
+FIFO flags doing when the link wedged?" was unanswerable after the fact. It does a pure
+mmap READ of the two DDR status registers at offsets 52 and 56 of the `0x1000` page of
+`/dev/xdma0_user` -- the same registers `lib/fpga.ddr_status2()`/`Ddr_Status()` decode
+-- so it is read-only and safe to poll alongside hw/mon and a running session (it
+deliberately does **not** call `rng_fifos_mon()`, which writes a trigger bit). Like
+wrs_logger it logs on any flag **CHANGE** plus a 60 s heartbeat, and the raw registers
+so a new decode can be recovered from history. It does **not** hardcode an overflow
+alarm: the `*_full` flags track FIFO *occupancy* (ambiguous -- data flowing vs backed
+up; mon treats none as an error), so interpretation is left to the reader. The only
+**ALERT** is the unambiguous fault of the device becoming unreadable. Runs on **both**
+nodes.
+
+```.bash
+python3 logs.py <alice|bob> tail fifo            # recent flags + heartbeats
+python3 logs.py <alice|bob> grep CHANGE fifo     # flag transitions, with timestamps
+python3 logs.py <alice|bob> grep ALERT fifo      # device unreadable (hard fault)
+```
+
+Deploy and persist exactly like wrs_logger (cron `@reboot` + `flock`, no root):
+
+```.bash
+scp -J vq remote/fifo_logger.py vq-user@<node_ip>:~/server/
+# on each node:
+chmod +x ~/server/fifo_logger.py
+( crontab -l 2>/dev/null | grep -vF fifo_logger.py; \
+  echo "@reboot /usr/bin/flock -n /tmp/fifo_logger.lock /home/vq-user/server/fifo_logger.py 2>>/home/vq-user/log/fifo.log" ) | crontab -
+setsid /usr/bin/flock -n /tmp/fifo_logger.lock ~/server/fifo_logger.py >/dev/null 2>>~/log/fifo.log </dev/null &
+```
+
+
 # periodic auto-tune (autotune, cron */10)
 
 `autotune.py` runs on **Alice** and re-tunes a *running* link against slow drift every
