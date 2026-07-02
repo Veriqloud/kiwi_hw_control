@@ -20,7 +20,9 @@ WHY THIS IS SAFE NEXT TO MANUAL COMMANDS
   * A flock guard (in the cron line) stops overlapping runs; a socket timeout makes
     it give up quickly ('busy') instead of queuing behind a manual op.
 
-Disable by removing the autotune line from `crontab -e`; one cycle is exactly the
+Enable/disable at runtime without touching the crontab via restartd (no ssh):
+`restart.py alice autotune disable` drops ~/autotune.disabled and this script
+then no-ops each cycle; `... autotune enable` removes it. One cycle is exactly the
 manual `hws.py --command pol_bob ; --command adjust_soft_gates ; --command
 adjust_am_qber` you would run by hand.
 """
@@ -38,6 +40,10 @@ COMMANDS = ["pol_bob", "adjust_soft_gates", "adjust_am_qber"]
 READY_FLAG = "/tmp/qkd_ready"
 CALIB_FLAG = "/tmp/calibrating.txt"
 STATS_FILE = "/tmp/node_stats.csv"
+# Operator off switch, toggled over TCP by restartd (`autotune enable|disable`),
+# so it needs no ssh and no crontab edit. Presence disables autotune; it lives in
+# $HOME (not /tmp) so a disable survives a reboot until explicitly re-enabled.
+DISABLE_FLAG = os.path.expanduser("~/autotune.disabled")
 STATS_MAX_AGE = 120          # s: node must have written a round at least this recently
 CONNECT_TIMEOUT = 10         # s
 CMD_TIMEOUT = 120            # s to wait for each command's reply
@@ -66,6 +72,8 @@ def stats_fresh():
 
 
 def precheck():
+    if os.path.isfile(DISABLE_FLAG):
+        return f"disabled by operator ({DISABLE_FLAG} present)"
     if not os.path.isfile(READY_FLAG):
         return "system not calibrated (/tmp/qkd_ready absent)"
     if calibrating():

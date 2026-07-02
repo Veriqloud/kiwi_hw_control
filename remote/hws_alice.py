@@ -27,7 +27,10 @@ def print(*args, **kwargs):
 def recv_exact(socket, l):
     m = bytes(0)
     while len(m)<l:
-        m += socket.recv(l - len(m))
+        chunk = socket.recv(l - len(m))
+        if not chunk:                      # peer closed: raise instead of spinning
+            raise ConnectionError("peer closed connection")
+        m += chunk
     return m
     
 
@@ -119,21 +122,48 @@ with open(networkfile, 'r') as f:
 ########## network ###############
 
 # connect to Bob
-host = network['ip']['bob_wrs']
-port = int(network['port']['hws'])
-bob = socket.socket()
+bob_host = network['ip']['bob_wrs']
+bob_port = int(network['port']['hws'])
+bob = None
 
-try_connect = True
-print('trying to connect to Bob...')
-while try_connect:
-    try:
-        bob.connect((host, port))
-        try_connect = False
-    except ConnectionRefusedError:
-        time.sleep(1)
-        continue
-    except:
-        exit('could not connect to Bob')
+
+def connect_to_bob(max_tries=None):
+    """(Re)establish the persistent Alice->Bob command socket.
+
+    Used at startup and to recover mid-session: a dropped Bob link (BrokenPipeError
+    on send, EOF on recv) used to propagate out of the command loop and kill the
+    whole hws server. On reconnect we replace the global `bob` socket; closing the
+    old one makes hws_bob see EOF and loop back to accept the new connection.
+    max_tries bounds the wait so a mid-session reconnect can't block the admin
+    client forever (None = retry until connected, the original startup behaviour).
+    Returns True on success.
+    """
+    global bob
+    if bob is not None:
+        try:
+            bob.close()
+        except OSError:
+            pass
+    bob = socket.socket()
+    tries = 0
+    print('trying to connect to Bob...')
+    while True:
+        try:
+            bob.connect((bob_host, bob_port))
+            return True
+        except ConnectionRefusedError:
+            tries += 1
+            if max_tries is not None and tries >= max_tries:
+                print(colored('could not reconnect to Bob', 'red', force_color=True))
+                return False
+            time.sleep(1)
+        except OSError:
+            print(colored('could not connect to Bob', 'red', force_color=True))
+            return False
+
+
+if not connect_to_bob():
+    exit('could not connect to Bob')
 
 
 # Create TCP socket for listening for commands from admin
@@ -1669,32 +1699,51 @@ while True:
                     pass
                 wait_for_node_idle()
 
-            if command.startswith('find_vca_'):
-                limit = int(command.split('_')[-1])
-                print('command: ', command)
-                functionmap['find_vca'](conn, limit)
-            elif command.startswith('loop_find_am2_bias_'):
-                x = float(command.split('_')[-1])
-                print('command: ', command)
-                functionmap['loop_find_am2_bias'](conn, x)
-            elif command.startswith('vca_per_'):
-                per = int(command.split('_')[-1])
-                print('command: ', command)
-                functionmap['vca_per'](conn, per)
-            elif command.startswith('save_'):
-                name = command.split('_')[-1]
-                functionmap['save'](conn, name)
-            elif command.startswith('load_'):
-                name = command.split('_')[-1]
-                functionmap['load'](conn, name)
-
-            else:
-                try:
+            try:
+                if command.startswith('find_vca_'):
+                    limit = int(command.split('_')[-1])
+                    print('command: ', command)
+                    functionmap['find_vca'](conn, limit)
+                elif command.startswith('loop_find_am2_bias_'):
+                    x = float(command.split('_')[-1])
+                    print('command: ', command)
+                    functionmap['loop_find_am2_bias'](conn, x)
+                elif command.startswith('vca_per_'):
+                    per = int(command.split('_')[-1])
+                    print('command: ', command)
+                    functionmap['vca_per'](conn, per)
+                elif command.startswith('save_'):
+                    name = command.split('_')[-1]
+                    functionmap['save'](conn, name)
+                elif command.startswith('load_'):
+                    name = command.split('_')[-1]
+                    functionmap['load'](conn, name)
+                else:
                     functionmap[command](conn)
-                except:
-                    print(colored('unkown command or error in function '+command, 'red', force_color=True))
+            except ConnectionError as e:
+                # The persistent Alice<->Bob command socket dropped mid-command
+                # (e.g. a WRS link flap). This used to propagate out and kill the
+                # whole hws server; instead reconnect to Bob and report the failure
+                # to the admin client so the command surfaces as an error.
+                print(colored(f'link to Bob lost during {command}: {e}; reconnecting', 'red', force_color=True))
+                connect_to_bob(max_tries=30)
+                clear_flag_calibrating()
+                try:
+                    sendc(conn, colored(f'fail: Bob link lost during {command}', 'red', force_color=True))
+                except OSError:
+                    break
+                continue
+            except Exception as e:
+                # Unknown command, or a function raised: report to the client
+                # instead of crashing (previously only the plain-command branch
+                # had this guard, so find_vca_/vca_per_/etc. crashed the server).
+                print(colored('unkown command or error in function '+command+f': {e}', 'red', force_color=True))
+                clear_flag_calibrating()
+                try:
                     sendc(conn, colored('unknown command or error in function '+command, 'red', force_color=True))
-                    continue
+                except OSError:
+                    break
+                continue
 
             print(colored('... '+command+' done \n', 'blue', force_color=True))
 

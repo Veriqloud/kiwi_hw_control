@@ -55,6 +55,7 @@ class QlineTab(ttk.Frame):
         self.log_q: queue.Queue[str] = queue.Queue()
         self.snap_q: queue.Queue[be.Snapshot] = queue.Queue()
         self.action_running = False
+        self._autotune_state = "unknown"
         self._poll_lock = threading.Lock()
 
         self.backend = self._make_backend()
@@ -146,6 +147,9 @@ class QlineTab(ttk.Frame):
         self.btn_tune.pack(side="left", padx=4)
         self.btn_down = ttk.Button(ctl, text="Shutdown", command=self._on_shutdown)
         self.btn_down.pack(side="left", padx=4)
+        self.btn_autotune = ttk.Button(ctl, text="Autotune: …",
+                                        command=self._on_toggle_autotune)
+        self.btn_autotune.pack(side="left", padx=4)
         self.action_lbl = ttk.Label(ctl, text="")
         self.action_lbl.pack(side="left", padx=10)
 
@@ -204,6 +208,10 @@ class QlineTab(ttk.Frame):
         self.err_lbl.config(text=(f"error: {snap.error}" if snap.status == be.ERROR and snap.error else ""))
         self.key_lbl.config(text=f"stored keys: {snap.key_store if snap.key_store is not None else '-'}")
 
+        self._autotune_state = snap.autotune
+        self.btn_autotune.config(text={"on": "Autotune: ON", "off": "Autotune: OFF",
+                                       "absent": "Autotune: n/a"}.get(snap.autotune, "Autotune: …"))
+
         p = snap.params
         self.p_dead.config(text=f"dead time: {_fmt(p.dead_time_us)} us")
         self.p_mu.config(text=f"mean photon #: {_fmt(p.mean_photon)} /pulse")
@@ -256,7 +264,7 @@ class QlineTab(ttk.Frame):
         self.action_running = on
         state = "disabled" if on else "normal"
         for b in (self.btn_wake, self.btn_init, self.btn_tune, self.btn_down,
-                  self.mu_btn, self.dead_btn):
+                  self.mu_btn, self.dead_btn, self.btn_autotune):
             b.config(state=state)
         self.action_lbl.config(text=label)
 
@@ -277,6 +285,19 @@ class QlineTab(ttk.Frame):
                                f"Power off both {self.qline} nodes?\n"
                                "Recover with Wake & Produce (Wake-on-LAN)."):
             self._start_action("shutdown", "Shutting down...")
+
+    def _on_toggle_autotune(self):
+        state = self._autotune_state
+        if state not in ("on", "off"):
+            messagebox.showinfo("Autotune",
+                                "Autotune state unknown (node unreachable / restartd not "
+                                "responding).")
+            return
+        enable = state != "on"          # currently on -> disable; otherwise enable
+        verb = "Enable" if enable else "Disable"
+        if messagebox.askyesno("Autotune",
+                               f"{verb} the every-10-min autotune cron on {self.qline}?"):
+            self._start_action("set_autotune", f"{verb[:-1]}ing autotune...", enabled=enable)
 
     def _on_mu_mode(self, _evt=None):
         # swap hint + a sensible default when the method changes
@@ -335,6 +356,9 @@ class QlineTab(ttk.Frame):
         except Exception as e:
             self._append_log_threadsafe(f"[error] {e}")
         finally:
+            # after a toggle, force the next poll to re-read the real autotune state
+            if name == "set_autotune" and hasattr(self.backend, "invalidate_autotune"):
+                self.backend.invalidate_autotune()
             self.after(0, lambda: self._busy(False))
 
     def _run_real_action(self, name, kw):

@@ -100,6 +100,7 @@ class Snapshot:
     loss_db: float | None = None
     params: Params = field(default_factory=Params)
     reachable: bool = False
+    autotune: str = "unknown"        # "on" / "off" / "unknown"
 
 
 # ---------------------------------------------------------------------------
@@ -154,12 +155,19 @@ def parse_counts(text: str) -> Counts | None:
     if not last:
         return None
     line, m = last
-    # leading token is an ISO timestamp; fall back to now if unparseable
+    # leading token is an ISO timestamp; fall back to now if unparseable.
+    # counts_logger writes datetime.now().isoformat() on the node, and the nodes
+    # run UTC (node_stats carries an explicit [Etc/UTC]); the token is therefore
+    # naive UTC.  Tag it UTC so the GUI's _naive() converts it to local time the
+    # same way it does the tz-aware stats -- otherwise the counts trace renders
+    # offset from the key-rate/QBER traces by the host's UTC offset.
     tok = line.split(" ", 1)[0]
     try:
         t = datetime.fromisoformat(tok)
     except ValueError:
-        t = datetime.now()
+        t = datetime.now(timezone.utc)
+    if t.tzinfo is None:
+        t = t.replace(tzinfo=timezone.utc)
     return Counts(t, int(m.group(1)), int(m.group(2)), int(m.group(3)))
 
 
@@ -238,7 +246,7 @@ def key_rates(stats: list[Sample]) -> tuple[list[datetime], list[float]]:
 # ---------------------------------------------------------------------------
 class Backend:
     ACTIONS = ("wake_produce", "full_init", "auto_control", "shutdown",
-               "set_dead_time", "set_mean_photon")
+               "set_dead_time", "set_mean_photon", "set_autotune")
 
     def __init__(self, qline: str, config_root: str):
         self.qline = qline
@@ -282,6 +290,8 @@ class RealBackend(Backend):
         self.local_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # local/
         self._distance_km: float | None = None    # cached; refreshed from get --info
         self._info_t = 0.0
+        self._autotune = "unknown"                 # cached; refreshed over ssh
+        self._autotune_t = 0.0
 
     # ---- environment / connection --------------------------------------
     def _env(self) -> dict:
@@ -351,6 +361,29 @@ class RealBackend(Backend):
                 self._distance_km = d
         return self._distance_km
 
+    def _autotune_status(self) -> str:
+        # Query autotune state over restartd (TCP, no ssh; works off-network via
+        # --use_localhost). Gated on `reachable` by the caller so we never hang on
+        # a powered-off node. Cached for 30 s; invalidate_autotune() forces a
+        # re-read right after a toggle so the button reflects the change quickly.
+        now = time.time()
+        if self._autotune != "unknown" and now - self._autotune_t < 30:
+            return self._autotune
+        rc, out = self._run(self._ll(["python3", "restart.py", "alice", "autotune", "status"]),
+                            timeout=15)
+        self._autotune_t = now
+        for tok in ("on", "off"):
+            if tok in out.split():
+                self._autotune = tok
+                break
+        else:
+            self._autotune = "unknown"
+        return self._autotune
+
+    def invalidate_autotune(self) -> None:
+        """Force the next refresh to re-query autotune status (after a toggle)."""
+        self._autotune_t = 0.0
+
     def refresh(self, n: int = 200) -> Snapshot:
         snap = Snapshot(params=self.load_params())
 
@@ -360,6 +393,7 @@ class RealBackend(Backend):
         if reachable:
             snap.stats = parse_stats(stats_txt)
             snap.params.distance_km = self._distance()
+            snap.autotune = self._autotune_status()
 
         rc_c, counts_txt = self._logs("bob", "tail counts 20")
         if rc_c == 0:
@@ -408,6 +442,10 @@ class RealBackend(Backend):
             return (self._ll(["python3", "hws.py", "--auto_control"]), env, 900)
         if name == "shutdown":
             return (self._ll(["python3", "shutdown.py", "both", "--yes"]), env, 60)
+        if name == "set_autotune":
+            # enable/disable the every-10-min autotune cron via restartd (no ssh)
+            act = "enable" if kw.get("enabled") else "disable"
+            return (self._ll(["python3", "restart.py", "alice", "autotune", act]), env, 30)
         if name == "set_dead_time":
             us = int(round(float(kw["us"])))
             return (self._hw("hw_bob.py", ["set", "--spd_deadtime", str(us)]), env, 60)
@@ -439,6 +477,7 @@ class DemoBackend(Backend):
         self._dead_time_us = 15.0    # detector dead time
         self._fiber_delay = 3900     # 80 MHz cycles (~9.95 km) -> distance
         self._loss_floor_db = 20.0   # system loss at 0 fiber (detector eff + optics)
+        self._autotune = "on"        # synthetic autotune-cron state
         # qline2 starts already producing so both tabs show data out of the box
         if qline == "qline2":
             self._enter(PRODUCING)
@@ -492,6 +531,7 @@ class DemoBackend(Backend):
             p.distance_km = None
         snap = Snapshot(status=self._state, error=self._error, params=p)
         snap.reachable = self._state != DOWN
+        snap.autotune = self._autotune if self._state != DOWN else "unknown"
         if self._state != DOWN:
             snap.stats = self._history[-n:]
             snap.key_store = self._key_store
@@ -540,6 +580,10 @@ class DemoBackend(Backend):
         if name == "auto_control":
             emit("[demo] hws.py --auto_control: re-tuning to lower QBER ...")
             emit("[demo]   adjust_soft_gates / adjust_am_qber done")
+            return
+        if name == "set_autotune":
+            self._autotune = "on" if kw.get("enabled") else "off"
+            emit(f"[demo] autotune cron {'enabled' if kw.get('enabled') else 'disabled'} on {self.qline}")
             return
         if name == "set_dead_time":
             us = int(round(float(kw["us"])))

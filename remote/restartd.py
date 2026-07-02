@@ -18,6 +18,8 @@ Commands:
     status <service>     -> state + MainPID of one service
     restart <service>    -> kill MainPID, wait for systemd to respawn, report
     shutdown             -> power the node off (needs NOPASSWD sudo for shutdown)
+    autotune <action>    -> enable/disable/status the every-10-min autotune cron
+                            via a flag file (no ssh, no crontab edit)
 
 Only the services in ALLOWED may be acted on (restartd refuses anything else,
 and intentionally cannot restart itself).
@@ -26,6 +28,11 @@ and intentionally cannot restart itself).
 import socket, threading, json, os, signal, subprocess, time, datetime
 
 NETWORK_FILE = '/home/vq-user/config/network.json'
+
+# autotune.py checks for this flag file each cron cycle and no-ops if it exists.
+# Toggling it here lets the control host enable/disable autotune over TCP (works
+# off-network via port forwarding) instead of editing the crontab over ssh.
+AUTOTUNE_FLAG = os.path.expanduser('~/autotune.disabled')
 
 # Whitelisted units this daemon is allowed to touch. restartd is deliberately
 # absent: if it wedges, recover it over ssh.
@@ -148,6 +155,28 @@ def do_shutdown():
             "vq-user needs NOPASSWD sudo for /usr/sbin/shutdown.")
 
 
+# ---- autotune enable/disable (flag file honoured by autotune.py) ----
+
+def autotune_ctl(action):
+    if action == 'status':
+        return 'off' if os.path.exists(AUTOTUNE_FLAG) else 'on'
+    if action == 'disable':
+        try:
+            open(AUTOTUNE_FLAG, 'w').close()
+        except OSError as e:
+            return f"error: cannot set autotune flag: {e}"
+        return "autotune disabled (flag set; cron will no-op each cycle)"
+    if action == 'enable':
+        try:
+            os.remove(AUTOTUNE_FLAG)
+        except FileNotFoundError:
+            pass
+        except OSError as e:
+            return f"error: cannot clear autotune flag: {e}"
+        return "autotune enabled (flag cleared)"
+    return "error: usage 'autotune <status|enable|disable>'"
+
+
 # ---- request dispatch ----
 
 def handle_request(line):
@@ -162,6 +191,8 @@ def handle_request(line):
         return '\n'.join(status_line(s) for s in ALLOWED)
     if cmd == 'shutdown':
         return do_shutdown()
+    if cmd == 'autotune':
+        return autotune_ctl(parts[1].lower() if len(parts) >= 2 else 'status')
     if cmd in ('status', 'restart'):
         if len(parts) < 2:
             return f"error: usage '{cmd} <service>'"
@@ -170,7 +201,8 @@ def handle_request(line):
             return f"error: '{svc}' not allowed; choose one of: {', '.join(ALLOWED)}"
         return status_line(svc) if cmd == 'status' else restart(svc)
     return ("error: unknown command '" + cmd +
-            "'; try: ping, list, status <svc>, restart <svc>, shutdown")
+            "'; try: ping, list, status <svc>, restart <svc>, shutdown, "
+            "autotune <status|enable|disable>")
 
 
 def handle_client(conn, addr):
