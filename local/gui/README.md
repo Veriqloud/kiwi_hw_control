@@ -45,7 +45,17 @@ Needs Python 3, `tkinter`, and `matplotlib`. Must run where you have a display.
   the detector saturates (Rτ→1) and this estimate gets noisy — keep µ≈0.2.
 
 - **Stored keys**: Alice KMS `stored_key_count` for the Bob peer, read live from the
-  ETSI QKD 014 endpoint `GET /api/v1/keys/<bob_id>/status`.
+  ETSI QKD 014 endpoint `GET /api/v1/keys/<bob_id>/status`. Reads `n/a (mTLS)` when the
+  KMS has mutual TLS enabled: the GUI deliberately does **not** hold the SAE client key,
+  so the count cannot be fetched, and the plain-HTTP read an mTLS KMS would refuse is
+  skipped. Whether mTLS is on is detected by a **live TLS probe** of the KMS port (the
+  local `kms.json` copy can be stale relative to the deployed KMS), cached for 60 s and
+  falling back to the `kms.json sae_api_config.SAEs.mtls` flag only when the probe is
+  inconclusive. `n/a (mTLS)` is distinct from `-`, which means unknown / node unreachable.
+
+- **Last key**: time since the newest `node_stats.csv` round that actually produced key
+  material (`key_length > 0`). Counts up once a second between the 3 s polls, and keeps
+  showing the last known age if the node goes down/unreachable.
 
 ### Assumptions to verify on hardware (constants at the top of `backend.py`)
 

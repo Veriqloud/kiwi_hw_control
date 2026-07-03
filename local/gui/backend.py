@@ -101,6 +101,7 @@ class Snapshot:
     params: Params = field(default_factory=Params)
     reachable: bool = False
     autotune: str = "unknown"        # "on" / "off" / "unknown"
+    kms_mtls: bool = False           # KMS requires mutual TLS -> key count not readable
 
 
 # ---------------------------------------------------------------------------
@@ -230,6 +231,21 @@ def loss_db_from_counts(clicks: int | None, mean_photon: float | None,
     return -10.0 * math.log10(T)
 
 
+def kms_mtls_enabled(kms_json_path: str) -> bool:
+    """True if the KMS SAE API requires mutual TLS.
+
+    Mirrors the etsi14 --auth switch: meta_config kms.authentication=true is
+    rendered into kms.json as sae_api_config.SAEs.mtls=true. When set, the plain
+    HTTP /status read used here is refused, so the stored-key count is not
+    obtainable without presenting the SAE client certificate.
+    """
+    try:
+        d = json.load(open(kms_json_path))
+    except (OSError, ValueError):
+        return False
+    return bool(d.get("sae_api_config", {}).get("SAEs", {}).get("mtls", False))
+
+
 def key_rates(stats: list[Sample]) -> tuple[list[datetime], list[float]]:
     """Per-round key rate [bit/s] = key_length / dt vs previous round."""
     ts, rate = [], []
@@ -292,6 +308,8 @@ class RealBackend(Backend):
         self._info_t = 0.0
         self._autotune = "unknown"                 # cached; refreshed over ssh
         self._autotune_t = 0.0
+        self._kms_mtls_cache: bool | None = None   # cached; live TLS probe of KMS port
+        self._kms_mtls_t = 0.0
 
     # ---- environment / connection --------------------------------------
     def _env(self) -> dict:
@@ -325,16 +343,25 @@ class RealBackend(Backend):
     def _logs(self, node: str, cmd: str, timeout: int = 20) -> tuple[int, str]:
         return self._run(self._ll(["python3", "logs.py", node, *cmd.split()]), timeout)
 
-    def _kms_key_store(self) -> int | None:
-        # Mirror run_qkd.sh: read Alice KMS stored_key_count for the detector peer.
+    def _kms_endpoint(self) -> tuple[str, int] | None:
+        """(host, port) of the Alice KMS SAE API, honouring --use_localhost."""
         try:
-            net = json.load(open(os.path.join(self.config_dir, "alice", "network.json")))
-            nd = json.load(open(os.path.join(self.config_dir, "alice", "node.json")))
             if self.use_localhost:
                 lp = json.load(open(os.path.join(self.config_dir, "ports_for_localhost.json")))
-                host, port = "localhost", int(lp["kms_alice"])
-            else:
-                host, port = net["ip"]["alice"], int(net["port"]["kms_alice"])
+                return "localhost", int(lp["kms_alice"])
+            net = json.load(open(os.path.join(self.config_dir, "alice", "network.json")))
+            return net["ip"]["alice"], int(net["port"]["kms_alice"])
+        except (OSError, ValueError, KeyError):
+            return None
+
+    def _kms_key_store(self) -> int | None:
+        # Mirror run_qkd.sh: read Alice KMS stored_key_count for the detector peer.
+        ep = self._kms_endpoint()
+        if ep is None:
+            return None
+        host, port = ep
+        try:
+            nd = json.load(open(os.path.join(self.config_dir, "alice", "node.json")))
             bob_id = next(peer[0] for peer in nd["peers"] if peer[1] == "Detector")
         except (OSError, ValueError, KeyError, StopIteration):
             return None
@@ -345,6 +372,54 @@ class RealBackend(Backend):
                 return json.load(r).get("stored_key_count")
         except Exception:
             return None
+
+    def _kms_is_tls(self, host: str, port: int) -> bool | None:
+        """Does the KMS endpoint speak TLS (i.e. is mTLS enabled)?
+
+        We deliberately do NOT hold the SAE client key, so we never complete the
+        mutual handshake or read the count -- we only *classify* the endpoint:
+          True  - the port completed or attempted a TLS handshake. An mTLS KMS
+                  aborts with a 'certificate required' alert when we present no
+                  client cert, which still proves it is a TLS (auth-on) endpoint.
+          False - the server answered our ClientHello as plain HTTP (auth off).
+          None  - inconclusive (connection refused / timeout / node down).
+        """
+        import socket
+        import ssl
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        try:
+            with socket.create_connection((host, port), timeout=5) as sock:
+                with ctx.wrap_socket(sock, server_hostname=host):
+                    return True                       # full handshake -> TLS
+        except ssl.SSLError as e:
+            msg = str(e).upper()
+            if any(s in msg for s in ("WRONG_VERSION_NUMBER", "UNKNOWN_PROTOCOL",
+                                      "HTTP_REQUEST", "RECORD_LAYER")):
+                return False                          # plain-HTTP server replied
+            return True                               # TLS alert (e.g. cert required)
+        except OSError:
+            return None                               # refused / timeout / down
+
+    def _kms_mtls(self) -> bool:
+        """Whether the KMS requires mTLS, probed live and cached for 60 s.
+
+        The local kms.json copy can be stale relative to the deployed KMS, so we
+        trust a live TLS probe of the endpoint; only when the endpoint is unknown
+        or the probe is inconclusive do we fall back to the kms.json flag.
+        """
+        cfg_flag = kms_mtls_enabled(os.path.join(self.config_dir, "alice", "kms.json"))
+        ep = self._kms_endpoint()
+        if ep is None:
+            return cfg_flag
+        now = time.time()
+        if self._kms_mtls_cache is not None and now - self._kms_mtls_t < 60:
+            return self._kms_mtls_cache
+        tls = self._kms_is_tls(*ep)
+        self._kms_mtls_t = now
+        self._kms_mtls_cache = cfg_flag if tls is None else tls
+        return self._kms_mtls_cache
 
     def _distance(self) -> float | None:
         # Throttled: query `hw_alice.py get --info`, parse fiber_delay -> km, and
@@ -394,6 +469,7 @@ class RealBackend(Backend):
             snap.stats = parse_stats(stats_txt)
             snap.params.distance_km = self._distance()
             snap.autotune = self._autotune_status()
+            snap.kms_mtls = self._kms_mtls()
 
         rc_c, counts_txt = self._logs("bob", "tail counts 20")
         if rc_c == 0:
@@ -403,7 +479,11 @@ class RealBackend(Backend):
                 snap.counts.click0 + snap.counts.click1,
                 snap.params.mean_photon, snap.params.dead_time_us)
 
-        snap.key_store = self._kms_key_store() if reachable else None
+        # With mTLS on we intentionally do not hold the SAE client key, so the
+        # count is unreadable from here -- the GUI shows "n/a (mTLS)" from
+        # snap.kms_mtls instead of attempting the (refused) plain-HTTP read.
+        snap.key_store = (self._kms_key_store()
+                          if reachable and not snap.kms_mtls else None)
 
         # --- derive status ----------------------------------------------
         if not reachable:

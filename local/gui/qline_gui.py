@@ -28,6 +28,7 @@ import os
 import queue
 import threading
 import tkinter as tk
+from datetime import datetime, timezone
 from tkinter import messagebox, ttk
 
 import matplotlib
@@ -52,6 +53,7 @@ class QlineTab(ttk.Frame):
 
         self.use_localhost = tk.BooleanVar(value=use_localhost)
         self.latest: be.Snapshot | None = None
+        self._last_key_t: datetime | None = None   # newest key-producing round (UTC)
         self.log_q: queue.Queue[str] = queue.Queue()
         self.snap_q: queue.Queue[be.Snapshot] = queue.Queue()
         self.action_running = False
@@ -62,6 +64,7 @@ class QlineTab(ttk.Frame):
         self._build()
         self._poll_tick()
         self._drain_log()
+        self._lastkey_tick()
 
     # ---- backend (re)creation on toggle --------------------------------
     def _make_backend(self):
@@ -88,6 +91,8 @@ class QlineTab(ttk.Frame):
 
         self.key_lbl = ttk.Label(top, text="stored keys: -")
         self.key_lbl.pack(side="right")
+        self.lastkey_lbl = ttk.Label(top, text="last key: -")
+        self.lastkey_lbl.pack(side="right", padx=(0, 14))
         if not self.demo:
             ttk.Checkbutton(top, text="localhost (port-forward)",
                             variable=self.use_localhost,
@@ -206,7 +211,13 @@ class QlineTab(ttk.Frame):
         self.status_canvas.itemconfig(self.status_dot, fill=color)
         self.status_lbl.config(text=snap.status)
         self.err_lbl.config(text=(f"error: {snap.error}" if snap.status == be.ERROR and snap.error else ""))
-        self.key_lbl.config(text=f"stored keys: {snap.key_store if snap.key_store is not None else '-'}")
+        if snap.key_store is not None:
+            key_txt = str(snap.key_store)
+        elif snap.kms_mtls:
+            key_txt = "n/a (mTLS)"      # count not readable while KMS auth is on
+        else:
+            key_txt = "-"
+        self.key_lbl.config(text=f"stored keys: {key_txt}")
 
         self._autotune_state = snap.autotune
         self.btn_autotune.config(text={"on": "Autotune: ON", "off": "Autotune: OFF",
@@ -218,12 +229,31 @@ class QlineTab(ttk.Frame):
         self.p_dist.config(text=f"A-B distance: {_fmt(p.distance_km)} km")
         self.p_loss.config(text=f"loss: {_fmt(round(snap.loss_db, 1)) if snap.loss_db is not None else '-'} dB")
 
+        # remember the newest round that actually produced key material, so the
+        # "last key" readout keeps counting up between polls (see _lastkey_tick).
+        # Only updated when we have fresh stats, so a down/unreachable node keeps
+        # showing how long ago the last key was.
+        for s in reversed(snap.stats):
+            if s.key_length > 0:
+                self._last_key_t = s.t
+                break
+
         # accumulate counts trend
         if snap.counts is not None:
             self._counts_hist.append((snap.counts.t, snap.counts.total))
             self._counts_hist = self._counts_hist[-400:]
 
         self._draw_plots(snap)
+
+    def _lastkey_tick(self):
+        # Refresh the "time since last key" readout once a second so it counts up
+        # smoothly between the (slower) hardware polls.
+        if self._last_key_t is None:
+            self.lastkey_lbl.config(text="last key: -")
+        else:
+            age = (datetime.now(timezone.utc) - self._last_key_t).total_seconds()
+            self.lastkey_lbl.config(text=f"last key: {_fmt_elapsed(age)}")
+        self.after(1000, self._lastkey_tick)
 
     def _draw_plots(self, snap: be.Snapshot):
         for ax in (self.ax_counts, self.ax_rate, self.ax_qber):
@@ -407,6 +437,18 @@ def _naive(dt):
     if dt.tzinfo is not None:
         dt = dt.astimezone().replace(tzinfo=None)   # -> local, then drop tzinfo
     return dt
+
+
+def _fmt_elapsed(seconds: float) -> str:
+    """Human-readable 'time ago' for the last-key readout."""
+    s = max(0, int(seconds))
+    if s < 60:
+        return f"{s}s ago"
+    m, s = divmod(s, 60)
+    if m < 60:
+        return f"{m}m {s:02d}s ago"
+    h, m = divmod(m, 60)
+    return f"{h}h {m:02d}m ago"
 
 
 def _fmt(v):
