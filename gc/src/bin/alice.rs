@@ -187,78 +187,95 @@ fn main() -> std::io::Result<()> {
         tracing::info!("[gc-alice] control socket created");
 
         for stream in control_socket.incoming() {
-            let mut bob = connect_to_bob(&CONFIG.get().unwrap().alice_config().network.ip_gc);
             match stream {
                 Ok(mut stream) => {
-                    let message: Request = read_message(&mut stream).expect("recv\n");
+                    tracing::info!("[gc-alice] control connection accepted");
+                    // A single node connection may drive many start/stop cycles and is
+                    // kept open across them. Keep serving messages on it until it closes
+                    // (EOF), instead of tearing the session down and expecting the next
+                    // start on a fresh connection.
+                    let mut recv_handle: Option<thread::JoinHandle<()>> = None;
 
-                    // wait for start message
-                    match message {
-                        Request::Start => {
-                            tracing::info!("[gc-alice] got start message");
-                            // init Alice and Bob
-                            bob.send(HwControl::InitDdr).expect("sending to Bob\n");
-                            init_ddr(true);
-                            write_message(&mut stream, Response::Done)
-                                .expect("sending message through control socket");
-                            wait_for_pps();
-                            bob.send(HwControl::SyncAtPps).expect("sending to Bob\n");
-                            sync_at_pps();
-                        }
-                        _ => {
-                            write_message(&mut stream, Response::DidNothing)
-                                .expect("sending message through control socket");
-                        }
-                    }
-                    // receive gc in a separate thread
-                    *RUNNING.lock().unwrap() = true;
-                    let thread_join_handle = 
-                        thread::Builder::new().name("recv_gc".to_string()).spawn(move || {
-                        recv_gc(&mut bob).expect("recv_gc returned an error");
-                    }).expect("building thread");
+                    loop {
+                        let message: Request = match read_message(&mut stream) {
+                            Ok(m) => m,
+                            // clean disconnect (node closed or crashed): stop the running
+                            // session and go back to waiting for a new connection
+                            Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => {
+                                tracing::info!("[gc-alice] control connection closed");
+                                break;
+                            }
+                            Err(e) => panic!("{}", e),
+                        };
 
-                    // wait for stop message
-                    println!("waiting for message");
-
-                    match read_message(&mut stream) {
-                        Ok(message) => {
-                            match message {
-                                Request::Stop => {
-                                    tracing::info!("[gc-alice] got stop message");
-                                    *RUNNING.lock().unwrap() = false;
-                                    write_message(&mut stream, Response::Done)
-                                        .expect("sending message through control socket");
-                                }
-                                _ => {
+                        match message {
+                            Request::Start => {
+                                if *RUNNING.lock().unwrap() {
+                                    tracing::warn!(
+                                        "[gc-alice] got start while already running, ignoring"
+                                    );
                                     write_message(&mut stream, Response::DidNothing)
                                         .expect("sending message through control socket");
+                                    continue;
                                 }
+                                tracing::info!("[gc-alice] got start message");
+                                // fresh Bob link per start: it is moved into recv_gc and
+                                // dropped when that thread ends on the next stop
+                                let mut bob = connect_to_bob(
+                                    &CONFIG.get().unwrap().alice_config().network.ip_gc,
+                                );
+                                // init Alice and Bob
+                                bob.send(HwControl::InitDdr).expect("sending to Bob\n");
+                                init_ddr(true);
+                                write_message(&mut stream, Response::Done)
+                                    .expect("sending message through control socket");
+                                wait_for_pps();
+                                bob.send(HwControl::SyncAtPps).expect("sending to Bob\n");
+                                sync_at_pps();
+                                // receive gc in a separate thread
+                                *RUNNING.lock().unwrap() = true;
+                                recv_handle = Some(
+                                    thread::Builder::new()
+                                        .name("recv_gc".to_string())
+                                        .spawn(move || {
+                                            recv_gc(&mut bob).expect("recv_gc returned an error");
+                                        })
+                                        .expect("building thread"),
+                                );
                             }
-                        }
-                        // recover from Eof error due to disconnected controller
-                        Err(e) => {
-                            match e.kind() {
-                                std::io::ErrorKind::UnexpectedEof => {
-                                    // terminate thread recv_gc
-                                    *RUNNING.lock().unwrap() = false;
-                                    thread::sleep(time::Duration::from_millis(100));
-                                    break
+                            Request::Stop => {
+                                if !*RUNNING.lock().unwrap() {
+                                    tracing::warn!(
+                                        "[gc-alice] got stop while not running, ignoring"
+                                    );
+                                    write_message(&mut stream, Response::DidNothing)
+                                        .expect("sending message through control socket");
+                                    continue;
                                 }
-                                _ => panic!("{}", e)
+                                tracing::info!("[gc-alice] got stop message");
+                                *RUNNING.lock().unwrap() = false;
+                                // join before replying so Done means "fully stopped"
+                                if let Some(handle) = recv_handle.take() {
+                                    handle.join().expect("thread join handle");
+                                }
+                                write_message(&mut stream, Response::Done)
+                                    .expect("sending message through control socket");
                             }
                         }
                     }
 
-                    // finish
-                    thread_join_handle.join().expect("thread join handle");
-
+                    // connection closed: tear down any running session
+                    *RUNNING.lock().unwrap() = false;
+                    if let Some(handle) = recv_handle.take() {
+                        handle.join().expect("thread join handle");
+                    }
                 }
                 Err(err) => {
                     tracing::error!("[gc-alice] Error: {}", err);
                     break;
                 }
             }
-            tracing::info!("[gc-alice] waiting for message on control socket");
+            tracing::info!("[gc-alice] waiting for connection on control socket");
         }
 
     }
