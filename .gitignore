@@ -29,9 +29,13 @@ config/gen_config/Cargo.lock
 config/gen_config/upstream_check/target/
 config/gen_config/upstream_check/Cargo.lock
 
-# Generated per-deployment configs (contain lab IPs + KMS peer IDs; keep meta_config.json)
-config/qline1/alice/
-config/qline1/bob/
+# Generated per-deployment configs (kms.json/node.json/etc. contain KMS peer IDs).
+# Track network.json (IPs+ports only, no secrets) so local/ scripts + port_forwarding.sh
+# work after just `export QLINE_CONFIG_DIR=...`, no gen_config needed. keep meta_config.json.
+config/qline1/alice/*
+!config/qline1/alice/network.json
+config/qline1/bob/*
+!config/qline1/bob/network.json
 
 # Python and local runtime artifacts
 __pycache__/
