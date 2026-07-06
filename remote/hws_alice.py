@@ -1698,6 +1698,13 @@ while True:
                 except FileNotFoundError:
                     pass
                 wait_for_node_idle()
+                # Short settle between the node-idle ack and the FPGA re-init below:
+                # the node releases its DMA fds before raising the flag (close_angles
+                # at session stop), and gc-alice releases synchronously on Stop, but
+                # gc-bob's release is lazy — it only drops its FPGA fds when its next
+                # write to the closed Alice link fails. 2s covers that comfortably.
+                print(colored('node idle; waiting 2s for fifos to be released before init', 'yellow', force_color=True))
+                time.sleep(2)
 
             try:
                 if command.startswith('find_vca_'):
