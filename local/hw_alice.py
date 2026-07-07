@@ -151,6 +151,12 @@ def set(args):
     elif args.decoy_delay is not None:
         sendc('set_decoy_delay')
         send_i(args.decoy_delay)
+    elif args.decoy_p0 is not None:
+        sendc('set_decoy_p0')
+        send_d(args.decoy_p0)
+    elif args.basis_p0 is not None:
+        sendc('set_basis_p0')
+        send_d(args.basis_p0)
 
 def get(args):
     if args.info:
@@ -165,6 +171,9 @@ def get(args):
         print("current gc:", gc, '({:.2f} s)'.format(t))
     elif args.ddr_status:
         sendc('get_ddr_status')
+        print(rcvc())
+    elif args.rng_fifos:
+        sendc('get_rng_fifos')
         print(rcvc())
     elif args.ltc:
         sendc('get_ltc_info')
@@ -244,6 +253,10 @@ parser_set.add_argument("--insert_zeros", choices=['on', 'off'],
                         help="insert zeros into rng sequence for feedback")
 parser_set.add_argument("--pos",type=int, default=0, help="peak position for single")
 parser_set.add_argument("--decoy_delay",type=int, default=0, help="decoy delay value")
+parser_set.add_argument("--decoy_p0", type=float, metavar="p",
+                        help="probability of decoy rng bit = 0; float [0,1]; true_rng mode only")
+parser_set.add_argument("--basis_p0", type=float, metavar="p",
+                        help="probability of basis-choice rng bit = 0; float [0,1]; true_rng mode only")
 
 
 
@@ -253,6 +266,8 @@ parser_get.add_argument("--gc", action="store_true",
                         help="get current global counter")
 parser_get.add_argument("--ddr_status", action="store_true",
                         help="print ddr status")
+parser_get.add_argument("--rng_fifos", action="store_true",
+                        help="print rng fifo status flags (tunable-p0 bitstream)")
 parser_get.add_argument("--ltc", action="store_true",
                         help="print clock chip registers")
 parser_get.add_argument("--sda", action="store_true",

@@ -398,6 +398,25 @@ def Update_Decoy():
     decoy_state(t['am2_mode'])
 
 
+def set_decoy_p0(p):
+    # probability of the decoy true rng emitting 0; only effective in true_rng mode
+    if (p < 0) or (p > 1):
+        print("decoy p0 out of range. Choose a value between 0 and 1")
+        return
+    write_decoy_p0(min(round(p * P0_SCALE), P0_SCALE - 1))
+    rng_reset()
+    update_tmp('decoy_p0', p)
+
+def set_basis_p0(p):
+    # probability of the basis-choice true rng emitting 0; only effective in true_rng mode
+    if (p < 0) or (p > 1):
+        print("basis p0 out of range. Choose a value between 0 and 1")
+        return
+    write_basis_p0(min(round(p * P0_SCALE), P0_SCALE - 1))
+    rng_reset()
+    update_tmp('basis_p0', p)
+
+
 #def Get_Current_Gc():
 #    #Command_enable
 #    Write(0x00001000+4,0x0)
@@ -469,12 +488,20 @@ def init_dpram():
 
 
 
+def init_rng_p0():
+    # program the biased-rng thresholds (tunable-p0 bitstreams); they reset to 0
+    # on FPGA reconfiguration, which would make the true rng emit all-ones
+    t = get_tmp()
+    write_decoy_p0(min(round(t.get('decoy_p0', 0.5) * P0_SCALE), P0_SCALE - 1))
+    write_basis_p0(min(round(t.get('basis_p0', 0.5) * P0_SCALE), P0_SCALE - 1))
+
 def init_hw():
     init_ltc()
     init_sync()
     init_fda()
     init_sda()
     init_decoy()
+    init_rng_p0()
     rng_reset()
 
 def apply_config():

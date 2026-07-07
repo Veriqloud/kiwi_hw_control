@@ -46,7 +46,7 @@ def get_tmp():
     return : dictionary from config/tmp.txt
     """
     t = {}
-    floatlist = ['qdistance', 'pol0', 'pol1', 'pol2', 'pol3', 'vca', 'am_bias','am2_bias',  'am2_bias_min', 'angle0', 'angle1', 'angle2', 'angle3', 'vca_calib']
+    floatlist = ['qdistance', 'pol0', 'pol1', 'pol2', 'pol3', 'vca', 'am_bias','am2_bias',  'am2_bias_min', 'angle0', 'angle1', 'angle2', 'angle3', 'vca_calib', 'decoy_p0', 'basis_p0']
     strlist = ['spd_mode', 'am_mode', 'pm_mode', 'feedback', 'soft_gate', 'insert_zeros', 'am2_mode']
     with open(HW_CONTROL+"config/tmp.txt") as f:
         lines = f.readlines()
@@ -77,7 +77,7 @@ def get_calibrated(filename):
     return : dictionary from /home/vq-user/config/filename
     """
     t = {}
-    floatlist = ['qdistance', 'pol0', 'pol1', 'pol2', 'pol3', 'vca', 'am_bias','am2_bias',  'am2_bias_min', 'angle0', 'angle1', 'angle2', 'angle3', 'vca_calib']
+    floatlist = ['qdistance', 'pol0', 'pol1', 'pol2', 'pol3', 'vca', 'am_bias','am2_bias',  'am2_bias_min', 'angle0', 'angle1', 'angle2', 'angle3', 'vca_calib', 'decoy_p0', 'basis_p0']
     strlist = ['spd_mode', 'am_mode', 'pm_mode', 'feedback', 'soft_gate', 'insert_zeros', 'am2_mode']
     with open("/home/vq-user/config/calibration/"+filename) as f:
         lines = f.readlines()
@@ -1168,7 +1168,29 @@ def rng_reset():
     write(offset, addr, 1)
     write(offset, addr, 0)
 
+# Q15 fixed point scale for the biased-rng threshold registers:
+# register value = round(p0 * 32768), e.g. 3277 -> p0 = 0.1
+P0_SCALE = 32768
+
+def write_basis_p0(p0_q15):
+    # Bernoulli threshold of the fastdac (basis choice) true rng, slv_reg10.
+    # The value only latches on a rising edge of the block's reg_enable, so
+    # write the value first, then pulse the enable (same trigger as
+    # Write_Pm_Mode/Write_Angles). Caller must rng_reset() afterwards.
+    offset = 0x30000
+    write(offset, 40, p0_q15)
+    write(offset, [12, 12], [1, 0])
+
+def write_decoy_p0(p0_q15):
+    # Bernoulli threshold of the decoy true rng, slv_reg4.
+    # Latch via the decoy block's reg_enable pulse (same as decoy_state).
+    # Caller must rng_reset() afterwards.
+    offset = 0x16000
+    write(offset, 16, p0_q15)
+    write(offset, [0, 0], [0, 1])
+
 def rng_fifos_mon():
+    # flag layout of the pre-decoy bitstreams (4 flags); still used on Bob
     offset = 0x30000
     addr = 0
     write(offset, [addr, addr], [0, 2])
@@ -1181,6 +1203,27 @@ def rng_fifos_mon():
     de_rng_empty = mon_reg & 0x1
     #print(rng_almost_full, rng_empty, de_rng_almost_full, de_rng_empty)
     return rng_almost_full, rng_empty, de_rng_almost_full, de_rng_empty
+
+def rng_fifos_mon_v2():
+    # flag layout of the tunable-p0 bitstreams (bit_jul7 and later, 8 flags)
+    offset = 0x30000
+    addr = 0
+    write(offset, [addr, addr], [0, 2])
+    time.sleep(0.01)
+    #Read reg
+    mon_reg = read(offset, 36)
+    # rng: fastdac entropy fifo 128x16, rng_uv: fastdac uneven fifo 1x2
+    # de_rng: decoy entropy fifo 128x16, de_rng_uv: decoy uneven fifo 1x2
+    rng_almost_full = (mon_reg & 0x80)>>7
+    rng_empty = (mon_reg & 0x40)>>6
+    rng_uv_almost_full = (mon_reg & 0x20)>>5
+    rng_uv_empty = (mon_reg & 0x10)>>4
+    de_rng_almost_full = (mon_reg & 0x8)>>3
+    de_rng_empty = (mon_reg & 0x4)>>2
+    de_rng_uv_almost_full = (mon_reg & 0x2)>>1
+    de_rng_uv_empty = mon_reg & 0x1
+    return (rng_almost_full, rng_empty, rng_uv_almost_full, rng_uv_empty,
+            de_rng_almost_full, de_rng_empty, de_rng_uv_almost_full, de_rng_uv_empty)
 
 
 def Angle(num, save=False):

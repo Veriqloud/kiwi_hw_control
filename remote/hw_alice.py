@@ -7,7 +7,7 @@ import json
 import datetime
 import ctl_alice as ctl
 import struct
-from lib.fpga import update_tmp, save_tmp, get_tmp, get_gc, get_ltc_info, get_sda_info, get_fda_info
+from lib.fpga import update_tmp, save_tmp, get_tmp, get_gc, get_ltc_info, get_sda_info, get_fda_info, rng_fifos_mon_v2
 import lib.gen_seq as gen_seq
 from tabulate import tabulate
 from pathlib import Path
@@ -208,7 +208,13 @@ while True:
                 delay = rcv_i()
                 update_tmp('decoy_delay',delay)
                 ctl.gen_decoy()
-            
+            elif command == 'set_decoy_p0':
+                p = rcv_d()
+                ctl.set_decoy_p0(p)
+            elif command == 'set_basis_p0':
+                p = rcv_d()
+                ctl.set_basis_p0(p)
+
             elif command == 'get_info':
                 with open(HW_CONTROL+'config/tmp.txt') as f:
                     s = f.read()
@@ -219,6 +225,11 @@ while True:
                 send_q(gc)
             elif command == 'get_ddr_status':
                 s = ctl.Ddr_Status()
+                sendc(s)
+            elif command == 'get_rng_fifos':
+                f = rng_fifos_mon_v2()
+                s = (f"rng af,e: {f[0]},{f[1]} | rng_uv af,e: {f[2]},{f[3]} | "
+                     f"de_rng af,e: {f[4]},{f[5]} | de_rng_uv af,e: {f[6]},{f[7]}")
                 sendc(s)
             
             elif command == 'get_ltc_info':

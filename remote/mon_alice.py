@@ -6,7 +6,7 @@ import json, struct
 import datetime
 from lib.fpga import update_tmp, save_tmp, get_tmp
 import lib.gen_seq as gen_seq
-from lib.fpga import get_arrival_time, ddr_status2, get_gc, get_ltc_info, get_sda_info, get_fda_info, rng_fifos_mon
+from lib.fpga import get_arrival_time, ddr_status2, get_gc, get_ltc_info, get_sda_info, get_fda_info, rng_fifos_mon_v2
 import numpy as np, pickle
 import subprocess
 from pathlib import Path
@@ -133,11 +133,11 @@ def handle_client(conn, addr):
             
             elif command == 'get_fifo_status':
                 status_ddr = ddr_status2()
-                status_rng = rng_fifos_mon()
+                status_rng = rng_fifos_mon_v2()
                 for i in range(4):
                     send_i(conn, status_ddr[i])
                 send_i(conn, status_rng[1])
-                send_i(conn, status_rng[3])
+                send_i(conn, status_rng[5])
             
             elif command == 'get_gc':
                 gc = get_gc()

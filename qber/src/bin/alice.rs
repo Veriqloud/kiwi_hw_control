@@ -107,6 +107,8 @@ fn recv_angles(
         let mut m1: [[u32; 4]; 4] = [[0; 4]; 4];
         // decoy statistics
         let mut d: [u32; 4] = [0; 4];
+        // alice angle histogram, for checking the basis-choice probability
+        let mut a: [u32; 4] = [0; 4];
 
         let now = Instant::now();
         for _ in 0..num / BATCHSIZE as u32 {
@@ -134,6 +136,7 @@ fn recv_angles(
             for i in 0..BATCHSIZE {
                 let x = aa_expanded[i] as usize;
                 let y = ab_expanded[i] as usize;
+                a[x] += 1;
                 if r[i] == 0 {
                     m0[x][y] += 1;
                 } else {
@@ -148,6 +151,13 @@ fn recv_angles(
             }
         }
         println!("decoy {:?}", d);
+        let a_total: u32 = a.iter().sum();
+        println!(
+            "angles {:?}  p(bit0=0): {:.4}  p(bit1=0): {:.4}",
+            a,
+            (a[0] + a[2]) as f64 / a_total as f64,
+            (a[0] + a[1]) as f64 / a_total as f64
+        );
 
         let mut mdiv: [[f64; 4]; 4] = [[0.; 4]; 4];
         for i in 0..4 {
