@@ -1190,7 +1190,7 @@ def write_decoy_p0(p0_q15):
     write(offset, [0, 0], [0, 1])
 
 def rng_fifos_mon():
-    # flag layout of the pre-decoy bitstreams (4 flags); still used on Bob
+    # flag layout of the pre-decoy bitstreams (4 flags); kept for old bitstreams
     offset = 0x30000
     addr = 0
     write(offset, [addr, addr], [0, 2])

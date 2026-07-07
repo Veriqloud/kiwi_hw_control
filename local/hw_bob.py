@@ -121,6 +121,9 @@ def set(args):
     if args.pm_mode:
         sendc("set_pm_mode")
         sendc(args.pm_mode)
+    elif args.basis_p0 is not None:
+        sendc("set_basis_p0")
+        send_d(args.basis_p0)
     elif args.fake_rng_seq:
         sendc("set_fake_rng_seq")
         sendc(args.fake_rng_seq)
@@ -182,6 +185,9 @@ def get(args):
         print("current gc:", gc, '({:.2f} s)'.format(t))
     elif args.ddr_status:
         sendc('get_ddr_status')
+        print(rcvc())
+    elif args.rng_fifos:
+        sendc('get_rng_fifos')
         print(rcvc())
     elif args.counts:
         while 1:
@@ -298,6 +304,8 @@ parser_set.add_argument("--soft_gates", nargs=4, type=int,
                         help="set gate positions and width")
 parser_set.add_argument("--pm_mode", choices=['seq64', 'seq64tight', 'fake_rng', 'true_rng', 'off'],
                         help="fixed periodic sequece, fake rng or real rng")
+parser_set.add_argument("--basis_p0", type=float, metavar="p",
+                        help="probability of basis-choice rng bit = 0; float [0,1]; true_rng mode only")
 
 parser_set.add_argument("--pol_bias",nargs=4, type=float, metavar="V",  help="float [0,5] V")
 
@@ -322,6 +330,8 @@ parser_get.add_argument("--gc", action="store_true",
 #                            help="download the postprocessed angles")
 parser_get.add_argument("--ddr_status", action="store_true",
                         help="print ddr status")
+parser_get.add_argument("--rng_fifos", action="store_true",
+                        help="print rng fifo status flags (tunable-p0 bitstream)")
 parser_get.add_argument("--ltc", action="store_true",
                         help="print clock chip registers")
 parser_get.add_argument("--sda", action="store_true",

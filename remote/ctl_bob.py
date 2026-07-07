@@ -1051,6 +1051,24 @@ def init_dpram():
 
 
 
+def set_basis_p0(p):
+    # probability of the basis-choice true rng emitting 0; only effective in true_rng mode
+    if (p < 0) or (p > 1):
+        print("basis p0 out of range. Choose a value between 0 and 1")
+        return
+    write_basis_p0(min(round(p * P0_SCALE), P0_SCALE - 1))
+    rng_reset()
+    update_tmp('basis_p0', p)
+
+def init_rng_p0():
+    # program the biased-rng thresholds (tunable-p0 bitstreams); they reset to 0
+    # on FPGA reconfiguration, which would make the true rng emit all-ones.
+    # Bob's bitstream also carries the (unused) decoy rng block; give it a sane
+    # threshold too so its fifo monitor flags stay meaningful.
+    t = get_tmp()
+    write_basis_p0(min(round(t.get('basis_p0', 0.5) * P0_SCALE), P0_SCALE - 1))
+    write_decoy_p0(P0_SCALE // 2)
+
 def init_hw():
     init_ltc()
     init_sync()
@@ -1060,6 +1078,7 @@ def init_hw():
     init_jic()
     init_tdc()
     init_ttl()
+    init_rng_p0()
     rng_reset()
 
 def apply_config():
