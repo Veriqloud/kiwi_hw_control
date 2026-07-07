@@ -34,6 +34,9 @@ struct Cli {
     /// Provide a config file for the network.
     #[arg(short, default_value = "/home/vq-user/config/network.json")]
     pub network_path: String,
+    /// Where to write the qber matrix output.
+    #[arg(short = 'o', long, default_value_os_t = PathBuf::from("/tmp/qber.txt"))]
+    pub out_path: PathBuf,
 }
 
 // for printing the matrix nicely
@@ -75,6 +78,7 @@ fn recv_angles(
     bob: &mut TcpStream,
     config: &AliceConfig,
     num: u32,
+    out_path: &PathBuf,
 ) -> std::io::Result<()> {
 
     let mut file_angles = OpenOptions::new()
@@ -85,7 +89,7 @@ fn recv_angles(
     let mut file_qber_out = OpenOptions::new()
         .write(true)
         .create(true)
-        .open("/tmp/qber.txt")
+        .open(out_path)
         .expect("opening qber_out file");
 
 
@@ -211,7 +215,13 @@ fn main() -> std::io::Result<()> {
     ));
 
     ctrlc::set_handler(move || {
-        *STOP.lock().unwrap() = true;
+        let mut stop = STOP.lock().unwrap();
+        if *stop {
+            // second ctrl-c while shutdown is pending: force exit; gc notices the
+            // closed control socket and tears the session down on its own
+            std::process::exit(130);
+        }
+        *stop = true;
     }).expect("Error setting Ctrl-C handler");
 
 
@@ -221,7 +231,9 @@ fn main() -> std::io::Result<()> {
     println!("Got message from gc: {:?}", m);
 
     write_message(&mut bob, &Qber::SendAngles)?;
-    recv_angles(&mut bob, &config, cli.num)?;
+    // send Stop to gc even when the receive loop fails, so the session is
+    // always shut down and the stack is ready for the next run
+    let result = recv_angles(&mut bob, &config, cli.num, &cli.out_path);
     println!("Sending Stop to gc");
     write_message(&mut gc_socket, Request::Stop)?;
 
@@ -229,7 +241,7 @@ fn main() -> std::io::Result<()> {
     println!("Got message from gc: {:?}", m);
 
 
-    Ok(())
+    result
 }
 
 
