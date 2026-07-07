@@ -14,7 +14,10 @@
         "gc": 13005,
         "qber": 13006,
         "node_alice": 13007,
-        "node_bob": 13008
+        "node_bob": 13008,
+        "showlogs": 13009,
+        "restartd": 13010,
+        "logd": 13011
     },
     "file": {
         "gcr": "/dev/xdma0_c2h_1",
@@ -42,6 +45,17 @@
         "key_path": "/home/vq-user/authentication/private/node.pk8",
         "qtol": 0.09,
         "key_size_per_round": 1000000
+    },
+    "tls": {
+        "country": "FR",
+        "state": "Paris",
+        "locality": "Paris",
+        "org": "VeriQloud",
+        "org_unit": "Veriqloud-KME",
+        "ca_cn": "VQKME",
+        "validity_days": 1095,
+        "ec_curve": "secp384r1",
+        "extra_sans": []
     }
 }
 

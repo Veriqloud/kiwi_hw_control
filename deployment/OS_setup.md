@@ -208,6 +208,8 @@ on local machine
 cd deployment/systemd
 scp *.service SSH_ALICE:~/
 scp *.service SSH_BOB:~/
+scp wait-for-boot-node.sh SSH_ALICE:~/    # ExecStartPre helper for node.service
+scp wait-for-boot-node.sh SSH_BOB:~/
 cd ..
 scp check_systemd.sh SSH_ALICE:~/bin/
 scp check_systemd.sh SSH_BOB:~/bin/
@@ -219,14 +221,22 @@ on remote machines (decoy_rng.service is for Alice only)
 ```.bash
 sudo rsync --chown root:root *.service  /etc/systemd/system/
 sudo systemctl daemon-reload
+chmod +x ~/wait-for-boot-node.sh     # used by node.service ExecStartPre (stays in ~)
 sudo systemctl enable hw.service
 sudo systemctl enable hws.service
 sudo systemctl enable mon.service
 sudo systemctl enable gc.service
 sudo systemctl enable rng.service
+sudo systemctl enable kms.service
+sudo systemctl enable node.service
+sudo systemctl enable restartd.service
+sudo systemctl enable logd.service
 sudo systemctl enable webinterface.service
 check_status.sh     # make sure they are up
 ```
+
+Note: `node.service` requires the gc/kms binaries and configs to be in place
+(`deploy all` + `gen_config`) before it will start, so enable it after a deploy.
 
 logfiles are in /tmp/log/
 
@@ -246,6 +256,240 @@ ExecStart=/usr/lib/systemd/systemd-networkd-wait-online --interface=eth_wrs --in
 
 
 
+
+
+# node start ordering
+
+`node.service` is ordered after `kms.service` and `gc.service` (its local IPC
+peers via `/tmp/kms.fifo` and `/tmp/gc_startstop`) and has an
+`ExecStartPre=/home/vq-user/wait-for-boot-node.sh`. That helper reads the libp2p
+boot node ip:port from `~/config/node.json` and blocks until it is reachable: the
+Source node is its own boot node and returns immediately, while the Detector node
+waits for the Source. This gives correct cross-host startup (Source `node` comes
+up before Detector `node`) on a cold boot of both machines. No extra config — just
+ensure `~/wait-for-boot-node.sh` exists and is executable (see systemctl setup).
+
+
+# remote control + shutdown (restartd)
+
+`restartd.service` is a small TCP supervisor (port `restartd` = 13010 in
+network.json) that lets the control host restart services and power the node off
+**without ssh**, and **without sudo for restarts**. `restartd.py` is deployed to
+`~/server/` by `deploy all` (control). Drive it from `local/`:
+
+```.bash
+export QLINE_CONFIG_DIR=YOURPATH/kiwi_hw_control/config/qlineX
+python3 restart.py <alice|bob> list                       # service states
+python3 restart.py <alice|bob> restart <gc|node|kms|...>   # kill MainPID, systemd respawns
+python3 shutdown.py <alice|bob|both> --yes                 # power off (recover with wake.sh)
+```
+
+Restarts need no sudo: services run as `User=vq-user` with `Restart=always`, so
+restartd kills the (vq-user-owned) MainPID and systemd respawns it. Shutdown DOES
+need a one-time per-node sudoers rule:
+
+```.bash
+echo 'vq-user ALL=(root) NOPASSWD: /usr/sbin/shutdown' | sudo tee /etc/sudoers.d/vq-user-shutdown
+sudo chmod 440 /etc/sudoers.d/vq-user-shutdown
+sudo visudo -c
+```
+
+To reload restartd after updating `restartd.py`: re-`deploy all` then
+`kill $(systemctl show -p MainPID --value restartd.service)` (systemd respawns the
+new code). Do **not** `pkill -f restartd.py` — the pattern matches your own ssh
+shell and drops the session.
+
+
+# read logs without ssh (logd)
+
+`logd.service` is the read-only sibling of restartd (port `logd` = 13011 in
+network.json): it serves the node log files under `~/log` over TCP so the control
+host can list/tail/grep them without ssh. `logd.py` is deployed to `~/server/` by
+`deploy all` (control). Drive it from `local/`:
+
+```.bash
+export QLINE_CONFIG_DIR=YOURPATH/kiwi_hw_control/config/qlineX
+python3 logs.py <alice|bob> list                  # available logs + sizes
+python3 logs.py <alice|bob> tail <name> [n]        # last n lines (e.g. tail hws 50)
+python3 logs.py <alice|bob> grep <pattern> <name>  # last matching lines
+```
+
+It's read-only and confined to `*.log` in `~/log` (no path traversal); output is
+capped and `tail` seeks from the end so a multi-GB log stays cheap. To reload after
+updating `logd.py`: re-`deploy all` then
+`kill $(systemctl show -p MainPID --value logd.service)` (systemd respawns it); do
+**not** `pkill -f logd.py` (matches your own ssh shell).
+
+
+# WRS link history (wrs_logger, cron)
+
+`wrs_logger.py` records White Rabbit (`eth_wrs`) link state to `~/log/wrs.log` so
+"did the WRS drop?" is answerable after the fact (nothing else logs carrier/IP over
+time). It samples the carrier (`/sys/class/net/eth_wrs/carrier`) and the
+`192.168.10.x` IP every 5 s and appends a line on any **state change** plus a 5 min
+heartbeat. Runs on **both** nodes; read it over TCP through logd (no ssh):
+
+```.bash
+python3 logs.py <alice|bob> tail wrs              # recent state + heartbeats
+python3 logs.py <alice|bob> grep CHANGE wrs       # only transitions (a drop = carrier=0 / ip=none)
+```
+
+It needs no root, so instead of a systemd unit it is persisted with a **user-cron
+`@reboot` entry** (survives power-cycles) guarded by `flock` so only one instance
+runs. Deploy and (re)start:
+
+```.bash
+# from control host: push the script (no file-push over the TCP servers)
+scp -J vq remote/wrs_logger.py vq-user@<node_ip>:~/server/
+
+# on each node (once): install the cron entry and start it now
+chmod +x ~/server/wrs_logger.py
+( crontab -l 2>/dev/null | grep -vF wrs_logger.py; \
+  echo "@reboot /usr/bin/flock -n /tmp/wrs_logger.lock /home/vq-user/server/wrs_logger.py 2>>/home/vq-user/log/wrs.log" ) | crontab -
+setsid /usr/bin/flock -n /tmp/wrs_logger.lock ~/server/wrs_logger.py >/dev/null 2>>~/log/wrs.log </dev/null &
+```
+
+To reload after editing: re-`scp` then `flock -u` is automatic on process exit, so
+just `pkill -f wrs_logger.py` and re-run the `setsid ...` line (the `@reboot` entry
+restarts it on the next boot regardless).
+
+
+# detector counts history (counts_logger, cron)
+
+`counts_logger.py` is the sibling of wrs_logger for the **detector node (Bob)**: it
+records detector counts to `~/log/counts.log` and flags drops to zero. It polls the
+*nonblocking* counts query every 5 s -- a pure mmap READ of the
+`[click0, click1, total]` registers at offset 56 of the shared `/dev/xdma0_user`
+(same path as `lib/fpga.get_counts()` / `ctl_bob.counts_fast()`; read-only, so safe
+to poll alongside hw/mon and a running session, unlike `request_counts()` which
+writes a start bit, or the exclusive c2h DMA channels). It logs a 60 s heartbeat for
+the rate trend plus an immediate **ALERT** the moment `total` counts drop to 0
+(detector dark / FPGA stopped / lost calibration) and a RECOVER when they return.
+
+```.bash
+python3 logs.py bob tail counts            # rate trend (total/click0/click1)
+python3 logs.py bob grep ALERT counts      # drops to zero, with timestamps
+```
+
+Deploy and persist exactly like wrs_logger (cron `@reboot` + `flock`, no root):
+
+```.bash
+scp -J vq remote/counts_logger.py vq-user@<bob_ip>:~/server/
+# on Bob:
+chmod +x ~/server/counts_logger.py
+( crontab -l 2>/dev/null | grep -vF counts_logger.py; \
+  echo "@reboot /usr/bin/flock -n /tmp/counts_logger.lock /home/vq-user/server/counts_logger.py 2>>/home/vq-user/log/counts.log" ) | crontab -
+setsid /usr/bin/flock -n /tmp/counts_logger.lock ~/server/counts_logger.py >/dev/null 2>>~/log/counts.log </dev/null &
+```
+
+
+# FIFO flag history (fifo_logger, cron)
+
+`fifo_logger.py` is the sibling of counts_logger/wrs_logger and records the **FPGA
+DDR FIFO status flags** to `~/log/fifo.log` over time -- previously these were only a
+momentary snapshot via mon's `get_fifo_status` (mon_readonly_probe), so "what were the
+FIFO flags doing when the link wedged?" was unanswerable after the fact. It does a pure
+mmap READ of the two DDR status registers at offsets 52 and 56 of the `0x1000` page of
+`/dev/xdma0_user` -- the same registers `lib/fpga.ddr_status2()`/`Ddr_Status()` decode
+-- so it is read-only and safe to poll alongside hw/mon and a running session (it
+deliberately does **not** call `rng_fifos_mon()`, which writes a trigger bit). Like
+wrs_logger it logs on any flag **CHANGE** plus a 60 s heartbeat, and the raw registers
+so a new decode can be recovered from history. It does **not** hardcode an overflow
+alarm: the `*_full` flags track FIFO *occupancy* (ambiguous -- data flowing vs backed
+up; mon treats none as an error), so interpretation is left to the reader. The only
+**ALERT** is the unambiguous fault of the device becoming unreadable. Runs on **both**
+nodes.
+
+```.bash
+python3 logs.py <alice|bob> tail fifo            # recent flags + heartbeats
+python3 logs.py <alice|bob> grep CHANGE fifo     # flag transitions, with timestamps
+python3 logs.py <alice|bob> grep ALERT fifo      # device unreadable (hard fault)
+```
+
+Deploy and persist exactly like wrs_logger (cron `@reboot` + `flock`, no root):
+
+```.bash
+scp -J vq remote/fifo_logger.py vq-user@<node_ip>:~/server/
+# on each node:
+chmod +x ~/server/fifo_logger.py
+( crontab -l 2>/dev/null | grep -vF fifo_logger.py; \
+  echo "@reboot /usr/bin/flock -n /tmp/fifo_logger.lock /home/vq-user/server/fifo_logger.py 2>>/home/vq-user/log/fifo.log" ) | crontab -
+setsid /usr/bin/flock -n /tmp/fifo_logger.lock ~/server/fifo_logger.py >/dev/null 2>>~/log/fifo.log </dev/null &
+```
+
+
+# periodic auto-tune (autotune, cron */10)
+
+`autotune.py` runs on **Alice** and re-tunes a *running* link against slow drift every
+10 min: it connects to the local hws server and runs `pol_bob`, `adjust_soft_gates`,
+`adjust_am_qber` (one cycle == doing those three by hand via `hws.py --command`).
+Outcome goes to `~/log/autotune.log` (read over TCP: `logs.py alice tail autotune`).
+
+Conflict with manual commands is handled by design, not luck:
+* `hws_alice.py` is single-threaded / single-connection -- it accept()s the next
+  client only after the current one disconnects, so autotune can never run
+  *concurrently* with a manual `hws.py` session; they serialise.
+* each hws command sets/clears `/tmp/calibrating.txt` itself and only `start` arms
+  `/tmp/qkd_ready`, so the adjust steps neither stop the node nor leave it stuck
+  "calibrating".
+* autotune SKIPS unless `/tmp/qkd_ready` exists, `/tmp/calibrating.txt` != calibrating
+  (no full_init in progress), and `/tmp/node_stats.csv` is fresh (node producing
+  rounds -> live QBER to tune against); it re-checks the calibrating flag between
+  steps and bails on a socket timeout instead of queuing behind a manual op.
+* `flock` keeps runs from overlapping.
+
+```.bash
+scp -J vq remote/autotune.py vq-user@<alice_ip>:~/server/   ;  chmod +x ~/server/autotune.py
+# cron line on Alice (disable by removing it from `crontab -e`):
+*/10 * * * * /usr/bin/flock -n /tmp/autotune.lock /home/vq-user/server/autotune.py 2>>/home/vq-user/log/autotune.log
+```
+
+
+# log rotation (logrotate, root cron)
+
+Size-based rotation of `/home/vq-user/log/*.log`. The growing logs (`gc.log` ~13
+GB/day, `node.log`, and the other systemd-service logs) are **root-owned**: systemd
+opens `StandardOutput=append:` files as root before dropping to `User=vq-user`, so
+they are `root:root 0644` and vq-user (which has no general sudo) cannot truncate
+them. Hence rotation must run as **root**. Config: `deployment/logrotate/qline_logrotate.conf`
+(size 100M, rotate 7, compress+delaycompress, `copytruncate`). `copytruncate` is
+required because every writer -- the services (O_APPEND) and the cron loggers
+(fifo/wrs/counts/logd/autotune) -- holds the log fd open and never reopens; a
+rename would orphan them.
+
+Activation is a one-time root step **on each node** (`scp -J vq
+deployment/logrotate/qline_logrotate.conf vq-user@<ip>:~/server/` first, or it is
+already there via `deploy`). The config is copied into **/etc** (root-owned) rather
+than run from `~/server` because logrotate `postrotate` scripts run as root, so it
+must not read a vq-user-writable config (privilege-escalation vector). It is
+intentionally NOT placed in `/etc/logrotate.d/` (that would also be run by the
+distro's daily timer); instead a dedicated hourly root cron with its own state file
+handles it:
+
+```.bash
+sudo install -m 644 -o root -g root ~vq-user/server/qline_logrotate.conf /etc/qline_logrotate.conf
+sudo tee /etc/cron.d/qline-logrotate >/dev/null <<'EOF'
+17 * * * * root /usr/sbin/logrotate --state /var/lib/logrotate/qline.status /etc/qline_logrotate.conf
+EOF
+# optional: knock down the current oversized logs right now
+sudo /usr/sbin/logrotate -v --state /var/lib/logrotate/qline.status /etc/qline_logrotate.conf
+```
+
+Re-deploying an edited config means re-copying it to `/etc/qline_logrotate.conf`
+(the `~/server` copy is only the staging source).
+
+
+# routine bring-up
+
+After the one-time setup above, bring the pair up from the control host with one
+command (wake -> wait for boot -> check WRS/PCIe -> wait for services -> recover a
+wedged gc -> report QBER + stored key count):
+
+```.bash
+export QLINE_CONFIG_DIR=YOURPATH/kiwi_hw_control/config/qline1
+cd local
+./run_qkd.sh qline1            # add --init to recalibrate, --tune to fix high QBER, --status to only report
+```
 
 
 # First run

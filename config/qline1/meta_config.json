@@ -15,7 +15,9 @@
         "qber": 13006,
         "node_alice": 13007,
         "node_bob": 13008,
-        "showlogs": 13009
+        "showlogs": 13009,
+        "restartd": 13010,
+        "logd": 13011
     },
     "file": {
         "trng": "/dev/xdma0_h2c_1",
@@ -44,7 +46,7 @@
     "node": {
         "key_path": "/home/vq-user/authentication/private/node.pk8",
         "qtol": 0.09,
-        "key_size_per_round": 1000000
+        "key_size_per_round": 200000
     }
 }
 

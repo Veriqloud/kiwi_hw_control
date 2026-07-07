@@ -34,7 +34,10 @@ def connect_to_alice(use_localhost=False):
 def recv_exact(l):
     m = bytes(0)
     while len(m)<l:
-        m += alice.recv(l - len(m))
+        chunk = alice.recv(l - len(m))
+        if not chunk:                     # server closed/crashed mid-message
+            raise ConnectionError("connection to Alice closed (server dropped or crashed)")
+        m += chunk
     return m
 
 # send command
@@ -45,10 +48,11 @@ def sendc(c):
 
 # receive command
 def rcvc():
-    l = int.from_bytes(alice.recv(1), 'little')
+    b = alice.recv(1)
+    if not b:                             # server closed the connection
+        raise ConnectionError("connection to Alice closed (server dropped or crashed)")
+    l = int.from_bytes(b, 'little')
     mr = recv_exact(l)
-    while len(mr)<l:
-        mr += alice.recv(l-len(mr))
     command = mr.decode().strip()
     return command
 
@@ -181,10 +185,16 @@ def interact(command):
         pic = rcv_data()
         with open('pics/verify_gates.png', 'wb') as f:
             f.write(pic)
-    m = rcvc()
+    try:
+        m = rcvc()
+    except ConnectionError as e:
+        # Previously a dropped/crashed server made rcvc() return '' and this
+        # function fall through to a silent exit 0; surface it as a real error.
+        print(f"[error] '{command}' failed: {e}")
+        exit(1)
     print(m)
     if 'fail' in m:
-        exit()
+        exit(1)
 
 
 if args.clean:
@@ -229,8 +239,8 @@ if args.auto_control:
    # for _ in range(3):
         interact('adjust_soft_gates')
         interact('adjust_am_qber')
-        interact('adjust_angles_a_qber')
-        interact('adjust_angles_b_qber')
+#        interact('adjust_angles_a_qber')
+#        interact('adjust_angles_b_qber')
 
 
 elif args.command is not None:

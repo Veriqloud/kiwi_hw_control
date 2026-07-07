@@ -3,23 +3,39 @@ pub mod gc_comms {
     use strum::EnumString;
 
     /// From node to gc_client
+    ///
+    /// New variants must be appended at the end: bincode encodes the variant
+    /// index, so reordering breaks wire compatibility between node and gc.
     #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, EnumString)]
     pub enum Request {
         #[strum(serialize = "1")]
         Start,
         #[strum(serialize = "2")]
         Stop,
-        //#[strum(serialize = "3")]
-        //DebugOn,
+        /// Ask gc whether the hardware is calibrated and ready for QKD.
+        /// Replied with HwReady or HwNotReady. The node polls this every 2s
+        /// while idle (with its DMA fds closed) and at round boundaries.
+        #[strum(serialize = "3")]
+        PollHwReady,
     }
 
     /// From gc_client to node
+    ///
+    /// New variants must be appended at the end: bincode encodes the variant
+    /// index, so reordering breaks wire compatibility between node and gc.
     #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, EnumString)]
     pub enum Response {
         #[strum(serialize = "1")]
         Done,
         #[strum(serialize = "2")]
         DidNothing,
+        /// Reply to PollHwReady: calibration is done, node may start a session.
+        #[strum(serialize = "3")]
+        HwReady,
+        /// Reply to PollHwReady: hardware is not ready (uncalibrated or
+        /// calibration in progress); node must close its fifos and keep polling.
+        #[strum(serialize = "4")]
+        HwNotReady,
     }
 }
 

@@ -25,3 +25,22 @@ config/gen_config/target/*
 # Ignore build artifacts for the gen_config crate
 config/gen_config/Cargo.lock
 
+# Maintainer-only upstream drift check (config/gen_config/upstream_check)
+config/gen_config/upstream_check/target/
+config/gen_config/upstream_check/Cargo.lock
+
+# Generated per-deployment configs (kms.json/node.json/etc. contain KMS peer IDs).
+# Track network.json (IPs+ports only, no secrets) so local/ scripts + port_forwarding.sh
+# work after just `export QLINE_CONFIG_DIR=...`, no gen_config needed. keep meta_config.json.
+config/qline1/alice/*
+!config/qline1/alice/network.json
+config/qline1/bob/*
+!config/qline1/bob/network.json
+
+# Python and local runtime artifacts
+__pycache__/
+local/pics/
+
+
+# qline GUI per-line operator params (runtime state)
+local/gui/params_qline*.json

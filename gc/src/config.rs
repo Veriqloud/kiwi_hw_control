@@ -14,6 +14,18 @@ pub struct Configuration {
     pub log_level: String,
     #[serde(default = "Configuration::default_ignore_gcr_timeout")]
     pub ignore_gcr_timeout: bool,
+    /// Flag file raised by calibration (hws start) when the hardware is
+    /// calibrated and ready for QKD, and removed by it (hws init/full_init)
+    /// before recalibrating. gc answers the node's PollHwReady from this file.
+    /// Lives in /tmp so a power-cycle clears it and forces re-calibration.
+    #[serde(default = "Configuration::default_ready_flag_path")]
+    pub ready_flag_path: String,
+    /// Flag file raised by gc, for calibration, once the node is idle: gc is
+    /// not streaming and the node has acknowledged HwNotReady, i.e. it has
+    /// closed its DMA fds. hws full_init waits for this file after lowering
+    /// the ready flag, so it never resets the FPGA under a mid-session node.
+    #[serde(default = "Configuration::default_node_idle_flag_path")]
+    pub node_idle_flag_path: String,
 }
 
 impl Configuration {
@@ -88,6 +100,14 @@ impl Configuration {
     fn default_ignore_gcr_timeout() -> bool {
         false
     }
+
+    fn default_ready_flag_path() -> String {
+        "/tmp/qkd_ready".to_string()
+    }
+
+    fn default_node_idle_flag_path() -> String {
+        "/tmp/node_idle".to_string()
+    }
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, JsonSchema)]
@@ -134,6 +154,11 @@ pub struct BobConfig {
 
 #[derive(Debug, Deserialize, Serialize, Default, Clone, PartialEq, JsonSchema)]
 pub struct ConfigFifoBob {
+    /// Unix socket on which gc-bob answers the node's PollHwReady. Unlike
+    /// Alice's socket it carries no Start/Stop (those come from gc-alice over
+    /// TCP), only the readiness poll.
+    #[serde(default = "ConfigFifoBob::default_command_socket_path")]
+    pub command_socket_path: String,
     #[serde(default = "ConfigFifoBob::default_gcr_file_path")]
     pub gcr_file_path: String,
     #[serde(default = "ConfigFifoBob::default_gc_file_path")]
@@ -145,6 +170,10 @@ pub struct ConfigFifoBob {
 }
 
 impl ConfigFifoBob {
+    fn default_command_socket_path() -> String {
+        "/home/vq-user/qline/startstop.s".to_string()
+    }
+
     fn default_gcr_file_path() -> String {
         "/dev/xdma0_c2h_1".to_string()
     }
@@ -191,6 +220,8 @@ mod test {
             fpga_start_socket_path: "/tmp/fpga_alice".to_string(),
             log_level: "Info".to_string(),
             ignore_gcr_timeout: Configuration::default_ignore_gcr_timeout(),
+            ready_flag_path: Configuration::default_ready_flag_path(),
+            node_idle_flag_path: Configuration::default_node_idle_flag_path(),
         };
 
         assert_eq!(conf_from_file, hardcoded_conf);
@@ -209,6 +240,7 @@ mod test {
                     ip_gc: "127.0.0.1:53275".to_string(),
                 },
                 fifo: ConfigFifoBob {
+                    command_socket_path: ConfigFifoBob::default_command_socket_path(),
                     gcr_file_path: "/tmp/gc_bob_gcr.fifo".to_string(),
                     gc_file_path: "/tmp/gc_bob_gc.fifo".to_string(),
                     click_result_file_path: "/tmp/gc_bob_click_result.fifo".to_string(),
@@ -219,6 +251,8 @@ mod test {
             fpga_start_socket_path: "/tmp/fpga_bob".to_string(),
             log_level: "Info".to_string(),
             ignore_gcr_timeout: Configuration::default_ignore_gcr_timeout(),
+            ready_flag_path: Configuration::default_ready_flag_path(),
+            node_idle_flag_path: Configuration::default_node_idle_flag_path(),
         };
 
         assert_eq!(conf_from_file, hardcoded_conf);
@@ -234,6 +268,8 @@ mod test {
             fpga_start_socket_path: Configuration::default_fpga_start_socket_path(),
             log_level: Configuration::default_log_level(),
             ignore_gcr_timeout: Configuration::default_ignore_gcr_timeout(),
+            ready_flag_path: Configuration::default_ready_flag_path(),
+            node_idle_flag_path: Configuration::default_node_idle_flag_path(),
         };
 
         println!("{}", serde_json::to_string_pretty(&conf).unwrap());
@@ -260,6 +296,8 @@ mod test {
             fpga_start_socket_path: Configuration::default_fpga_start_socket_path(),
             log_level: Configuration::default_log_level(),
             ignore_gcr_timeout: Configuration::default_ignore_gcr_timeout(),
+            ready_flag_path: Configuration::default_ready_flag_path(),
+            node_idle_flag_path: Configuration::default_node_idle_flag_path(),
         };
         let alice_json = serde_json::to_string_pretty(&alice_config).unwrap();
         std::fs::write("default_config_alice.json", alice_json).unwrap();
@@ -270,6 +308,7 @@ mod test {
                     ip_gc: "localhost:50051".to_string(),
                 },
                 fifo: ConfigFifoBob {
+                    command_socket_path: ConfigFifoBob::default_command_socket_path(),
                     gcr_file_path: ConfigFifoBob::default_gcr_file_path(),
                     gc_file_path: ConfigFifoBob::default_gc_file_path(),
                     click_result_file_path: ConfigFifoBob::default_click_result_file_path(),
@@ -280,6 +319,8 @@ mod test {
             fpga_start_socket_path: Configuration::default_fpga_start_socket_path(),
             log_level: Configuration::default_log_level(),
             ignore_gcr_timeout: Configuration::default_ignore_gcr_timeout(),
+            ready_flag_path: Configuration::default_ready_flag_path(),
+            node_idle_flag_path: Configuration::default_node_idle_flag_path(),
         };
         let bob_json = serde_json::to_string_pretty(&bob_config).unwrap();
         std::fs::write("default_config_bob.json", bob_json).unwrap();
