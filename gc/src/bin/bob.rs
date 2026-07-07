@@ -201,14 +201,16 @@ fn run_node_control_socket(listener: UnixListener) {
                         }
                     };
 
-                    match message {
+                    // when the node died with the request in flight the reply
+                    // write fails — treat that like EOF and drop the connection
+                    // instead of panicking: gc must outlive node restarts
+                    let reply_result = match message {
                         Request::PollHwReady => {
                             let streaming = STREAMING.load(Ordering::SeqCst);
                             tracing::debug!(
                                 "[gc-bob] got readiness poll (streaming: {streaming})"
                             );
                             gc::control::answer_poll_hw_ready(&mut stream, streaming)
-                                .expect("sending poll reply through node control socket");
                         }
                         other => {
                             tracing::warn!(
@@ -216,8 +218,13 @@ fn run_node_control_socket(listener: UnixListener) {
                                 other
                             );
                             write_message(&mut stream, Response::DidNothing)
-                                .expect("sending message through node control socket");
                         }
+                    };
+                    if let Err(e) = reply_result {
+                        tracing::warn!(
+                            "[gc-bob] node control connection lost while replying: {e}"
+                        );
+                        break;
                     }
                 }
             }

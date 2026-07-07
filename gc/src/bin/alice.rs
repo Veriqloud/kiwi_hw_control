@@ -196,6 +196,21 @@ fn main() -> std::io::Result<()> {
                     // start on a fresh connection.
                     let mut recv_handle: Option<thread::JoinHandle<()>> = None;
 
+                    // Reply to the node; when it died with the request in flight
+                    // (crash, ctrl-c) the write fails — treat that like EOF and
+                    // drop the connection instead of panicking: gc must outlive
+                    // any number of node restarts.
+                    macro_rules! reply_or_break {
+                        ($result:expr) => {
+                            if let Err(e) = $result {
+                                tracing::warn!(
+                                    "[gc-alice] control connection lost while replying: {e}"
+                                );
+                                break;
+                            }
+                        };
+                    }
+
                     loop {
                         let message: Request = match read_message(&mut stream) {
                             Ok(m) => m,
@@ -205,7 +220,10 @@ fn main() -> std::io::Result<()> {
                                 tracing::info!("[gc-alice] control connection closed");
                                 break;
                             }
-                            Err(e) => panic!("{}", e),
+                            Err(e) => {
+                                tracing::warn!("[gc-alice] control connection error: {e}");
+                                break;
+                            }
                         };
 
                         match message {
@@ -214,8 +232,10 @@ fn main() -> std::io::Result<()> {
                                     tracing::warn!(
                                         "[gc-alice] got start while already running, ignoring"
                                     );
-                                    write_message(&mut stream, Response::DidNothing)
-                                        .expect("sending message through control socket");
+                                    reply_or_break!(write_message(
+                                        &mut stream,
+                                        Response::DidNothing
+                                    ));
                                     continue;
                                 }
                                 tracing::info!("[gc-alice] got start message");
@@ -227,8 +247,7 @@ fn main() -> std::io::Result<()> {
                                 // init Alice and Bob
                                 bob.send(HwControl::InitDdr).expect("sending to Bob\n");
                                 init_ddr(true);
-                                write_message(&mut stream, Response::Done)
-                                    .expect("sending message through control socket");
+                                reply_or_break!(write_message(&mut stream, Response::Done));
                                 wait_for_pps();
                                 bob.send(HwControl::SyncAtPps).expect("sending to Bob\n");
                                 sync_at_pps();
@@ -248,16 +267,20 @@ fn main() -> std::io::Result<()> {
                                 tracing::debug!(
                                     "[gc-alice] got readiness poll (streaming: {streaming})"
                                 );
-                                gc::control::answer_poll_hw_ready(&mut stream, streaming)
-                                    .expect("sending poll reply through control socket");
+                                reply_or_break!(gc::control::answer_poll_hw_ready(
+                                    &mut stream,
+                                    streaming
+                                ));
                             }
                             Request::Stop => {
                                 if !*RUNNING.lock().unwrap() {
                                     tracing::warn!(
                                         "[gc-alice] got stop while not running, ignoring"
                                     );
-                                    write_message(&mut stream, Response::DidNothing)
-                                        .expect("sending message through control socket");
+                                    reply_or_break!(write_message(
+                                        &mut stream,
+                                        Response::DidNothing
+                                    ));
                                     continue;
                                 }
                                 tracing::info!("[gc-alice] got stop message");
@@ -266,8 +289,7 @@ fn main() -> std::io::Result<()> {
                                 if let Some(handle) = recv_handle.take() {
                                     handle.join().expect("thread join handle");
                                 }
-                                write_message(&mut stream, Response::Done)
-                                    .expect("sending message through control socket");
+                                reply_or_break!(write_message(&mut stream, Response::Done));
                             }
                         }
                     }
