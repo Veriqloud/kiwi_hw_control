@@ -148,15 +148,17 @@ def set(args):
         sendc('set_angles')
         for i in range(4):
             send_d(args.angles[i])
-    elif args.decoy_delay is not None:
-        sendc('set_decoy_delay')
-        send_i(args.decoy_delay)
     elif args.decoy_p0 is not None:
         sendc('set_decoy_p0')
         send_d(args.decoy_p0)
     elif args.basis_p0 is not None:
         sendc('set_basis_p0')
         send_d(args.basis_p0)
+    # keep last: --decoy_delay has default=0 (never None), so this branch
+    # swallows anything placed after it
+    elif args.decoy_delay is not None:
+        sendc('set_decoy_delay')
+        send_i(args.decoy_delay)
 
 def get(args):
     if args.info:
