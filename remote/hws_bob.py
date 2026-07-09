@@ -58,6 +58,21 @@ def clear_flag_calibrating():
     with open('/tmp/calibrating.txt', 'w') as f:
         f.write('not calibrating')
 
+def wait_for_node_idle(timeout=60):
+    """Block until gc-bob raises /tmp/node_idle, i.e. the node has answered a
+    HwNotReady poll with its DMA fds closed and gc is not streaming. Call this
+    right after dropping /tmp/qkd_ready and before reconfiguring hardware
+    (init), so calibration never resets the FPGA under a mid-session node.
+    Returns True if the ack arrived, False on timeout."""
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        if os.path.isfile('/tmp/node_idle'):
+            print(colored('node idle ack received (/tmp/node_idle); fifos released', 'green', force_color=True))
+            return True
+        time.sleep(0.5)
+    print(colored(f'WARNING: timed out after {timeout}s waiting for /tmp/node_idle; proceeding anyway', 'red', force_color=True))
+    return False
+
 print(f"Server listening on {host}:{port}")
 
 
@@ -156,6 +171,19 @@ while True:
 
 
             if command == 'init':
+                # Stop the node before reconfiguring the FPGA: drop the
+                # QKD-ready flag (gc-bob answers the node's polls with
+                # HwNotReady, the node closes its DMA fds), clear any stale
+                # ack, then wait until gc-bob raises /tmp/node_idle.
+                try:
+                    os.remove('/tmp/qkd_ready')
+                except FileNotFoundError:
+                    pass
+                try:
+                    os.remove('/tmp/node_idle')   # force a fresh ack
+                except FileNotFoundError:
+                    pass
+                wait_for_node_idle()
                 ctl.init_hw()
                 ctl.apply_config()
                 rcvc()
@@ -863,6 +891,11 @@ while True:
                 save_tmp(t)
                 ctl.Update_Softgate()
                 ctl.Update_Dac()
+                # Calibration is done: raise the QKD-ready flag. gc-bob
+                # answers the node's next poll with HwReady and the node
+                # resumes sessions. /tmp clears on reboot, so a power-cycle
+                # leaves the flag down until the next full_init.
+                open('/tmp/qkd_ready', 'w').close()
                 sendc('ok')
 
             elif not command:

@@ -225,6 +225,8 @@ pub fn write_gc_config_alice(config: &Config, for_sim: bool){
         fpga_start_socket_path: config.file.fpgareg.clone(),
         log_level: "Info".to_string(),
         ignore_gcr_timeout: ignore_gcr_timeout,
+        ready_flag_path: "/tmp/qkd_ready".to_string(),
+        node_idle_flag_path: "/tmp/node_idle".to_string(),
     };
     gc_conf.save_to_file(&PathBuf::from("alice/gc.json"));
 }
@@ -237,6 +239,7 @@ pub fn write_gc_config_bob(config: &Config, for_sim: bool){
                 ip_gc: config.ip.bob_wrs.clone() + ":" + &config.port.gc.to_string(),
             },
             fifo: gc::config::ConfigFifoBob {
+                command_socket_path: config.file.startstop.clone(),
                 gcr_file_path: config.file.gcr.clone(),
                 gc_file_path: config.file.gc.clone(),
                 click_result_file_path: config.file.result.clone(),
@@ -247,6 +250,8 @@ pub fn write_gc_config_bob(config: &Config, for_sim: bool){
         fpga_start_socket_path: config.file.fpgareg.clone(),
         log_level: "Info".to_string(),
         ignore_gcr_timeout: ignore_gcr_timeout,
+        ready_flag_path: "/tmp/qkd_ready".to_string(),
+        node_idle_flag_path: "/tmp/node_idle".to_string(),
     };
     gc_conf.save_to_file(&PathBuf::from("bob/gc.json"));
 }
@@ -501,14 +506,13 @@ pub fn write_node_config(config_alice: &Config, config_bob: &Config) {
             path: config_alice.file.kms.clone(),
         },
         log_level: Some("Info".to_string()),
-        ready_flag_path: "/tmp/qkd_ready".to_string(),
-        idle_flag_path: "/tmp/node_idle".to_string(),
     };
     
     let node_conf_bob = node::Configuration {
         hardware_type: node::HardwareType::Detector {
             angles_file_path: config_bob.file.angle.clone(),
             click_results_file_path: config_bob.file.result.clone(),
+            command_socket_path: config_bob.file.startstop.clone(),
         },
         external_address: Some(external_address_bob),
         peers: vec![
@@ -544,9 +548,6 @@ pub fn write_node_config(config_alice: &Config, config_bob: &Config) {
             path: config_bob.file.kms.clone(),
         },
         log_level: Some("Info".to_string()),
-        ready_flag_path: "/tmp/qkd_ready".to_string(),
-        idle_flag_path: "/tmp/node_idle".to_string(),
-
     };
 
     let node_conf_alice_json = serde_json::to_string_pretty(&node_conf_alice).expect("node conf alice struct to json");

@@ -1597,11 +1597,12 @@ def clear_flag_calibrating():
         f.write('not calibrating')
 
 def wait_for_node_idle(timeout=60):
-    """Block until the node raises /tmp/node_idle, i.e. it has stopped running
-    sessions and sent Stop to gc (gc is idle). Call this right after dropping
-    /tmp/qkd_ready and before reconfiguring hardware (init), so calibration never
-    races a mid-session node - that race decorrelates the link (QBER ~0.5) until a
-    manual gc+node restart. Returns True if the ack arrived, False on timeout."""
+    """Block until gc-alice raises /tmp/node_idle, i.e. the node has answered a
+    HwNotReady poll on the control socket with its DMA fds closed and gc itself
+    is stopped. Call this right after dropping /tmp/qkd_ready and before
+    reconfiguring hardware (init), so calibration never races a mid-session
+    node - that race decorrelates the link (QBER ~0.5) until a manual gc+node
+    restart. Returns True if the ack arrived, False on timeout."""
     deadline = time.time() + timeout
     while time.time() < deadline:
         if os.path.isfile('/tmp/node_idle'):
@@ -1684,10 +1685,11 @@ while True:
             print(colored(command+' ...\n', 'blue', force_color=True))
 
             # Before re-calibrating (init reconfigures gc/FPGA), stop the node and
-            # wait for it to release gc: drop the QKD-ready flag, clear any stale ack,
-            # then block until the node re-raises /tmp/node_idle. Doing this BEFORE the
-            # init hardware function runs is what prevents the mid-session race that
-            # leaves the link decorrelated (QBER ~0.5).
+            # wait for it to release gc: drop the QKD-ready flag (gc-alice answers
+            # the node's polls with HwNotReady, the node closes its DMA fds), clear
+            # any stale ack, then block until gc-alice re-raises /tmp/node_idle.
+            # Doing this BEFORE the init hardware function runs is what prevents the
+            # mid-session race that leaves the link decorrelated (QBER ~0.5).
             if command == 'init':
                 try:
                     os.remove('/tmp/qkd_ready')
@@ -1754,11 +1756,12 @@ while True:
 
             print(colored('... '+command+' done \n', 'blue', force_color=True))
 
-            # Arm the QKD-ready flag when calibration finishes (start); the node then
-            # clears /tmp/node_idle and resumes. The init case (drop ready flag + wait
-            # for idle) is handled BEFORE dispatch above. /tmp clears on reboot, so a
-            # power-cycle leaves the flag down until the next full_init. auto_control's
-            # adjust steps touch neither flag, so tuning won't stop a running node.
+            # Arm the QKD-ready flag when calibration finishes (start); gc-alice then
+            # answers the node's next poll with HwReady, clears /tmp/node_idle and the
+            # node resumes. The init case (drop ready flag + wait for idle) is handled
+            # BEFORE dispatch above. /tmp clears on reboot, so a power-cycle leaves the
+            # flag down until the next full_init. auto_control's adjust steps touch
+            # neither flag, so tuning won't stop a running node.
             if command == 'start':
                 open('/tmp/qkd_ready', 'w').close()
 

@@ -1,7 +1,10 @@
 use clap::Parser;
+use comm::gc_comms::{Request, Response};
+use comm::{read_message, write_message};
 use gc::comm::{Comm, HwControl};
 use gc::config::Configuration;
 use std::str::FromStr;
+use std::sync::atomic::{AtomicBool, Ordering};
 use tracing_subscriber::fmt::writer::MakeWriterExt;
 use uuid::Uuid;
 use gc::hw::{
@@ -10,11 +13,17 @@ use gc::hw::{
 use std::fs::OpenOptions;
 use std::io::prelude::*;
 use std::net::{TcpListener, TcpStream};
+use std::os::unix::net::UnixListener;
 use std::path::{Path, PathBuf};
 use std::time::{Instant};
 use std::{thread, time};
 
 use gc::hw::BATCHSIZE;
+
+/// True while send_gc streams a session (between SyncAtPps and the Alice link
+/// dropping). Read by the node control thread: a HwNotReady poll answered
+/// while this is false is what raises the node-idle flag for calibration.
+static STREAMING: AtomicBool = AtomicBool::new(false);
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
@@ -131,9 +140,12 @@ fn handle_alice(alice: &mut TcpStream) -> std::io::Result<()> {
                     HwControl::SyncAtPps => {
                         tracing::info!("[gc-bob] Syncing at PPS and starting GC stream...");
                         sync_at_pps();
-                        send_gc(alice)?;
+                        STREAMING.store(true, Ordering::SeqCst);
+                        let result = send_gc(alice);
+                        STREAMING.store(false, Ordering::SeqCst);
+                        result?;
                         tracing::info!("[gc-bob] Finished sending GC stream.");
-                    } 
+                    }
                 }
             }
             Err(err) => {
@@ -141,6 +153,86 @@ fn handle_alice(alice: &mut TcpStream) -> std::io::Result<()> {
                 return Err(err);
             }
         }
+    }
+}
+
+// Create the Unix control socket for the node's readiness polls, mirroring
+// gc-alice's socket. Called from main (NOT the serving thread) so a bad path
+// kills the process at startup instead of leaving gc-bob running without a
+// control socket after a silent thread panic.
+fn create_node_control_socket() -> UnixListener {
+    let socket_path = &CONFIG
+        .get()
+        .unwrap()
+        .bob_config()
+        .fifo
+        .command_socket_path;
+    std::fs::remove_file(socket_path).unwrap_or_else(|e| match e.kind() {
+        std::io::ErrorKind::NotFound => (),
+        _ => panic!("{}", e),
+    });
+    let listener = UnixListener::bind(socket_path).unwrap_or_else(|e| {
+        panic!("could not bind node control socket at {socket_path}: {e}")
+    });
+    tracing::info!("[gc-bob] node control socket created at {}", socket_path);
+    listener
+}
+
+// Serve the node's readiness polls. Unlike Alice's socket it carries no
+// Start/Stop — sessions are driven from gc-alice over TCP — only PollHwReady,
+// answered from the flag files managed by calibration (hws_bob).
+fn run_node_control_socket(listener: UnixListener) {
+    for stream in listener.incoming() {
+        match stream {
+            Ok(mut stream) => {
+                tracing::info!("[gc-bob] node control connection accepted");
+                loop {
+                    let message: Request = match read_message(&mut stream) {
+                        Ok(m) => m,
+                        // clean disconnect (node closed or crashed): go back to
+                        // waiting for a new connection
+                        Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => {
+                            tracing::info!("[gc-bob] node control connection closed");
+                            break;
+                        }
+                        Err(e) => {
+                            tracing::error!("[gc-bob] node control socket error: {e}");
+                            break;
+                        }
+                    };
+
+                    // when the node died with the request in flight the reply
+                    // write fails — treat that like EOF and drop the connection
+                    // instead of panicking: gc must outlive node restarts
+                    let reply_result = match message {
+                        Request::PollHwReady => {
+                            let streaming = STREAMING.load(Ordering::SeqCst);
+                            tracing::debug!(
+                                "[gc-bob] got readiness poll (streaming: {streaming})"
+                            );
+                            gc::control::answer_poll_hw_ready(&mut stream, streaming)
+                        }
+                        other => {
+                            tracing::warn!(
+                                "[gc-bob] unexpected {:?} on node control socket, ignoring",
+                                other
+                            );
+                            write_message(&mut stream, Response::DidNothing)
+                        }
+                    };
+                    if let Err(e) = reply_result {
+                        tracing::warn!(
+                            "[gc-bob] node control connection lost while replying: {e}"
+                        );
+                        break;
+                    }
+                }
+            }
+            Err(err) => {
+                tracing::error!("[gc-bob] node control socket accept error: {}", err);
+            }
+        }
+        tracing::info!("[gc-bob] waiting for connection on node control socket");
     }
 }
 
@@ -187,6 +279,11 @@ fn main() -> std::io::Result<()> {
     let gcuser_path = &bob_config.fifo.gcuser_file_path;
 
     // delete and remake fifo file for result values
+    // NOTE: this must stay per-PROCESS. Recreating the pipe per session (tried
+    // 2026-07-06) deadlocks bring-up: a reader that opened the old path before
+    // the unlink blocks forever on the dead inode while gc-bob blocks write-
+    // opening the new one. Per-session recreation needs non-blocking opens with
+    // retry on BOTH ends (gc + node) before it is safe.
     tracing::info!("[gc-bob] Ensuring Click Result FIFO exists at: {}", click_result_path);
     std::fs::remove_file(click_result_path)
     .unwrap_or_else(|e| match e.kind() {
@@ -197,7 +294,7 @@ fn main() -> std::io::Result<()> {
         Path::new(click_result_path.as_str()),
         nix::sys::stat::Mode::from_bits(0o644).unwrap(),
     )?;
-    
+
     // delete and remake fifo file for gcuser
     if gcuser_path != "" {
         tracing::info!("[gc-bob] Ensuring GCuser FIFO exists at: {}", gcuser_path);
@@ -212,6 +309,14 @@ fn main() -> std::io::Result<()> {
         )?;
     }
 
+
+    // answer the node's readiness polls on a separate thread; bind in main so
+    // a bad socket path fails the whole process at startup
+    let node_control_listener = create_node_control_socket();
+    thread::Builder::new()
+        .name("node_control".to_string())
+        .spawn(move || run_node_control_socket(node_control_listener))
+        .expect("building node control thread");
 
     let listen_addr = &bob_config.network.ip_gc;
 

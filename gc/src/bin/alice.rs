@@ -262,6 +262,16 @@ fn main() -> std::io::Result<()> {
                                         .expect("building thread"),
                                 );
                             }
+                            Request::PollHwReady => {
+                                let streaming = *RUNNING.lock().unwrap();
+                                tracing::debug!(
+                                    "[gc-alice] got readiness poll (streaming: {streaming})"
+                                );
+                                reply_or_break!(gc::control::answer_poll_hw_ready(
+                                    &mut stream,
+                                    streaming
+                                ));
+                            }
                             Request::Stop => {
                                 if !*RUNNING.lock().unwrap() {
                                     tracing::warn!(

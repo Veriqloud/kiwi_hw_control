@@ -52,7 +52,16 @@ pub enum HardwareType {
     Detector {
         angles_file_path: String,
         click_results_file_path: String,
+        /// Unix socket of gc-bob on which the node polls hardware readiness
+        /// (PollHwReady). Unlike the Source socket it carries no Start/Stop —
+        /// sessions on Bob are driven by gc-alice over TCP.
+        #[serde(default = "default_detector_command_socket_path")]
+        command_socket_path: String,
     },
+}
+
+fn default_detector_command_socket_path() -> String {
+    "/home/vq-user/qline/startstop.s".to_string()
 }
 
 #[derive(Deserialize, Clone, Serialize, Debug)]
@@ -114,25 +123,6 @@ pub struct Configuration {
 
     /// Where we put the keys that are produced
     pub key_storage: StorageVariant,
-
-    /// Path to a flag file signalling that the hardware is calibrated and ready
-    /// for QKD. While this file is absent, the node stays idle and runs no
-    /// sessions (it will not read angles or drive gc), avoiding the crash loop
-    /// that results from running sessions against an uncalibrated system.
-    /// Calibration (hws full_init/start) is responsible for creating it.
-    /// Defaults to a path in /tmp, which is cleared on reboot, so a power-cycle
-    /// forces re-calibration before QKD resumes.
-    #[serde(default = "default_ready_flag_path")]
-    pub ready_flag_path: String,
-
-    /// Path of the "node idle" acknowledgement flag. The node raises this file
-    /// once it has stopped running sessions and sent Stop to gc (i.e. gc is idle)
-    /// after `ready_flag_path` disappears, and removes it again before resuming.
-    /// hws full_init waits for this flag after lowering the ready flag, so it
-    /// never reconfigures gc/FPGA while the node is mid-session. In /tmp like the
-    /// ready flag so a power-cycle clears it.
-    #[serde(default = "default_idle_flag_path")]
-    pub idle_flag_path: String,
 }
 
 #[derive(Deserialize, Debug, Clone, Serialize, Default)]
@@ -218,13 +208,7 @@ fn default_qtol() -> f64 {
     0.09
 }
 
-fn default_ready_flag_path() -> String {
-    "/tmp/qkd_ready".to_string()
-}
 
-fn default_idle_flag_path() -> String {
-    "/tmp/node_idle".to_string()
-}
 
 fn default_rounds_limit_per_session() -> u32 {
     10
