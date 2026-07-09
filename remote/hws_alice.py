@@ -1709,23 +1709,28 @@ while True:
                 time.sleep(2)
 
             try:
+                # Strip the known static prefix rather than splitting on '_' and
+                # taking the last token: split('_')[-1] silently grabbed the wrong
+                # piece whenever the suffix itself contained an underscore (e.g.
+                # a calibration filename like "morning_run" turned save_morning_run
+                # into filename "run"). Prefix-stripping is correct for any suffix.
                 if command.startswith('find_vca_'):
-                    limit = int(command.split('_')[-1])
+                    limit = int(command[len('find_vca_'):])
                     print('command: ', command)
                     functionmap['find_vca'](conn, limit)
                 elif command.startswith('loop_find_am2_bias_'):
-                    x = float(command.split('_')[-1])
+                    x = float(command[len('loop_find_am2_bias_'):])
                     print('command: ', command)
                     functionmap['loop_find_am2_bias'](conn, x)
                 elif command.startswith('vca_per_'):
-                    per = int(command.split('_')[-1])
+                    per = int(command[len('vca_per_'):])
                     print('command: ', command)
                     functionmap['vca_per'](conn, per)
                 elif command.startswith('save_'):
-                    name = command.split('_')[-1]
+                    name = command[len('save_'):]
                     functionmap['save'](conn, name)
                 elif command.startswith('load_'):
-                    name = command.split('_')[-1]
+                    name = command[len('load_'):]
                     functionmap['load'](conn, name)
                 else:
                     functionmap[command](conn)
