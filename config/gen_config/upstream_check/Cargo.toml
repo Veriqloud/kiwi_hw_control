@@ -16,7 +16,8 @@
 # the private repos.
 #
 # Keep the shared (public) dependencies below in sync with ../Cargo.toml, and the
-# two private paths in sync with wherever the node/kms repos are checked out.
+# two private git deps pointed at the qline_backend branch the vendored copies
+# track (currently hardware_calibration; bump to master once it is merged).
 [package]
 name = "gen_config_upstream_check"
 version = "0.1.0"
@@ -42,8 +43,8 @@ simulator_configs = { git = "ssh://git@github.com/Veriqloud/hw_sim.git", branch 
 
 # The real private repos. Aliased to `node` / `km_server_configs` by ../src/lib.rs
 # when the `upstream` feature is enabled.
-node_upstream = { package = "node", path = "/home/ai/qline_backend/node" }
-km_server_upstream = { package = "km-server", path = "/home/ai/qline_backend/kms" }
+node_upstream = { package = "node", git = "ssh://git@github.com/Veriqloud/qline_backend.git", branch = "hardware_calibration" }
+km_server_upstream = { package = "km-server", git = "ssh://git@github.com/Veriqloud/qline_backend.git", branch = "hardware_calibration" }
 
 # km-server pulls actix-web -> cookie 0.16, which fails to compile against time
 # >= 0.3.37 (the `time::parsing::Parsable::parse` signature changed). Pin time so
