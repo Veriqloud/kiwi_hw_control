@@ -121,6 +121,11 @@ pub struct Configuration {
     )]
     pub hw_read_buf_size: Option<usize>,
 
+    /// Whether this node should poll the hardware readiness state for recalibration support.
+    /// Defaults to false if not specified.
+    #[serde(default)]
+    pub support_recalibration: bool,
+
     /// Where we put the keys that are produced
     pub key_storage: StorageVariant,
 }

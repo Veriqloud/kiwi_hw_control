@@ -22,6 +22,23 @@ For simulator
 gen_config -c meta_config_for_sim.json -s sim_config.json
 ```
 
+For a local simulator run with defaults, no config files are needed at all:
+
+```.bash
+gen_config
+```
+
+This uses built-in copies of `meta_config_for_sim.json` and `sim_config.json`
+(all paths under `/tmp`, everything on `127.0.0.1`), writes the per-player
+configs to `./alice` and `./bob`, and — simulator mode only — generates any
+missing node RSA keypairs under `./keys` (needs `openssl`), deriving the
+libp2p peer ids from the actual key files instead of trusting the meta_config.
+
+In simulator mode the gc command sockets and node-idle flag files are suffixed
+`_alice`/`_bob` so both players can run on one machine; the hardware-ready flag
+`/tmp/qkd_ready` stays shared and acts as the single local start/stop knob
+(see `local/qkd_ready_ctl.sh`).
+
 ## Certificate generation (KMS mTLS)
 
 Pass `--gen-certs` (`-g`) to also generate the KMS mutual-TLS chain. This adapts
