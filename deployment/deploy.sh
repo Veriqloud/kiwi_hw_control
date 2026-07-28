@@ -59,6 +59,12 @@ control(){
     scp restartd.py $Bob:~/server/
     scp logd.py $Bob:~/server/
     cd -
+
+    # Staging copy of the log-rotation config. This only lands in ~/server; a root
+    # step (see deployment/OS_setup.md "log rotation") still has to install it to
+    # /etc/qline_logrotate.conf -- logrotate must not read a vq-user-writable file.
+    scp logrotate/qline_logrotate.conf $Alice:~/server/
+    scp logrotate/qline_logrotate.conf $Bob:~/server/
 }
 
 config(){
