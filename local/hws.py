@@ -121,6 +121,7 @@ loop_find_gates     : loop to find gates
 find_am2_bias       : find second AM bias
 pol_bob             : optimize Bob's polarization controller
 ad                  : adjust the gate delay
+check_gate_edge     : check the physical SPD gate is not on a slope/dip, recentre if it is
 find_sp             : find single peak
 verify_gates        : verify gates
 fs_a                : find PM shift for Alice

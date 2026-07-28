@@ -73,6 +73,177 @@ def wait_for_node_idle(timeout=60):
     print(colored(f'WARNING: timed out after {timeout}s waiting for /tmp/node_idle; proceeding anyway', 'red', force_color=True))
     return False
 
+# --- physical SPD gate placement check -------------------------------------
+#
+# The gate slides over the two time-bin pulses, so click0 and click1 trade off
+# as gate_delay moves. `ad` picks a position once at calibration; if it lands on
+# a slope (or in the dip BETWEEN the two pulses) one channel is clipped, and no
+# amount of soft-gate tuning can recover photons the physical gate already threw
+# away -- adjust_soft_gates only slides a digital window INSIDE whatever the
+# hardware gate passed. Recentring the physical gate on the flat top is what
+# gives adjust_soft_gates usable range again.
+#
+# NOTE ON THE TEST: do NOT use a gradient/first-derivative test. A badly placed
+# gate can sit in a local MINIMUM (qline1 sat at 11680 ps, in the dip between
+# the two pulses), where the symmetric gradient is ~0 and a slope test reports
+# "flat". Instead ask whether a materially BETTER position exists within +-
+# GATE_PROBE_PS; that catches slopes and dips alike.
+#
+# NOTE ON THE OBJECTIVE: use click0+click1, NOT the click1/click0 ratio. The
+# ratio looks tempting (measured against QBER over 1597 min it gave Pearson
+# r = -0.715) but that only holds inside the normal operating range. Push the
+# gate late and click0 collapses while click1 holds -- measured on qline1
+# 2026-07-28: 12600 ps -> ratio 2.5, 13200 ps -> ratio 6.1 with click0 down to
+# 335. Maximising the ratio therefore walks the gate until one detector channel
+# is DEAD. The sum penalises clipping either channel. Validated against both a
+# known-bad gate (2026-07-28 morning, +14.1% available at +-600 -> fires) and a
+# known-good one (same day, +0.4% -> stays put); the ratio objective by contrast
+# reported +19..+91% on a HEALTHY gate, i.e. it would move it for no reason.
+#
+# NOTE ON THE RANGE: gate delay does NOT wrap. Gen_Gate() programs an absolute
+# delay line (one coarse + three fine stages, each with its own calibration
+# offset from config/delayf.txt), so positions one optical period apart are
+# physically DIFFERENT settings -- measured 2026-07-28: 12630 ps gives ratio
+# 2.33-2.40 but 150 ps gives 1.97-2.05, and 12480 differs from 0 the same way.
+# An earlier version of this code did `% GATE_PERIOD_PS` and silently teleported
+# the gate. Clamp instead.
+GATE_PERIOD_PS = 312 * 40    # optical period; ad() works in 312 bins of 40 ps
+GATE_MIN_PS = 0              # both ends verified on qline1 hardware 2026-07-28
+GATE_MAX_PS = 13280          # beyond ~12900 click0 starts dying; do not go higher
+GATE_PROBE_PS = 600          # +- offset for the cheap 3-point probe (see validation)
+GATE_PROBE_TOL = 0.08        # a neighbour must beat centre by >8% to count as "better"
+GATE_SCAN_SPAN_PS = 800      # +- span of the recentring scan
+GATE_SCAN_STEP_PS = 100      # step of the recentring scan
+GATE_PLATEAU_BAND = 0.05     # points within 5% of the best sum form the plateau
+GATE_SETTLE_S = 0.3          # enough: 0.3 s and 2.5 s agree within noise (measured)
+GATE_MIN_COUNTS = 50         # below this (per counts_slow window) the read is noise
+
+
+def _gate_apply(ps):
+    """Move the physical gate to `ps` ps, clamped to the safe range.
+
+    Clamped, never wrapped -- see the range note above.
+    """
+    ps = max(GATE_MIN_PS, min(GATE_MAX_PS, int(ps)))
+    update_tmp('gate_delay', ps)
+    ctl.Gen_Gate()
+    return ps
+
+
+def _gate_probe(ps):
+    """Set the gate to `ps` and return (score, click0, click1).
+
+    score = click0+click1, the number of usefully gated detections (see the
+    objective note above).
+
+    counts_slow() averages 10 reads over ~1 s via the mmap'd /dev/xdma0_user, so
+    this never touches the exclusive /dev/xdma0_c2h_2 and cannot collide with a
+    concurrent calibration the way a TDC histogram read would.
+    """
+    applied = _gate_apply(ps)
+    time.sleep(GATE_SETTLE_S)
+    total, click0, click1 = ctl.counts_slow()
+    return click0 + click1, click0, click1
+
+
+def gate_edge_check(recentre=True):
+    """Test whether the physical SPD gate is badly placed; recentre if it is.
+
+    THIS IS A GUARD, NOT AN OPTIMISER. It reliably gets the gate off a grossly
+    bad spot, but click0+click1 is only a proxy for link quality and it can
+    settle on a SECONDARY optimum. Replaying the real 2026-07-28 fault: from
+    11680 ps (QBER 0.071, 10k bits/round) it moves to ~11180 (QBER ~0.038, ~43k)
+    -- a 46% improvement, while the true best was ~12400 (QBER 0.025, ~72k),
+    because the count sum peaks on the lower branch and QBER on the upper one.
+    Finding the real optimum needs QBER per point (~100 s each), which is what a
+    human doing a proper `ad`/full_init recalibration is for. Alice wraps this
+    call in a live-QBER before/after check and undoes any move that regressed.
+
+    Returns a short one-line status string (the hws wire protocol is length-
+    prefixed with a single byte, so keep replies well under 255 chars).
+
+    Cheap path (the common case) is 3 probe points, ~4 s, and changes nothing.
+    Only if a materially better neighbour exists do we pay for the wider scan.
+    The original position is restored on any failure or if the scan finds
+    nothing better, so a bad measurement can never leave the gate parked
+    somewhere worse than it started.
+    """
+    t = get_tmp()
+    d0 = max(GATE_MIN_PS, min(GATE_MAX_PS, int(t['gate_delay'])))
+    try:
+        return _gate_edge_check(d0, recentre)
+    except Exception:
+        # Never leave the gate parked on a probe point because a read blew up.
+        _gate_apply(d0)
+        raise
+
+
+def _gate_edge_check(d0, recentre):
+    base, c0, c1 = _gate_probe(d0)
+    if base < GATE_MIN_COUNTS:
+        _gate_apply(d0)
+        return f'skipped: too few counts ({c0}+{c1}) - laser/detector down?'
+
+    lo, _, _ = _gate_probe(max(GATE_MIN_PS, d0 - GATE_PROBE_PS))
+    hi, _, _ = _gate_probe(min(GATE_MAX_PS, d0 + GATE_PROBE_PS))
+    best_neighbour = max(lo, hi)
+
+    if best_neighbour <= base * (1 + GATE_PROBE_TOL):
+        _gate_apply(d0)
+        return (f'ok: gate centred at {d0} ps '
+                f'(clicks {base:.0f}; -{GATE_PROBE_PS}:{lo:.0f} +{GATE_PROBE_PS}:{hi:.0f})')
+
+    if not recentre:
+        _gate_apply(d0)
+        return (f'EDGE at {d0} ps: clicks {base:.0f} but neighbour {best_neighbour:.0f} '
+                f'(recentre disabled)')
+
+    # On a slope or in a dip -> scan the neighbourhood and move to the middle of
+    # the flat top, which maximises drift margin (the point is to stop the gate
+    # wandering back onto a slope, not merely to grab the best single sample).
+    print(colored(f'gate at {d0} ps looks misplaced (clicks {base:.0f} vs neighbour '
+                  f'{best_neighbour:.0f}); scanning', 'yellow', force_color=True))
+    offsets = list(range(-GATE_SCAN_SPAN_PS, GATE_SCAN_SPAN_PS + 1, GATE_SCAN_STEP_PS))
+    scan = []
+    for off in offsets:
+        ps = d0 + off
+        if not (GATE_MIN_PS <= ps <= GATE_MAX_PS):
+            continue
+        r, _, _ = _gate_probe(ps)
+        scan.append((ps, r, off))
+        print(f'  gate {ps:5d} ps -> click0+click1 {r:.0f}')
+
+    best_ps, best_r, _ = max(scan, key=lambda x: x[1])
+    if best_r <= base * (1 + GATE_PROBE_TOL):
+        _gate_apply(d0)
+        return f'ok: no better gate within +-{GATE_SCAN_SPAN_PS} ps of {d0} (kept {d0})'
+
+    # Contiguous run of near-best points containing the best one = the plateau.
+    # Index into `scan` (not `offsets`): points outside the safe range are skipped,
+    # so the two lists are not aligned.
+    threshold = best_r * (1 - GATE_PLATEAU_BAND)
+    bi = next(i for i, (ps, r, off) in enumerate(scan) if ps == best_ps)
+    lo_i = bi
+    while lo_i > 0 and scan[lo_i - 1][1] >= threshold:
+        lo_i -= 1
+    hi_i = bi
+    while hi_i < len(scan) - 1 and scan[hi_i + 1][1] >= threshold:
+        hi_i += 1
+
+    centre_ps = (scan[lo_i][0] + scan[hi_i][0]) // 2
+    new_ps = _gate_apply(centre_ps)
+    width = scan[hi_i][0] - scan[lo_i][0] + GATE_SCAN_STEP_PS
+    final_r, _, _ = _gate_probe(new_ps)
+    return (f'MOVED gate {d0} -> {new_ps} ps (plateau {width} ps wide, '
+            f'clicks {base:.0f} -> {final_r:.0f})')
+
+
+def set_gate_delay(ps):
+    """Apply an explicit gate delay. Used by Alice to revert a move that the
+    live QBER did not actually confirm as an improvement."""
+    return _gate_apply(ps)
+
+
 print(f"Server listening on {host}:{port}")
 
 
@@ -372,6 +543,25 @@ while True:
                 update_tmp('gate_delay', target*40)
                 ctl.Gen_Gate()
                 sendc('done')
+
+
+            elif command == 'check_gate_edge':
+                print(colored('check_gate_edge', 'cyan', force_color=True))
+                try:
+                    msg = gate_edge_check()
+                except Exception as e:
+                    msg = f'fail: gate check errored ({e})'
+                    print(colored(msg, 'red', force_color=True))
+                print(colored(msg, 'green', force_color=True))
+                sendc(msg[:250])
+
+
+            elif command == 'set_gate_delay':
+                print(colored('set_gate_delay', 'cyan', force_color=True))
+                ps = rcv_i()
+                applied = set_gate_delay(ps)
+                print(colored(f'gate delay set to {applied} ps', 'green', force_color=True))
+                sendc(f'gate {applied}')
 
 
             elif command == 'find_sp':
