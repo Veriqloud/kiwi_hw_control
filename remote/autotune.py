@@ -34,8 +34,20 @@ import datetime
 
 NETWORK_FILE = os.path.expanduser("~/config/network.json")
 LOG_PATH = os.path.expanduser("~/log/autotune.log")
-# pol_bob first (it shifts polarisation, which feeds gates+AM), then gates, then AM.
-COMMANDS = ["pol_bob", "adjust_soft_gates", "adjust_am_qber"]
+# pol_bob first (it shifts polarisation, which feeds gates+AM), then the PHYSICAL
+# gate placement check, then the soft gates, then AM.
+#
+# check_gate_edge must come BEFORE adjust_soft_gates: adjust_soft_gates can only
+# slide a digital window inside whatever the hardware gate already passed, so if
+# the physical gate is clipping a time-bin pulse there is nothing for it to
+# recover -- and it would then be tuning against a moving target if the gate got
+# recentred afterwards. Checking first means the soft gates are always tuned
+# against a correctly placed physical gate.
+#
+# Normal cycles cost ~4 s here (a 3-point probe that changes nothing). Only when
+# the gate is genuinely misplaced does it pay for the wider recentring scan
+# (~25 s), which is rare -- the gate is set once by `ad` at calibration.
+COMMANDS = ["pol_bob", "check_gate_edge", "adjust_soft_gates", "adjust_am_qber"]
 
 READY_FLAG = "/tmp/qkd_ready"
 CALIB_FLAG = "/tmp/calibrating.txt"

@@ -452,14 +452,29 @@ GB/day, `node.log`, and the other systemd-service logs) are **root-owned**: syst
 opens `StandardOutput=append:` files as root before dropping to `User=vq-user`, so
 they are `root:root 0644` and vq-user (which has no general sudo) cannot truncate
 them. Hence rotation must run as **root**. Config: `deployment/logrotate/qline_logrotate.conf`
-(size 100M, rotate 7, compress+delaycompress, `copytruncate`). `copytruncate` is
+(size 100M, rotate 7, maxage 30, compress, `copytruncate`). `copytruncate` is
 required because every writer -- the services (O_APPEND) and the cron loggers
 (fifo/wrs/counts/logd/autotune) -- holds the log fd open and never reopens; a
 rename would orphan them.
 
-Activation is a one-time root step **on each node** (`scp -J vq
-deployment/logrotate/qline_logrotate.conf vq-user@<ip>:~/server/` first, or it is
-already there via `deploy`). The config is copied into **/etc** (root-owned) rather
+**Do not add `delaycompress` here** (it was removed 2026-07-28). Rotation is purely
+size-based, so a log that spams hard and then goes quiet never reaches 100M again
+and its deferred gzip never fires -- leaving one huge *uncompressed* rotated copy
+forever. On qline1 the 2026-07-24 gc DMA-desync made gc-alice log `got 0 clicks
+from Bob` in a ~1 us loop (~100 MB/s): `gc.log` went 100M -> **132 GB inside one
+hourly window**, and the resulting `gc.log.1` sat uncompressed at 28% of the root
+filesystem until it was deleted by hand. Compressing in the same run costs one gzip
+pass and bounds the worst case; `maxage 30` additionally caps how long rotated
+copies linger. Trade-off: the newest rotated log now needs `zcat foo.log.1.gz`
+rather than `cat foo.log.1`.
+
+Activation is a one-time root step **on each node**. `./deploy.sh control` (and
+`all`) stages the config to `~/server/qline_logrotate.conf` on both nodes, so it is
+already there after a normal deploy; otherwise copy it by hand with `scp -J vq
+deployment/logrotate/qline_logrotate.conf vq-user@<ip>:~/server/`. The staging step
+is NOT sufficient on its own -- rotation only starts once the root step below has
+installed it to `/etc` and created the cron entry. The config is copied into
+**/etc** (root-owned) rather
 than run from `~/server` because logrotate `postrotate` scripts run as root, so it
 must not read a vq-user-writable config (privilege-escalation vector). It is
 intentionally NOT placed in `/etc/logrotate.d/` (that would also be run by the
@@ -476,7 +491,9 @@ sudo /usr/sbin/logrotate -v --state /var/lib/logrotate/qline.status /etc/qline_l
 ```
 
 Re-deploying an edited config means re-copying it to `/etc/qline_logrotate.conf`
-(the `~/server` copy is only the staging source).
+(the `~/server` copy is only the staging source) -- i.e. `./deploy.sh control` to
+refresh the staging copy, then re-run the `sudo install` line above. Editing only
+`~/server/qline_logrotate.conf` changes nothing, since cron reads the `/etc` copy.
 
 
 # routine bring-up

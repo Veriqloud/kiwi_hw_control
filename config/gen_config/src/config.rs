@@ -162,7 +162,9 @@ impl File {
             result: self.result.clone(),
             gcuser: self.gcuser.clone(),
             fpgareg: self.fpgareg.clone()+&extension,
-            startstop: self.startstop.clone(),
+            // suffixed too: locally gc-alice and gc-bob each bind their own
+            // command socket, sharing one path would collide
+            startstop: self.startstop.clone()+&extension,
             hw_params: self.hw_params.clone()+&extension,
             kms: self.kms.clone()+&extension,
         }
@@ -193,8 +195,11 @@ impl Config {
     pub fn from_pathbuf(path: &PathBuf) -> Config {
         let contents =
             std::fs::read_to_string(path).expect(&format!("failed reading network file: {path:?}"));
+        Config::from_json_str(&contents)
+    }
+    pub fn from_json_str(contents: &str) -> Config {
         let config: Config =
-            serde_json::from_str(&contents).expect(&format!("failed to parse config: {contents}"));
+            serde_json::from_str(contents).expect(&format!("failed to parse config: {contents}"));
         config
     }
     pub fn save_to_file(&self, path: &PathBuf) {
@@ -214,6 +219,62 @@ impl Config {
 }
 
 
+// For the simulator: make the node keypairs self-service. The node loads its
+// libp2p identity as an RSA PKCS8 key from `node.key_path`, and the peer ids
+// in the configs must match those keys, so a fresh checkout cannot run until
+// keys exist. Generate any missing key (same OpenSSL flow as the backend's
+// `convenience_tools genp2p`), then derive the peer ids from the actual key
+// files, overriding whatever the meta_config says. Key paths are
+// canonicalized so the generated configs work from any working directory.
+// Only called in sim mode: on real hardware the keys live on the remote
+// machines and the meta_config peer ids stay authoritative.
+pub fn ensure_sim_node_keys(config_alice: &mut Config, config_bob: &mut Config) {
+    let (alice_path, alice_peer_id) = ensure_rsa_key(&config_alice.node.key_path);
+    let (bob_path, bob_peer_id) = ensure_rsa_key(&config_bob.node.key_path);
+    config_alice.node.key_path = alice_path;
+    config_bob.node.key_path = bob_path;
+    for config in [config_alice, config_bob] {
+        config.kms.alice_peer_id = alice_peer_id.clone();
+        config.kms.bob_peer_id = bob_peer_id.clone();
+    }
+}
+
+// Returns (canonicalized path, peer id) of the RSA PKCS8 key at `path`,
+// generating the key first when the file does not exist (needs `openssl`).
+fn ensure_rsa_key(path: &str) -> (String, String) {
+    let key_path = Path::new(path);
+    if !key_path.exists() {
+        if let Some(parent) = key_path.parent() {
+            if !parent.as_os_str().is_empty() {
+                std::fs::create_dir_all(parent).expect("creating node key directory");
+            }
+        }
+        let pem_path = format!("{path}.pem");
+        let status = Command::new("openssl")
+            .args(["genpkey", "-algorithm", "rsa", "-out", &pem_path])
+            .status()
+            .expect("running openssl genpkey (is openssl on PATH?)");
+        assert!(status.success(), "openssl genpkey failed for {path}");
+        let status = Command::new("openssl")
+            .args(["pkcs8", "-in", &pem_path, "-inform", "PEM", "-topk8",
+                   "-out", path, "-outform", "DER", "-nocrypt"])
+            .status()
+            .expect("running openssl pkcs8");
+        assert!(status.success(), "openssl pkcs8 failed for {path}");
+        let _ = std::fs::remove_file(&pem_path);
+        println!("generated node key {path}");
+    }
+    let canonical = std::fs::canonicalize(key_path)
+        .expect("canonicalizing node key path")
+        .to_string_lossy()
+        .into_owned();
+    let mut bytes = std::fs::read(&canonical).expect("reading node key");
+    let keypair = libp2p::identity::Keypair::rsa_from_pkcs8(&mut bytes)
+        .expect("parsing node key as RSA PKCS8");
+    let peer_id = keypair.public().to_peer_id().to_string();
+    (canonical, peer_id)
+}
+
 // gc
 pub fn write_gc_config_alice(config: &Config, for_sim: bool){
     let ignore_gcr_timeout = if for_sim {true} else {false};
@@ -231,8 +292,14 @@ pub fn write_gc_config_alice(config: &Config, for_sim: bool){
         fpga_start_socket_path: config.file.fpgareg.clone(),
         log_level: "Info".to_string(),
         ignore_gcr_timeout: ignore_gcr_timeout,
+        // The ready flag stays shared in sim mode: both gc's answering from one
+        // file gives a single local start/stop knob. The idle ack is per player.
         ready_flag_path: "/tmp/qkd_ready".to_string(),
-        node_idle_flag_path: "/tmp/node_idle".to_string(),
+        node_idle_flag_path: if for_sim {
+            "/tmp/node_idle_alice".to_string()
+        } else {
+            "/tmp/node_idle".to_string()
+        },
     };
     gc_conf.save_to_file(&PathBuf::from("alice/gc.json"));
 }
@@ -257,7 +324,11 @@ pub fn write_gc_config_bob(config: &Config, for_sim: bool){
         log_level: "Info".to_string(),
         ignore_gcr_timeout: ignore_gcr_timeout,
         ready_flag_path: "/tmp/qkd_ready".to_string(),
-        node_idle_flag_path: "/tmp/node_idle".to_string(),
+        node_idle_flag_path: if for_sim {
+            "/tmp/node_idle_bob".to_string()
+        } else {
+            "/tmp/node_idle".to_string()
+        },
     };
     gc_conf.save_to_file(&PathBuf::from("bob/gc.json"));
 }
@@ -283,12 +354,10 @@ pub fn write_qber_config_bob(config: &Config){
 
 
 // sim
-pub fn write_sim_config(config_alice: &Config, config_bob: &Config, hw_sim_path: PathBuf){
-    let sim_backend_config_alice_str =
-        std::fs::read_to_string(&hw_sim_path).expect("failed reading hw_sim file");
+pub fn write_sim_config(config_alice: &Config, config_bob: &Config, sim_backend_json: &str){
     let sim_backend_config_alice =
         serde_json::from_str::<simulator_configs::backend::Configuration>(
-            &sim_backend_config_alice_str,
+            sim_backend_json,
         )
         .unwrap();
 
@@ -510,12 +579,13 @@ pub fn write_node_config(config_alice: &Config, config_bob: &Config) {
         rounds_limit_per_session: 10000000,
         requested_final_key_size: Some(config_alice.kms.default_key_size as usize),
         hw_read_buf_size: None,
+        support_recalibration: true,
         key_storage: node::StorageVariant::Fifo {
             path: config_alice.file.kms.clone(),
         },
         log_level: Some("Info".to_string()),
     };
-    
+
     let node_conf_bob = node::Configuration {
         hardware_type: node::HardwareType::Detector {
             angles_file_path: config_bob.file.angle.clone(),
@@ -554,6 +624,7 @@ pub fn write_node_config(config_alice: &Config, config_bob: &Config) {
         rounds_limit_per_session: 10000000,
         requested_final_key_size: Some(config_bob.kms.default_key_size as usize),
         hw_read_buf_size: None,
+        support_recalibration: true,
         key_storage: node::StorageVariant::Fifo {
             path: config_bob.file.kms.clone(),
         },

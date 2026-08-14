@@ -923,6 +923,93 @@ def ad(conn, sendresult=True):
     if sendresult:
         sendc(conn, 'ad done')
 
+
+def _recent_qber(n=3):
+    """Mean QBER of the last `n` completed rounds, read from history.
+
+    Costs nothing and needs no waiting -- the rounds already happened. Used for
+    the 'before' side of a gate move so the common no-move path stays cheap
+    (waiting for 3 fresh rounds here cost ~35 s on EVERY autotune cycle).
+    """
+    try:
+        with open('/tmp/node_stats.csv') as f:
+            lines = [l for l in f.read().splitlines() if l.strip()][-n:]
+        vals = [float(l.split(';')[1]) for l in lines if len(l.split(';')) >= 2]
+        return sum(vals) / len(vals) if vals else None
+    except (OSError, ValueError):
+        return None
+
+
+def _fresh_qber(n=3, timeout=90):
+    """Mean of the next `n` DISTINCT live QBER values, or None on timeout.
+
+    Same wait-for-a-new-round trick adjust_am_qber uses: ctl.read_qber() keeps
+    returning the last round's value, so we watch for it to change rather than
+    sampling a stale number. Only used AFTER a move, where we genuinely need
+    post-change rounds.
+    """
+    vals = []
+    last = None
+    deadline = time.time() + timeout
+    while len(vals) < n and time.time() < deadline:
+        q = ctl.read_qber()
+        if q is not None and q != last:
+            if last is not None:
+                vals.append(q)
+            last = q
+        time.sleep(0.1)
+    return sum(vals) / len(vals) if vals else None
+
+
+# A move must not make things worse by more than this (relative) before we undo it.
+GATE_QBER_REGRESS = 0.15
+
+
+def check_gate_edge(conn):
+    """Ask Bob to check its physical SPD gate placement, and VERIFY any move.
+
+    Alice does not touch her am/pm settings here (unlike ad() or
+    adjust_soft_gates): Bob measures live click counts, which are only
+    meaningful under the conditions the link normally runs in.
+
+    Bob decides using click0+click1, which is a proxy -- a good one for catching
+    a grossly misplaced gate, but NOT a reliable stand-in for QBER at fine
+    scales, and the counts response changes as pol/soft-gates re-tune around
+    whatever gate is current. So whenever Bob actually MOVES the gate we check
+    the real QBER before and after and undo the move if it regressed. That makes
+    an automatic move on a production link defensible: the proxy proposes, live
+    QBER disposes.
+    """
+    before = _recent_qber()          # from history: free, no waiting
+    sendc(bob, 'check_gate_edge')
+    m = rcvc(bob)
+
+    if not m.startswith('MOVED') or before is None:
+        sendc(conn, 'check_gate_edge ' + m)
+        return
+
+    # 'MOVED gate <old> -> <new> ps (...)'
+    try:
+        old_ps = int(m.split()[2])
+    except (IndexError, ValueError):
+        sendc(conn, 'check_gate_edge ' + m + ' [qber unverified: cannot parse]')
+        return
+
+    after = _fresh_qber()
+    if after is None:
+        sendc(conn, 'check_gate_edge ' + m + f' [qber unverified: no rounds; before={before:.4f}]')
+        return
+
+    if after > before * (1 + GATE_QBER_REGRESS):
+        sendc(bob, 'set_gate_delay')
+        send_i(bob, old_ps)
+        rcvc(bob)
+        sendc(conn, f'check_gate_edge REVERTED to {old_ps} ps: '
+                    f'QBER {before:.4f} -> {after:.4f} (worse)')
+    else:
+        sendc(conn, 'check_gate_edge ' + m + f' [QBER {before:.4f} -> {after:.4f}]')
+
+
 def find_sp(conn, sendresult=True):
     sendc(bob, 'find_sp')
     #1.Send single pulse, am_shift 0
@@ -1639,6 +1726,7 @@ functionmap['verify_am2_bias'] = verify_am2_bias
 functionmap['loop_find_am2_bias'] = loop_find_am2_bias
 functionmap['pol_bob'] = pol_bob
 functionmap['ad'] = ad
+functionmap['check_gate_edge'] = check_gate_edge
 functionmap['find_sp'] = find_sp
 functionmap['verify_gates'] = verify_gates
 functionmap['fs_b'] = fs_b

@@ -314,6 +314,17 @@ def Set_Ltc():
     print("Set ltc configuration registers finished")
     reg_file.close()
 
+def Set_R():
+    reg_file = open(HW_CONFIG+'registers/ltc/CRegs.txt','r')
+    for l in reg_file.readlines():
+        add, val = l.split(',')
+        add_shifted = int(add, base=16)<<1
+        time.sleep(0.1)
+        ret = Get_reg_new(2,'ltc', add_shifted, int(val, base=16))
+    print("Set ltc configuration registers finished")
+    reg_file.close()
+
+
 def Sync_Ltc():
     #Reset sync counter
     write(0x12000, 24, 1)
@@ -369,6 +380,7 @@ def Get_Id():
 
 def Config_Ltc():
     Set_Ltc()
+    Set_R()
     Get_Id()
     Get_Ltc_info()
 

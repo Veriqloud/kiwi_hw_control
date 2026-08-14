@@ -64,7 +64,15 @@ fn recv_gc(bob: &mut TcpStream) -> std::io::Result<()> {
             tracing::warn!("[gc-alice] took {:?} ms to get {:?} gcs from Bob", t_read_gc, num_clicks);
         }
         if num_clicks == 0 {
-            tracing::warn!("[gc-alice] got 0 clicks from Bob (possibly timeout)");
+            // The Bob link is a blocking socket with no read timeout, so a
+            // 0-byte read can only be TCP EOF: Bob's gc has shut down its side
+            // (e.g. its node closed the click fifo for calibration). Every
+            // further read would return 0 immediately — bail out instead of
+            // spinning on the dead connection. This is the Alice counterpart
+            // of gc-bob's broken-pipe "this is how we stop" path; a fresh
+            // start command brings up a new Bob link.
+            tracing::warn!("[gc-alice] Bob closed the gc link (EOF), ending stream");
+            break;
         }
         // make sure the number of written gcs is a power of 2 and less than BATCHSIZE
         let num_clicks_array = decompose_num_clicks(num_clicks);
@@ -86,6 +94,11 @@ fn recv_gc(bob: &mut TcpStream) -> std::io::Result<()> {
         }
         t_loop = Instant::now();
     }
+    // Clear the flag ourselves: on the EOF bail-out above nobody else does,
+    // and readiness polls must stop reporting "streaming" (otherwise the
+    // node-idle flag can never be raised and a later start would be ignored
+    // as "already running").
+    *RUNNING.lock().unwrap() = false;
     tracing::info!("[gc-alice] stopped reading gc from Bob");
     Ok(())
 }

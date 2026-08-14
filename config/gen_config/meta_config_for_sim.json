@@ -42,7 +42,7 @@
         "key_path": "./authentication/private/eckey_pkcs8.pem"
     },
     "node": {
-        "key_path": "/home/georg/qline/keys/node.pk8",
+        "key_path": "keys/node.pk8",
         "qtol": 0.09,
         "key_size_per_round": 1000000
     }
