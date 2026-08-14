@@ -89,15 +89,6 @@ pub struct DecoyStates {
     /// Number of statistical blocks / security parameter.
     #[serde(rename = "K")]
     pub k: u32,
-    /// Which RNG bit value maps to which intensity.
-    pub intensity_bit_mapping: IntensityBitMapping,
-}
-
-/// Maps the hardware decoy RNG bit to an intensity (mu1 or mu2).
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
-pub enum IntensityBitMapping {
-    TrueMeansMu1,
-    TrueMeansMu2,
 }
 
 /// Selects which bases are retained for the final key.

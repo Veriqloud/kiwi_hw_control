@@ -15,7 +15,9 @@
         "qber": 13006,
         "node_alice": 13007,
         "node_bob": 13008,
-        "showlogs": 13009
+        "showlogs": 13009,
+        "restartd": 13010,
+        "logd": 13011
     },
     "file": {
         "gcr": "/tmp/gcr.fifo",
@@ -40,7 +42,7 @@
         "key_path": "./authentication/private/eckey_pkcs8.pem"
     },
     "node": {
-        "key_path": "/home/georg/qline/keys/node.pk8",
+        "key_path": "keys/node.pk8",
         "qtol": 0.09,
         "key_size_per_round": 1000000,
         "key_basis_mode": "Symmetrical",
@@ -50,9 +52,7 @@
             "p1": 0.7,
             "esec": 1e-10,
             "ecor": 1e-10,
-            "K": 19,
-            "intensity_bit_mapping": "TrueMeansMu1"
+            "K": 19
         }
     }
 }
-

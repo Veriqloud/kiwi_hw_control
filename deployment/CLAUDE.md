@@ -90,9 +90,11 @@ and the corresponding node parameters under `node` in `meta_config.json`:
 
 ```json
 "decoystates": { "mu1": 0.5, "mu2": 0.1, "p1": 0.7,
-                 "esec": 1e-10, "ecor": 1e-10, "K": 19,
-                 "intensity_bit_mapping": "TrueMeansMu1" }
+                 "esec": 1e-10, "ecor": 1e-10, "K": 19 }
 ```
+
+The source hardware's per-pulse intensity bit is a fixed protocol convention,
+not a setting: **bit 0 means `mu1`** (signal), bit 1 means `mu2` (decoy).
 
 Omitting these blocks runs the standard (non-decoy) protocol.
 
