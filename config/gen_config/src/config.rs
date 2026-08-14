@@ -367,6 +367,9 @@ pub fn write_sim_config(config_alice: &Config, config_bob: &Config, sim_backend_
         angle_file_path: config_alice.file.angle.clone(),
         gc_read_file_path: config_alice.file.gc.clone(),
         hw_params_file_path: config_alice.file.hw_params.clone(),
+        // Let hw_sim's own defaults fill any field this generator does not set,
+        // so adding one upstream does not break this build.
+        ..Default::default()
     });
     let sim_config_alice = simulator_configs::Configuration {
         backend_config: sim_backend_config_alice,
@@ -385,6 +388,7 @@ pub fn write_sim_config(config_alice: &Config, config_bob: &Config, sim_backend_
         gcr_file_path: config_bob.file.gcr.clone(),
         gc_read_file_path: config_bob.file.gc.clone(),
         hw_params_file_path: config_bob.file.hw_params.clone(),
+        ..Default::default()
     });
     let sim_config_bob: simulator_configs::Configuration = simulator_configs::Configuration {
         ipc_config: ipc,
