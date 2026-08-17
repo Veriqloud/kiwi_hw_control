@@ -6,6 +6,16 @@ cargo build --release
 cp target/release/gen_config ~/bin/
 ```
 
+If you have qline_backend git access, you can check if all fields are still up to date with
+
+```.bash
+cd gen_config
+cargo update --manifest-path upstream_check/Cargo.toml -p node -p km-server -p configs
+cargo check  --manifest-path upstream_check/Cargo.toml
+```
+
+A compile error there means a config field changed upstream and the vendored copies need updating — see `gen_config/vendor/README.md`.
+
 # Use gen_config
 
 `gen_config` will generate the config files for the individual programs from one meta config. An example of the meta config can be found in the folder `gen_config` for the real hardware and for the simulator.
