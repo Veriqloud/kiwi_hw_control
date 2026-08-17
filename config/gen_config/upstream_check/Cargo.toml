@@ -1,14 +1,16 @@
 # Maintainer-only drift check (NOT part of gen_config's normal build).
 #
 # This manifest reuses gen_config's ../src/lib.rs but enables the `upstream` feature,
-# which makes lib.rs alias `node` / `km_server_configs` to the REAL private node/kms
-# crates instead of the vendored copies. Compiling it recompiles the exact same
-# construction code in src/config.rs against the real structs, so any field that was
-# added, removed or renamed upstream becomes a compile error here — the prompt to
-# update the vendored copies in ../vendor.
+# which makes lib.rs alias `node` / `km_server_configs` / `simulator_configs` to the
+# REAL crates in the private qline_backend repo instead of the vendored copies.
+# Compiling it recompiles the exact same construction code in src/config.rs against the
+# real structs, so any field that was added, removed or renamed upstream becomes a
+# compile error here — the prompt to update the vendored copies in ../vendor.
 #
-# Run it (requires access to the private repos):
-#     cargo check --manifest-path upstream_check/Cargo.toml
+# Run it (requires access to the private repos). Update first — the deps track a branch
+# but the lockfile pins a commit, so a plain check silently re-verifies a stale one:
+#     cargo update --manifest-path upstream_check/Cargo.toml -p node -p km-server -p configs
+#     cargo check  --manifest-path upstream_check/Cargo.toml
 #
 # It is kept in a separate manifest on purpose: the private path dependencies below
 # would otherwise have to live in ../Cargo.toml, where Cargo resolves them even when
@@ -16,8 +18,15 @@
 # the private repos.
 #
 # Keep the shared (public) dependencies below in sync with ../Cargo.toml, and the
-# two private git deps pointed at the qline_backend branch the vendored copies
-# track (currently hardware_calibration; bump to master once it is merged).
+# three private git deps pointed at the qline_backend remote and branch the vendored
+# copies track (currently BlindQlouder/qline_backend, branch decoy).
+#
+# Fetching them needs an ssh key with access to that private repo. If your default
+# github.com key is not it, either give the repo a Host alias in ~/.ssh/config and use
+# it in the URLs below, or run the check with
+#     GIT_SSH_COMMAND='ssh -i ~/.ssh/<key> -o IdentitiesOnly=yes' \
+#     cargo check --config net.git-fetch-with-cli=true --manifest-path upstream_check/Cargo.toml
+# (cargo's built-in git transport ignores ~/.ssh/config Host aliases; the git CLI does not).
 [package]
 name = "gen_config_upstream_check"
 version = "0.1.0"
@@ -39,12 +48,15 @@ serde = { version = "1.0.213", features = ["derive"] }
 libp2p = { version = "0.56", features = ["identify", "rsa"] }
 gc = { path = "../../../gc" }
 qber = { path = "../../../qber" }
-simulator_configs = { git = "ssh://git@github.com/Veriqloud/hw_sim.git", branch = "master", package = "configs" }
 
-# The real private repos. Aliased to `node` / `km_server_configs` by ../src/lib.rs
-# when the `upstream` feature is enabled.
-node_upstream = { package = "node", git = "ssh://git@github.com/Veriqloud/qline_backend.git", branch = "hardware_calibration" }
-km_server_upstream = { package = "km-server", git = "ssh://git@github.com/Veriqloud/qline_backend.git", branch = "hardware_calibration" }
+# The real crates from the private qline_backend repo. Aliased to `node` /
+# `km_server_configs` / `simulator_configs` by ../src/lib.rs when the `upstream`
+# feature is enabled. `configs` is hw_sim's config crate: hw_sim keeps its own cargo
+# workspace inside qline_backend (qline_backend/hw_sim/configs), which cargo finds by
+# package name when it scans the checkout.
+node_upstream = { package = "node", git = "ssh://git@github.com/BlindQlouder/qline_backend.git", branch = "decoy" }
+km_server_upstream = { package = "km-server", git = "ssh://git@github.com/BlindQlouder/qline_backend.git", branch = "decoy" }
+simulator_configs_upstream = { package = "configs", git = "ssh://git@github.com/BlindQlouder/qline_backend.git", branch = "decoy" }
 
 # km-server pulls actix-web -> cookie 0.16, which fails to compile against time
 # >= 0.3.37 (the `time::parsing::Parsable::parse` signature changed). Pin time so
@@ -58,5 +70,9 @@ time = "=0.3.36"
 # and works regardless of where the repo is cloned (no absolute paths, no git fetch).
 # Requires node to reference comm via this git URL (its committed state) rather than a
 # locally hardcoded absolute path.
+#
+# The URL below is a *source* being replaced, not a repo being fetched: it has to match
+# node's manifest verbatim (Veriqloud/kiwi_hw_control), so it does not follow the
+# BlindQlouder deps above. Change it only if node's own comm URL changes.
 [patch."ssh://git@github.com/Veriqloud/kiwi_hw_control.git"]
 comm = { path = "../../../comm" }

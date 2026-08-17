@@ -1,20 +1,42 @@
 # upstream_check — maintainer-only drift check
 
 This is **not** part of `gen_config`'s normal build. It exists to catch changes in the
-private `node` / `km-server` (kms) config structs that the vendored copies in
-`../vendor` need to track.
+`node` / `km-server` (kms) / hw_sim `configs` structs — all three live in the private
+qline_backend repo — that the vendored copies in `../vendor` need to track.
 
 It reuses `../src/lib.rs` but enables the `upstream` feature, which makes `lib.rs`
-alias `node` / `km_server_configs` to the **real** private crates instead of the
-vendored copies. Compiling it recompiles the exact same construction code in
+alias `node` / `km_server_configs` / `simulator_configs` to the **real** crates instead
+of the vendored copies. Compiling it recompiles the exact same construction code in
 `../src/config.rs` against the real structs.
+
+The git dependencies point at the remote and branch the vendored copies track:
+`BlindQlouder/qline_backend`, branch `decoy`.
 
 ## Run it
 
-Requires access to the private node/kms repos (paths are set in `Cargo.toml`):
+Requires an ssh key with access to the private qline_backend repo:
 
 ```bash
-cargo check --manifest-path upstream_check/Cargo.toml
+cargo update --manifest-path upstream_check/Cargo.toml -p node -p km-server -p configs
+cargo check  --manifest-path upstream_check/Cargo.toml
+```
+
+**Always update first.** The git dependencies track a *branch*, but
+`upstream_check/Cargo.lock` pins the exact commit that was resolved the last time the
+check ran. Without the update step cargo happily re-checks against that stale commit
+and reports success while upstream has moved on — the check then tells you nothing,
+which is worse than not running it. (`node_kms_models` comes along with the three named
+packages; they all live in the same repo.)
+
+If your default github.com key is not that key, cargo cannot authenticate — and it
+ignores `~/.ssh/config` Host aliases, so pointing the URLs at an alias host only works
+together with the git CLI transport. Both commands then need it:
+
+```bash
+export GIT_SSH_COMMAND='ssh -i ~/.ssh/<key> -o IdentitiesOnly=yes'
+cargo update --config net.git-fetch-with-cli=true --manifest-path upstream_check/Cargo.toml \
+  -p node -p km-server -p configs
+cargo check  --config net.git-fetch-with-cli=true --manifest-path upstream_check/Cargo.toml
 ```
 
 - **Compiles cleanly** → the vendored copies are still compatible with upstream.
@@ -55,6 +77,14 @@ as siblings, in which case the `[patch]` is simply unused.)
 
 ## Notes
 
+- The hw_sim `configs` crate sits in a **nested** cargo workspace inside qline_backend
+  (`qline_backend/hw_sim/configs`, excluded from the top-level workspace). A git
+  dependency finds it by package name — cargo scans the whole checkout for manifests —
+  so no subdirectory needs to be named in `Cargo.toml`.
+- The check only fails on fields `../src/config.rs` *constructs*. The hw_sim
+  `backend_config` block is parsed from `sim_config.json` and re-serialized rather than
+  constructed, so a new backend field with a serde default passes silently; add it to
+  `sim_config.json` by hand (see `../vendor/README.md`).
 - The private repo paths live here (not in `../Cargo.toml`) on purpose: Cargo resolves
   optional path dependencies even when their feature is off, so putting them in the
   main manifest would break the self-contained default build for anyone without the

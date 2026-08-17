@@ -1,0 +1,27 @@
+# Vendored copy of the config-relevant types from qline_backend/hw_sim (package
+# "configs", the crate gen_config knows as `simulator_configs`).
+#
+# hw_sim is a public repo, but its authoritative copy currently lives *inside* the
+# private qline_backend repo (see qline_backend/hw_sim/README.md): the detector model
+# (dead_time, dark_count_probability, afterpulse, software_filter, speedup) exists only
+# there and is on no public Veriqloud/hw_sim branch. Depending on public hw_sim master
+# would therefore silently drop every one of those fields when gen_config round-trips
+# sim_config.json, so the config types are vendored here like node's and kms' are.
+#
+# Once the detector-model commits land in public Veriqloud/hw_sim, delete this crate and
+# put the plain git dependency back in ../../Cargo.toml.
+#
+# Keep this in sync with the upstream configs crate. Drift is caught at compile time by
+# the ../../upstream_check manifest, which compiles the same construction code against
+# the real crate.
+# Distinct package name from upstream "configs" so both can coexist in the lockfile
+# when building with --features upstream. gen_config references it via the dependency
+# key `simulator_configs_vendored` and aliases it to `simulator_configs`
+# (see gen_config/src/lib.rs).
+[package]
+name = "simulator-configs-vendored"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }

@@ -4,6 +4,11 @@
     "eta": 0.002,
     "qberr": 0.05,
     "pulse_distance": 1e-8,
+    "dead_time": 10e-6,
+    "dark_count_probability": 1e-6,
+    "afterpulse": [],
+    "software_filter": 0.25,
+    "speedup": 1.0,
     "decoy_states": {
         "mu1": 0.5,
         "mu2": 0.1,

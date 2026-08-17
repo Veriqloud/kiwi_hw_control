@@ -39,6 +39,90 @@ In simulator mode the gc command sockets and node-idle flag files are suffixed
 `/tmp/qkd_ready` stays shared and acts as the single local start/stop knob
 (see `local/qkd_ready_ctl.sh`).
 
+## The meta_config `node` block
+
+Everything else in the meta_config is addresses, ports and file paths. The `node`
+block is where the protocol is configured:
+
+| Field | Meaning |
+| --- | --- |
+| `key_path` | libp2p RSA keypair (PKCS8 DER) of this node. |
+| `qtol` | QBER tolerance: above it a round is discarded instead of turned into key. |
+| `clicks_per_round` | Clicks (detection windows) collected from the hardware before postprocessing starts. Not a key size — sifting, parameter estimation, error correction and privacy amplification all shrink it. |
+| `key_basis_mode` | `"Symmetrical"` keeps both bases for the final key. `{"Asymmetrical": {"basis": true}}` keeps only the selected one. |
+| `decoystates` | Decoy-state parameters, or `null` for plain BB84. |
+
+`clicks_per_round` used to be `key_size_per_round` and counted angle bytes, of
+which the hardware packs two per click. A meta_config written before the rename
+has to change the key **and double the value** to keep the same round size;
+leaving the old key in place makes `gen_config` fail to parse it, which is the
+intended outcome — the same file fed to the node directly would silently fall
+back to the default instead.
+
+`decoystates` is what switches the node between the standard and the decoy-state
+analysis, so its presence is the protocol choice, not a tuning knob:
+
+```json
+"decoystates": {
+    "mu1": 0.5,
+    "mu2": 0.1,
+    "p1": 0.7,
+    "esec": 1e-10,
+    "ecor": 1e-10,
+    "K": 19
+}
+```
+
+`mu1` is the signal intensity and `mu2` the decoy one (below `mu1`), `p1` is the
+probability of picking `mu1` — `mu2` gets `1 - p1`. `esec` and `ecor` are the
+secrecy and correctness failure probabilities of the final key length bound, and
+`K` is the count the Rusca one-decoy bound splits the secrecy budget over.
+
+`mu1`, `mu2` and `p1` describe the source, so they must match the simulator's
+`decoy_states` block; `gen_config` refuses to generate configs where the two
+disagree. Set `"decoystates": null` to run plain BB84 instead.
+
+All shipped meta configs, simulator and real hardware alike, are in decoy mode.
+On real hardware that assumes the FPGA emits the per-pulse intensity bit (bit 2
+of the angle byte) and that `decoy_fiber_delay` is set in the hardware
+parameters — a node in decoy mode on firmware that does not will read every
+pulse as signal intensity.
+
+On hardware these three numbers are *measurements*, not settings: `mu1` and `mu2`
+must be the attenuation levels the source actually emits, and `p1` the
+probability with which the FPGA picks `mu1` — the decoy RNG (`decoy_rng.service`
+on Alice) feeds it unbiased bits, so unless the firmware biases them `p1` is
+`0.5`, not the `0.7` the simulator is configured for. `mon`'s
+`decoy [n0, n1, n2, n3]` histogram shows the split a running link actually
+produces; a `p1` that disagrees with it bounds the key length for the wrong
+source.
+
+## The simulator config (`-s`)
+
+`sim_config.json` is hw_sim's own `backend_config`: `gen_config` only splices the
+IPC paths into it and writes the result to `alice/sim.json` and `bob/sim.json`.
+The shipped file lists every field explicitly, at hw_sim's own defaults:
+
+| Field | Meaning |
+| --- | --- |
+| `angles`, `seed`, `qberr` | Angle table, PRNG seed, and the intrinsic QBER of the channel. |
+| `eta` | Single-photon transmission of the channel. With `decoy_states` the source is an attenuated laser (click probability `1 − e^(−µη)`); without it, an ideal single-photon source, so `eta` *is* the click probability. |
+| `pulse_distance` | Seconds between gates. |
+| `dead_time` | Seconds the detector is blind after a click; caps the count rate at `1/dead_time`. `0.0` disables. |
+| `dark_count_probability` | Dark counts per **gate** (not per second): a rate `D` is `D · pulse_distance`. `0.0` disables. |
+| `afterpulse` | Exponential components `{tau, p_ap}` of the afterpulse hazard, referenced to the full gate. `[]` disables it. |
+| `software_filter` | Fraction `f` of the gate the software gate keeps. Signal photons are all kept, dark counts and afterpulses only with probability `f`. `1.0` disables filtering. |
+| `speedup` | How much faster than real time the simulator delivers. Pure change of clock — the data is identical to a real-time run of the same seed. |
+| `decoy_states` | `mu1`/`mu2`/`p1` of the decoy source; absent disables decoy mode. |
+
+`afterpulse: []` ships empty, which is hw_sim's default and keeps the simulated
+detector ideal apart from dead time and dark counts. The measured parameters of
+the reference AUREA detector, together with the `eta`/`pulse_distance`/`speedup`
+values they were characterised at, are in hw_sim's own
+`config_files/{alice,bob}/hw_sim_config.json` — copy that whole set rather than
+mixing it into these values, since a heavily afterpulsing detector only stays
+below the BB84 error limit at the operating point it was fitted for.
+
 ## Certificate generation (KMS mTLS)
 
 Pass `--gen-certs` (`-g`) to also generate the KMS mutual-TLS chain. This adapts
@@ -80,17 +164,24 @@ opt-in and is not part of `deploy.sh all`.
 
 ## Building (no private dependencies)
 
-`gen_config` builds the config structs of each program and serializes them. `node` and
-`km-server` (kms) live in private repos, so this repo ships **vendored copies of just
-their config types** under `vendor/` (the public "struct database"). A plain
-`cargo build` uses those and needs no private/ssh access.
+`gen_config` builds the config structs of each program and serializes them. `node`,
+`km-server` (kms) and hw_sim's `configs` all live in the private qline_backend repo
+(hw_sim is a public project, but its authoritative copy has been vendored into
+qline_backend and its detector model is on no public hw_sim branch), so this repo ships
+**vendored copies of just their config types** under `vendor/` (the public "struct
+database"). A plain `cargo build` uses those and needs no private/ssh access.
 
-Maintainers with access to the private repos can check that the vendored copies still
+Maintainers with access to the private repo can check that the vendored copies still
 match upstream:
 
 ```.bash
-cargo check --manifest-path upstream_check/Cargo.toml
+cargo update --manifest-path upstream_check/Cargo.toml -p node -p km-server -p configs
+cargo check  --manifest-path upstream_check/Cargo.toml
 ```
+
+The update step matters: the dependencies track a branch but the lockfile pins a
+commit, so checking without it re-verifies a stale revision and passes for the
+wrong reason.
 
 A compile error there means a config field changed upstream and the vendored copies
 (plus `src/config.rs`) need updating. See `vendor/README.md` and

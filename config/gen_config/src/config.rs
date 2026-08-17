@@ -83,7 +83,11 @@ struct Kms {
 struct Node {
     key_path: String,
     qtol: f64,
-    key_size_per_round: usize,
+    // clicks (detection windows) read from the hardware per postprocessing round;
+    // two clicks per angle byte. Renamed from key_size_per_round, which counted
+    // angle bytes, so a meta_config carried over from before must both rename the
+    // key and double its value to keep the same round size.
+    clicks_per_round: usize,
     // decoy-state parameters; absent means decoy mode is disabled
     #[serde(default)]
     decoystates: Option<DecoyStates>,
@@ -361,6 +365,11 @@ pub fn write_sim_config(config_alice: &Config, config_bob: &Config, sim_backend_
         )
         .unwrap();
 
+    check_decoy_agreement(
+        &config_alice.node.decoystates,
+        &sim_backend_config_alice.decoy_states,
+    );
+
     // hw_sim config Alice
     let ipc = simulator_configs::ipc::Configuration::Alice(AliceIpcConfig {
         command_path: config_alice.file.fpgareg.clone(),
@@ -398,6 +407,38 @@ pub fn write_sim_config(config_alice: &Config, config_bob: &Config, sim_backend_
     let sim_bob_config_json =
         serde_json::to_string_pretty(&sim_config_bob).expect("serializing hw_sim config");
     std::fs::write("bob/sim.json", sim_bob_config_json).expect("writing hw_sim config to file");
+}
+
+// The simulator picks the per-pulse intensities and the node's decoy-state bound is
+// computed from them, but each side reads its own file: mu1/mu2/p1 live in the
+// meta_config (node.decoystates, which also carries esec/ecor/K) and in the hw_sim
+// config (decoy_states). If the two disagree, the node bounds the key length for a
+// source that never ran, and nothing downstream notices. gen_config is the only place
+// that sees both files, so the numbers are checked here.
+fn check_decoy_agreement(
+    node: &Option<DecoyStates>,
+    sim: &Option<simulator_configs::backend::DecoyStatesConfig>,
+) {
+    match (node, sim) {
+        (Some(node), Some(sim)) => assert!(
+            node.mu1 == sim.mu1 && node.mu2 == sim.mu2 && node.p1 == sim.p1,
+            "decoy parameters disagree: meta_config node.decoystates has \
+             mu1={} mu2={} p1={}, the hw_sim config has mu1={} mu2={} p1={}",
+            node.mu1, node.mu2, node.p1, sim.mu1, sim.mu2, sim.p1,
+        ),
+        // Both mismatches are legal test setups, so they only warn: the node can run
+        // the standard analysis on a decoy source, and a non-decoy simulator source is
+        // an ideal single-photon source (see hw_sim's two source models).
+        (Some(_), None) => println!(
+            "warning: node.decoystates is set but the hw_sim config has no decoy_states, \
+             so the simulator emits single photons and every pulse is signal intensity"
+        ),
+        (None, Some(_)) => println!(
+            "warning: the hw_sim config has decoy_states but node.decoystates is absent, \
+             so the node runs the standard (non-decoy) analysis on a coherent source"
+        ),
+        (None, None) => {}
+    }
 }
 
 
@@ -577,13 +618,12 @@ pub fn write_node_config(config_alice: &Config, config_bob: &Config) {
         static_angles: [0, 32, 96, 64],
         stats_file_path: None,
         log_file_path_prefix: None,
-        key_size_per_round: Some(config_alice.node.key_size_per_round),
+        clicks_per_round: Some(config_alice.node.clicks_per_round),
         qtol: config_alice.node.qtol,
         key_basis_mode: config_alice.node.key_basis_mode.clone(),
         rounds_limit_per_session: 10000000,
         requested_final_key_size: Some(config_alice.kms.default_key_size as usize),
         hw_read_buf_size: None,
-        support_recalibration: true,
         key_storage: node::StorageVariant::Fifo {
             path: config_alice.file.kms.clone(),
         },
@@ -622,13 +662,12 @@ pub fn write_node_config(config_alice: &Config, config_bob: &Config) {
         static_angles: [0, 32, 96, 64],
         stats_file_path: None,
         log_file_path_prefix: None,
-        key_size_per_round: Some(config_bob.node.key_size_per_round),
+        clicks_per_round: Some(config_bob.node.clicks_per_round),
         qtol: config_bob.node.qtol,
         key_basis_mode: config_bob.node.key_basis_mode.clone(),
         rounds_limit_per_session: 10000000,
         requested_final_key_size: Some(config_bob.kms.default_key_size as usize),
         hw_read_buf_size: None,
-        support_recalibration: true,
         key_storage: node::StorageVariant::Fifo {
             path: config_bob.file.kms.clone(),
         },

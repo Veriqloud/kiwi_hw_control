@@ -67,8 +67,11 @@ simulator lives in `config/sim/`:
 
 - `config/sim/meta_config.json` — ports, file paths, KMS/node settings (incl. decoy-state
   parameters for the full stack).
-- `config/sim/sim_config.json` — the simulator backend parameters (`angles`, `seed`,
-  `eta`, `qberr`, `pulse_distance`, and an optional `decoy_states` block).
+- `config/sim/sim_config.json` — the simulator backend parameters: source (`angles`,
+  `seed`, `eta`, `qberr`, `pulse_distance`, `decoy_states`) and detector model
+  (`dead_time`, `dark_count_probability`, `afterpulse`, `software_filter`, `speedup`).
+  All of them are listed explicitly there; `config/gen_config/README.md` says what each
+  one does.
 
 ```bash
 cd config/sim
@@ -96,7 +99,9 @@ and the corresponding node parameters under `node` in `meta_config.json`:
 The source hardware's per-pulse intensity bit is a fixed protocol convention,
 not a setting: **bit 0 means `mu1`** (signal), bit 1 means `mu2` (decoy).
 
-Omitting these blocks runs the standard (non-decoy) protocol.
+`mu1`/`mu2`/`p1` describe the same source on both sides, so `gen_config` aborts if the
+two blocks disagree. Omitting them runs the standard (non-decoy) protocol; all shipped
+meta configs have them set.
 
 ## 3. Run the diagnostic stack (simulator → gc → qber)
 

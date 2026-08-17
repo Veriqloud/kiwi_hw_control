@@ -44,7 +44,7 @@
     "node": {
         "key_path": "keys/node.pk8",
         "qtol": 0.09,
-        "key_size_per_round": 1000000,
+        "clicks_per_round": 2000000,
         "key_basis_mode": "Symmetrical",
         "decoystates": {
             "mu1": 0.5,
@@ -54,5 +54,16 @@
             "ecor": 1e-10,
             "K": 19
         }
+    },
+    "tls": {
+        "country": "FR",
+        "state": "Paris",
+        "locality": "Paris",
+        "org": "VeriQloud",
+        "org_unit": "Veriqloud-KME",
+        "ca_cn": "VQKME",
+        "validity_days": 1095,
+        "ec_curve": "secp384r1",
+        "extra_sans": []
     }
 }

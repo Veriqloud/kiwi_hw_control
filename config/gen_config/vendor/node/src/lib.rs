@@ -66,32 +66,30 @@ pub enum HardwareType {
     },
 }
 
-/// Decoy-state parameters (BB84 decoy-state protocol).
-///
-/// NOTE: reconstructed from the decoy branch's gen_config usage and the example
-/// values in config/sim/meta_config.json — the upstream qline_backend
-/// decoy_states branch was not fetchable when the decoy merge was made. Run the
-/// upstream_check drift build against a qline_backend checkout that has the
-/// decoy types before trusting field names/types beyond the serialization
-/// surface exercised by gen_config.
+/// Enables decoy-state processing for a hardware configuration.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct DecoyStates {
-    /// Signal-state mean photon number.
+    /// Signal intensity used for the first decoy state. This is the `mu1` parameter in the final key length bound.
     pub mu1: f64,
-    /// Decoy-state mean photon number.
+    /// Signal intensity used for the second decoy state. This is the `mu2` parameter and should be lower than `mu1`.
     pub mu2: f64,
-    /// Probability of emitting the signal state (mu1).
+    /// Probability of selecting the first intensity `mu1`. The probability of selecting `mu2` is computed as `1 - p1`.
     pub p1: f64,
-    /// Secrecy failure probability.
-    pub esec: f64,
-    /// Correctness failure probability.
-    pub ecor: f64,
-    /// Number of statistical blocks / security parameter.
+    /// Secrecy failure probability used by the decoy-state final key length bound.
+    #[serde(rename = "esec")]
+    pub secrecy_epsilon: f64,
+    /// Correctness failure probability used by the decoy-state final key length bound.
+    #[serde(rename = "ecor")]
+    pub correctness_epsilon: f64,
+    /// Security parameter count used to split the secrecy budget in the Rusca one-decoy-state bound.
     #[serde(rename = "K")]
-    pub k: u32,
+    pub security_parameter_k: u32,
 }
 
 /// Selects which bases are retained for the final key.
+///
+/// This is independent from decoy-state processing: the same basis selection
+/// applies whether or not decoy states are enabled.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Default)]
 pub enum KeyBasisMode {
     /// Retain bytes from both bases for the final key. This is the default mode.
@@ -135,14 +133,24 @@ pub struct Configuration {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub log_file_path_prefix: Option<String>,
 
-    /// Key size per round in bytes - defaults to 1048576 (1MB) if not specified
+    /// Number of clicks (detection windows) to collect from the hardware before
+    /// starting a post processing round. The source side has no clicks of its own
+    /// and emits that many pulses instead, so both ends read the same amount of
+    /// hardware data. This is not a key size: sifting, parameter estimation, error
+    /// correction and privacy amplification all shrink it before any key comes out.
+    /// Defaults to 2097152 if not specified.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub key_size_per_round: Option<usize>,
+    pub clicks_per_round: Option<usize>,
 
     /// QBER tolerance - maximum QBER value to accept for post processing operations
     /// Defaults to 0.09 if not specified
     #[serde(default = "default_qtol")]
     pub qtol: f64,
+
+    /// Selects which bases are retained for the final key after basis reconciliation.
+    /// Defaults to [`KeyBasisMode::Symmetrical`] if not specified.
+    #[serde(default)]
+    pub key_basis_mode: KeyBasisMode,
 
     /// Maximum number of rounds allowed per auto-generated session
     /// Sessions built from session requests are unaffected
@@ -150,13 +158,9 @@ pub struct Configuration {
     #[serde(default = "default_rounds_limit_per_session")]
     pub rounds_limit_per_session: u32,
 
-    /// Which bases are retained for the final key; defaults to Symmetrical.
-    #[serde(default)]
-    pub key_basis_mode: KeyBasisMode,
-
     /// Requested size in bits for final keys sent to KMS
-    /// If not specified, no specific size is requested. This is not the same as the round key size, which
-    /// specifies how many bytes we want to get from the hardware before we start a post processing round.
+    /// If not specified, no specific size is requested. This is not the same as `clicks_per_round`, which
+    /// specifies how many clicks we want to get from the hardware before we start a post processing round.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub requested_final_key_size: Option<usize>,
 
@@ -168,11 +172,6 @@ pub struct Configuration {
         deserialize_with = "deserialize_hw_read_buf_size"
     )]
     pub hw_read_buf_size: Option<usize>,
-
-    /// Whether this node should poll the hardware readiness state for recalibration support.
-    /// Defaults to false if not specified.
-    #[serde(default)]
-    pub support_recalibration: bool,
 
     /// Where we put the keys that are produced
     pub key_storage: StorageVariant,
