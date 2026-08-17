@@ -129,9 +129,11 @@ together — `"afterpulse": []`, `"dead_time": 0.0`,
 
 `pulse_distance` is the real FPGA gate period (12.5 ns, 80 MHz), which is what
 makes `dark_count_probability` `1.25e-6` — 100 cps, a typical InGaAs SPAD. The
-10 µs `dead_time` caps the raw rate at 100 kcps and the `0.25` software filter
-takes the accepted rate to ~73 kcps (hw_sim's README tabulates it), so at
-`speedup` 2 the shipped `clicks_per_round` of 2 000 000 is roughly a 14 s round.
+15 µs `dead_time` caps the raw rate at 67 kcps and the `0.25` software filter
+takes a few percent more off, so at `speedup` 10 the shipped `clicks_per_round`
+of 2 000 000 is a round of roughly 3 s. Raising `speedup` much further risks
+outrunning the node, which stalls rather than slowing down — see the ceiling
+discussion in hw_sim's README before changing it.
 
 ## Certificate generation (KMS mTLS)
 
