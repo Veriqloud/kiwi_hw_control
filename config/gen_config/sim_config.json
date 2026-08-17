@@ -1,14 +1,17 @@
 {
     "angles": [0, 32, 96, 64],
     "seed": 42,
-    "eta": 0.1,
+    "eta": 0.01,
     "qberr": 0.05,
-    "pulse_distance": 1e-8,
+    "pulse_distance": 12.5e-9,
     "dead_time": 10e-6,
-    "dark_count_probability": 1e-6,
-    "afterpulse": [],
+    "dark_count_probability": 1.25e-6,
+    "afterpulse": [
+        { "tau": 3.5183e-6, "p_ap": 1.2543 },
+        { "tau": 1.73944e-5, "p_ap": 0.30703 }
+    ],
     "software_filter": 0.25,
-    "speedup": 1.0,
+    "speedup": 2.0,
     "decoy_states": {
         "mu1": 0.5,
         "mu2": 0.1,

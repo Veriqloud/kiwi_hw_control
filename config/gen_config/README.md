@@ -101,7 +101,10 @@ source.
 
 `sim_config.json` is hw_sim's own `backend_config`: `gen_config` only splices the
 IPC paths into it and writes the result to `alice/sim.json` and `bob/sim.json`.
-The shipped file lists every field explicitly, at hw_sim's own defaults:
+The shipped file lists every field explicitly and is a verbatim copy of the
+`backend_config` block in hw_sim's own
+`config_files/{alice,bob}/hw_sim_decoy_config.json`, which is the authoritative
+set — keep the two identical rather than tuning this copy on its own:
 
 | Field | Meaning |
 | --- | --- |
@@ -115,13 +118,20 @@ The shipped file lists every field explicitly, at hw_sim's own defaults:
 | `speedup` | How much faster than real time the simulator delivers. Pure change of clock — the data is identical to a real-time run of the same seed. |
 | `decoy_states` | `mu1`/`mu2`/`p1` of the decoy source; absent disables decoy mode. |
 
-`afterpulse: []` ships empty, which is hw_sim's default and keeps the simulated
-detector ideal apart from dead time and dark counts. The measured parameters of
-the reference AUREA detector, together with the `eta`/`pulse_distance`/`speedup`
-values they were characterised at, are in hw_sim's own
-`config_files/{alice,bob}/hw_sim_config.json` — copy that whole set rather than
-mixing it into these values, since a heavily afterpulsing detector only stays
-below the BB84 error limit at the operating point it was fitted for.
+`afterpulse` ships with the measured parameters of the reference AUREA detector,
+and `eta`, `pulse_distance`, `dark_count_probability`, `software_filter` and
+`speedup` are the operating point they were characterised at. These belong
+together: a heavily afterpulsing detector only stays below the BB84 error limit
+at the point it was fitted for, so replace the whole set at once rather than
+moving one value. To simulate an ideal detector instead, clear all of them
+together — `"afterpulse": []`, `"dead_time": 0.0`,
+`"dark_count_probability": 0.0`, `"software_filter": 1.0`.
+
+`pulse_distance` is the real FPGA gate period (12.5 ns, 80 MHz), which is what
+makes `dark_count_probability` `1.25e-6` — 100 cps, a typical InGaAs SPAD. The
+10 µs `dead_time` caps the raw rate at 100 kcps and the `0.25` software filter
+takes the accepted rate to ~73 kcps (hw_sim's README tabulates it), so at
+`speedup` 2 the shipped `clicks_per_round` of 2 000 000 is roughly a 14 s round.
 
 ## Certificate generation (KMS mTLS)
 
