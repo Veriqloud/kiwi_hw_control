@@ -90,15 +90,33 @@ pub struct DecoyStates {
 ///
 /// This is independent from decoy-state processing: the same basis selection
 /// applies whether or not decoy states are enabled.
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default)]
 pub enum KeyBasisMode {
     /// Retain bytes from both bases for the final key. This is the default mode.
+    ///
+    /// Parameter estimation then sacrifices a random sample of the sifted key,
+    /// and the key that reaches error correction is what survives that sample.
     #[default]
     Symmetrical,
     /// Retain only bytes from the selected basis for the final key.
+    ///
+    /// The other basis is the estimation basis: it never becomes key, so it is
+    /// published in full rather than sampled, and the sifted key handed to error
+    /// correction is fixed at sifting time.
     Asymmetrical {
-        /// Selects the basis whose bytes are retained for the final key.
+        /// Selects the basis whose bytes are retained for the final key, using
+        /// the same encoding as the wire format: `false` is Z, `true` is X.
         basis: bool,
+        /// Probability with which the *source* is expected to pick the key
+        /// basis, used only to check that the angle stream is actually biased.
+        ///
+        /// The node does not generate angles — they arrive from the hardware —
+        /// so this is a validation aid, not a control. It never enters the key
+        /// length bound: the bound reads the realised counts, not the intended
+        /// probabilities. When set, a round whose observed split is far from it
+        /// is logged as a warning.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        expected_key_basis_probability: Option<f64>,
     },
 }
 

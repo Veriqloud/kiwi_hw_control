@@ -370,6 +370,11 @@ pub fn write_sim_config(config_alice: &Config, config_bob: &Config, sim_backend_
         &sim_backend_config_alice.decoy_states,
     );
 
+    check_key_basis_agreement(
+        &config_alice.node.key_basis_mode,
+        sim_backend_config_alice.source_key_basis_probability,
+    );
+
     // hw_sim config Alice
     let ipc = simulator_configs::ipc::Configuration::Alice(AliceIpcConfig {
         command_path: config_alice.file.fpgareg.clone(),
@@ -437,6 +442,70 @@ fn check_decoy_agreement(
             "warning: the hw_sim config has decoy_states but node.decoystates is absent, \
              so the node runs the standard (non-decoy) analysis on a coherent source"
         ),
+        (None, None) => {}
+    }
+}
+
+// The asymmetric protocol needs the source's angle stream to actually be biased, and
+// only the simulator can bias it: the node reads angles from the hardware, it does not
+// choose them. So the two settings describe one thing from two sides — the node's
+// `key_basis_mode.Asymmetrical.expected_key_basis_probability` is the expectation it
+// validates each round against, the simulator's `source_key_basis_probability` is the
+// bias it actually applies. As with the decoy parameters, gen_config is the only place
+// that sees both files.
+//
+// The simulator always biases towards Z (the angles the node maps to `Basis::Z`) and
+// mirrors the detector to `1 - p` itself, so there is nothing to configure per player:
+// `basis` must be `false` for the two ends to mean the same basis.
+fn check_key_basis_agreement(node: &KeyBasisMode, sim: Option<f64>) {
+    let node_expectation = match node {
+        KeyBasisMode::Symmetrical => None,
+        KeyBasisMode::Asymmetrical {
+            basis,
+            expected_key_basis_probability,
+        } => {
+            assert!(
+                !*basis || sim.is_none(),
+                "key_basis_mode selects X (basis: true) as the key basis, but the hw_sim \
+                 config biases the source towards Z (source_key_basis_probability is set). \
+                 The simulator's key basis is not configurable, so an asymmetric simulator \
+                 run needs \"basis\": false"
+            );
+            *expected_key_basis_probability
+        }
+    };
+
+    match (node_expectation, sim) {
+        (Some(node_p), Some(sim_p)) => assert!(
+            node_p == sim_p,
+            "key basis probabilities disagree: meta_config node.key_basis_mode expects \
+             {node_p}, the hw_sim config biases the source with {sim_p}"
+        ),
+        // Both mismatches are legal, so they only warn: the expectation is optional on
+        // the node side, and an asymmetric node on an unbiased source still runs — it
+        // just gets a 1:1 split and a much smaller key.
+        (Some(node_p), None) => println!(
+            "warning: node.key_basis_mode expects a source key-basis probability of \
+             {node_p} but the hw_sim config has no source_key_basis_probability, so the \
+             simulator draws all four angles uniformly and every round will warn about \
+             the realised split"
+        ),
+        (None, Some(sim_p)) => {
+            if matches!(node, KeyBasisMode::Asymmetrical { .. }) {
+                println!(
+                    "warning: the hw_sim config biases the source with \
+                     source_key_basis_probability {sim_p} but node.key_basis_mode sets no \
+                     expected_key_basis_probability, so the node cannot check the split"
+                );
+            } else {
+                println!(
+                    "warning: the hw_sim config biases the source with \
+                     source_key_basis_probability {sim_p} but node.key_basis_mode is \
+                     Symmetrical, so the node keeps both bases and the bias only lowers \
+                     the sifting rate"
+                );
+            }
+        }
         (None, None) => {}
     }
 }

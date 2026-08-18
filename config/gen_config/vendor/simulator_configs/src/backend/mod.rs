@@ -194,6 +194,25 @@ pub struct Configuration {
     /// Values below 1.0 slow the simulation down. Non-positive values are ignored.
     #[serde(default = "default_speedup")]
     pub speedup: f64,
+    /// Probability with which the simulated *source* labels a pulse with the key
+    /// basis, for the asymmetric protocol. Absent (the default) draws all four
+    /// angles uniformly, which is the symmetric protocol and is bit-for-bit what
+    /// the simulator did before this setting existed.
+    ///
+    /// The key basis is Z, the angles the node maps to `Basis::Z` — 0 and 64 in
+    /// the shipped angle table. The bit within the basis stays uniform: this
+    /// biases *which basis* a pulse is prepared in, never which state.
+    ///
+    /// The detector is biased the opposite way, to `1 - p`, and that is not
+    /// configurable on purpose. Sifting keeps a pulse when the two labels
+    /// *differ*, so the key set scales as `p·(1 - p_detector)` and the
+    /// estimation set as `(1 - p)·p_detector`. Mirroring gives the intended
+    /// `p² : (1 - p)²`; biasing both ends the same way instead inverts the split
+    /// and collapses the sifting rate, while still looking plausible in the
+    /// per-peer configuration. Making the two independent here would only make
+    /// that mistake expressible.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_key_basis_probability: Option<f64>,
     /// Decoy-state parameters. Absent means decoy mode is disabled.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub decoy_states: Option<DecoyStatesConfig>,
@@ -226,6 +245,7 @@ impl Default for Configuration {
             dark_count_probability: DEFAULT_DARK_COUNT_PROBABILITY,
             software_filter: DEFAULT_SOFTWARE_FILTER,
             speedup: DEFAULT_SPEEDUP,
+            source_key_basis_probability: None,
             decoy_states: Default::default(),
             afterpulse: Vec::new(),
         }
