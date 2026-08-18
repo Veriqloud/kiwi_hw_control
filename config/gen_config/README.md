@@ -49,7 +49,7 @@ block is where the protocol is configured:
 | `key_path` | libp2p RSA keypair (PKCS8 DER) of this node. |
 | `qtol` | QBER tolerance: above it a round is discarded instead of turned into key. |
 | `clicks_per_round` | Clicks (detection windows) collected from the hardware before postprocessing starts. Not a key size — sifting, parameter estimation, error correction and privacy amplification all shrink it. |
-| `key_basis_mode` | `"Symmetrical"` keeps both bases for the final key. `{"Asymmetrical": {"basis": false, "expected_key_basis_probability": 0.9}}` keeps only the selected one (`false` is Z, `true` is X) and makes the other one the estimation basis. |
+| `key_basis_mode` | `"Symmetrical"` keeps both bases for the final key. `{"Asymmetrical": {"expected_key_basis_probability": 0.9}}` keeps only the Z basis and makes X the estimation basis. |
 | `decoystates` | Decoy-state parameters, or `null` for plain BB84. |
 
 `clicks_per_round` used to be `key_size_per_round` and counted angle bytes, of
@@ -99,11 +99,13 @@ source.
 
 ### `key_basis_mode` and the asymmetric protocol
 
-All shipped meta configs are on the **asymmetric** protocol: `basis` picks the
-basis kept for the final key (`false` is Z, `true` is X, the wire encoding), and
-the other basis becomes the estimation basis. It is never turned into key, so
-the node publishes it in full instead of carving a sample out of the sifted key
-— which is why the block handed to error correction is fixed at sifting time.
+All shipped meta configs are on the **asymmetric** protocol: the final key comes
+from the Z basis alone and X is the estimation basis. Which basis is which is
+not configurable — the hardware and the simulator both bias the angle stream
+towards Z, so keying on X would key on whatever the source emits least. X is
+never turned into key, so the node publishes it in full instead of carving a
+sample out of the sifted key — which is why the block handed to error correction
+is fixed at sifting time.
 `qtol` still gates on the QBER, but in this mode that QBER is measured on the
 *estimation* basis; the key basis error rate is only known after error
 correction.

@@ -98,15 +98,16 @@ pub enum KeyBasisMode {
     /// and the key that reaches error correction is what survives that sample.
     #[default]
     Symmetrical,
-    /// Retain only bytes from the selected basis for the final key.
+    /// Retain only the Z-basis bytes for the final key.
     ///
-    /// The other basis is the estimation basis: it never becomes key, so it is
-    /// published in full rather than sampled, and the sifted key handed to error
+    /// X is then the estimation basis: it never becomes key, so it is published
+    /// in full rather than sampled, and the sifted key handed to error
     /// correction is fixed at sifting time.
+    ///
+    /// The key basis is Z, not a choice. The hardware biases the angle stream
+    /// towards Z and the simulator does the same, so a config that asked for X
+    /// would key on whichever basis the source emits least.
     Asymmetrical {
-        /// Selects the basis whose bytes are retained for the final key, using
-        /// the same encoding as the wire format: `false` is Z, `true` is X.
-        basis: bool,
         /// Probability with which the *source* is expected to pick the key
         /// basis, used only to check that the angle stream is actually biased.
         ///

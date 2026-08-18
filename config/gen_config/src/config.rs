@@ -461,18 +461,8 @@ fn check_key_basis_agreement(node: &KeyBasisMode, sim: Option<f64>) {
     let node_expectation = match node {
         KeyBasisMode::Symmetrical => None,
         KeyBasisMode::Asymmetrical {
-            basis,
             expected_key_basis_probability,
-        } => {
-            assert!(
-                !*basis || sim.is_none(),
-                "key_basis_mode selects X (basis: true) as the key basis, but the hw_sim \
-                 config biases the source towards Z (source_key_basis_probability is set). \
-                 The simulator's key basis is not configurable, so an asymmetric simulator \
-                 run needs \"basis\": false"
-            );
-            *expected_key_basis_probability
-        }
+        } => *expected_key_basis_probability,
     };
 
     match (node_expectation, sim) {
