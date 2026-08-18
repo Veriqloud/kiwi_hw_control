@@ -39,23 +39,43 @@ logd_port=$(jq '.port.logd' $NETWORK_FILE)
 kms_alice_port=$(jq '.port.kms_alice' $NETWORK_FILE)
 kms_bob_port=$(jq '.port.kms_bob' $NETWORK_FILE)
 
-# hw
-ssh -N -L $localhost_hw_alice:$ip_alice:$hw_port vq &
-ssh -N -L $localhost_hw_bob:$ip_bob:$hw_port vq &
-# hws
-ssh -N -L $localhost_hws:$ip_alice:$hws_port vq &
-# mon
-ssh -N -L $localhost_mon_alice:$ip_alice:$mon_port vq &
-ssh -N -L $localhost_mon_bob:$ip_bob:$mon_port vq &
-# restartd (restartd runs on each node bound to its own IP)
-ssh -N -L $localhost_restartd_alice:$ip_alice:$restartd_port vq &
-ssh -N -L $localhost_restartd_bob:$ip_bob:$restartd_port vq &
-# logd (logd runs on each node bound to its own IP)
-ssh -N -L $localhost_logd_alice:$ip_alice:$logd_port vq &
-ssh -N -L $localhost_logd_bob:$ip_bob:$logd_port vq &
-# kms (Alice serves on kms_alice port, Bob on kms_bob port)
-ssh -N -L $localhost_kms_alice:$ip_alice:$kms_alice_port vq &
-ssh -N -L $localhost_kms_bob:$ip_bob:$kms_bob_port vq &
+# All forwards go over ONE ssh, not one ssh each.
+#
+# ~/.ssh/config commonly puts vq on `ControlMaster auto`.  Every separate
+# `ssh -N -L ... vq` then attaches to that shared master and consumes a
+# session slot, and sshd's MaxSessions defaults to 10.  The eleven forwards
+# below plus ordinary interactive use exceed that, and the master wedges:
+# fresh sessions to vq -- and to every node reached through it by
+# ProxyCommand -- hang, while `ssh -O check vq` still reports
+# "Master running".  Killing the `ssh -N -L` clients does not release the
+# forwards either, since they are registered on the master and outlive their
+# client; recovering needs `ssh -O exit vq`.
+#
+# ControlMaster=no + ControlPath=none keeps this on its own connection, so it
+# can neither starve interactive sessions nor be torn down with them.
+ssh -N \
+    -o ControlMaster=no -o ControlPath=none \
+    -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 \
+    `# hw` \
+    -L $localhost_hw_alice:$ip_alice:$hw_port \
+    -L $localhost_hw_bob:$ip_bob:$hw_port \
+    `# hws` \
+    -L $localhost_hws:$ip_alice:$hws_port \
+    `# mon` \
+    -L $localhost_mon_alice:$ip_alice:$mon_port \
+    -L $localhost_mon_bob:$ip_bob:$mon_port \
+    `# restartd (restartd runs on each node bound to its own IP)` \
+    -L $localhost_restartd_alice:$ip_alice:$restartd_port \
+    -L $localhost_restartd_bob:$ip_bob:$restartd_port \
+    `# logd (logd runs on each node bound to its own IP)` \
+    -L $localhost_logd_alice:$ip_alice:$logd_port \
+    -L $localhost_logd_bob:$ip_bob:$logd_port \
+    `# kms (Alice serves on kms_alice port, Bob on kms_bob port)` \
+    -L $localhost_kms_alice:$ip_alice:$kms_alice_port \
+    -L $localhost_kms_bob:$ip_bob:$kms_bob_port \
+    vq &
+
+echo "port forwarding on pid $! -- stop it with: kill $!"
 
 
 
