@@ -36,6 +36,10 @@ config/qline1/alice/*
 !config/qline1/alice/network.json
 config/qline1/bob/*
 !config/qline1/bob/network.json
+config/ets/alice/*
+!config/ets/alice/network.json
+config/ets/bob/*
+!config/ets/bob/network.json
 
 # Python and local runtime artifacts
 __pycache__/
