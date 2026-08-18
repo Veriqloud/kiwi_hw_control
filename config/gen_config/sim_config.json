@@ -2,7 +2,7 @@
     "angles": [0, 32, 96, 64],
     "seed": 42,
     "eta": 0.01,
-    "qberr": 0.03,
+    "qberr": 0.02,
     "pulse_distance": 12.5e-9,
     "dead_time": 15e-6,
     "dark_count_probability": 1.25e-6,
@@ -12,9 +12,10 @@
     ],
     "software_filter": 0.25,
     "speedup": 10.0,
+    "source_key_basis_probability": 0.9,
     "decoy_states": {
-        "mu1": 0.5,
-        "mu2": 0.1,
-        "p1": 0.7
+        "mu1": 0.23,
+        "mu2": 0.076,
+        "p1": 0.55
     }
 }

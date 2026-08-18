@@ -49,7 +49,7 @@ block is where the protocol is configured:
 | `key_path` | libp2p RSA keypair (PKCS8 DER) of this node. |
 | `qtol` | QBER tolerance: above it a round is discarded instead of turned into key. |
 | `clicks_per_round` | Clicks (detection windows) collected from the hardware before postprocessing starts. Not a key size — sifting, parameter estimation, error correction and privacy amplification all shrink it. |
-| `key_basis_mode` | `"Symmetrical"` keeps both bases for the final key. `{"Asymmetrical": {"basis": true}}` keeps only the selected one. |
+| `key_basis_mode` | `"Symmetrical"` keeps both bases for the final key. `{"Asymmetrical": {"basis": false, "expected_key_basis_probability": 0.9}}` keeps only the selected one (`false` is Z, `true` is X) and makes the other one the estimation basis. |
 | `decoystates` | Decoy-state parameters, or `null` for plain BB84. |
 
 `clicks_per_round` used to be `key_size_per_round` and counted angle bytes, of
@@ -64,9 +64,9 @@ analysis, so its presence is the protocol choice, not a tuning knob:
 
 ```json
 "decoystates": {
-    "mu1": 0.5,
-    "mu2": 0.1,
-    "p1": 0.7,
+    "mu1": 0.23,
+    "mu2": 0.076,
+    "p1": 0.55,
     "esec": 1e-10,
     "ecor": 1e-10,
     "K": 19
@@ -92,10 +92,44 @@ On hardware these three numbers are *measurements*, not settings: `mu1` and `mu2
 must be the attenuation levels the source actually emits, and `p1` the
 probability with which the FPGA picks `mu1` — the decoy RNG (`decoy_rng.service`
 on Alice) feeds it unbiased bits, so unless the firmware biases them `p1` is
-`0.5`, not the `0.7` the simulator is configured for. `mon`'s
+`0.5`, not the `0.55` the simulator is configured for. `mon`'s
 `decoy [n0, n1, n2, n3]` histogram shows the split a running link actually
 produces; a `p1` that disagrees with it bounds the key length for the wrong
 source.
+
+### `key_basis_mode` and the asymmetric protocol
+
+All shipped meta configs are on the **asymmetric** protocol: `basis` picks the
+basis kept for the final key (`false` is Z, `true` is X, the wire encoding), and
+the other basis becomes the estimation basis. It is never turned into key, so
+the node publishes it in full instead of carving a sample out of the sifted key
+— which is why the block handed to error correction is fixed at sifting time.
+`qtol` still gates on the QBER, but in this mode that QBER is measured on the
+*estimation* basis; the key basis error rate is only known after error
+correction.
+
+`expected_key_basis_probability` (pZ) is the probability with which the *source*
+is expected to pick the key basis. The node does not generate angles — they
+arrive from the hardware — so this is a validation aid, not a control: it never
+enters the key length bound, and a round whose realised split is far from it is
+logged as a warning. On the simulator the matching knob is
+`source_key_basis_probability` (below), and `gen_config` refuses to generate
+configs where the two disagree.
+
+**pZ has to follow the round size, it is not a constant.** The estimation set
+scales as `(1 - pZ)²`, and the phase-error bound stops certifying anything once
+it gets thin. At the shipped `clicks_per_round` of 10 000 000 the realised split
+is nZ ≈ 8.1e6 in the key basis and ≈ 1e5 in the estimation basis, which is where
+the bound still certifies. Measured on the simulator, the same `0.9` at
+`clicks_per_round` 2 000 000 leaves only ~2e4 estimation points and yields **no
+key at all** — 24 rounds, zero bits. Lowering `clicks_per_round` therefore means
+lowering pZ too, not copying `0.9` across.
+
+On real hardware pZ is a *measurement* in exactly the way `p1` is: the node reads
+whatever angles the FPGA emits. `0.9` in `meta_config_for_real.json` asserts that
+the firmware biases the angle stream that far towards Z — on firmware that draws
+the four angles uniformly the realised split is 0.5 and every round will warn.
+The simulator is the only place the bias is actually produced.
 
 ## The simulator config (`-s`)
 
@@ -116,6 +150,7 @@ set — keep the two identical rather than tuning this copy on its own:
 | `afterpulse` | Exponential components `{tau, p_ap}` of the afterpulse hazard, referenced to the full gate. `[]` disables it. |
 | `software_filter` | Fraction `f` of the gate the software gate keeps. Signal photons are all kept, dark counts and afterpulses only with probability `f`. `1.0` disables filtering. |
 | `speedup` | How much faster than real time the simulator delivers. Pure change of clock — the data is identical to a real-time run of the same seed. |
+| `source_key_basis_probability` | Probability with which the simulated source labels a pulse with the key basis (Z), for the asymmetric protocol. Absent draws all four angles uniformly. The detector is mirrored to `1 - p` automatically and is not configurable. Must match the node's `expected_key_basis_probability`. |
 | `decoy_states` | `mu1`/`mu2`/`p1` of the decoy source; absent disables decoy mode. |
 
 `afterpulse` ships with the measured parameters of the reference AUREA detector,
@@ -131,7 +166,7 @@ together — `"afterpulse": []`, `"dead_time": 0.0`,
 makes `dark_count_probability` `1.25e-6` — 100 cps, a typical InGaAs SPAD. The
 15 µs `dead_time` caps the raw rate at 67 kcps and the `0.25` software filter
 takes a few percent more off, so at `speedup` 10 the shipped `clicks_per_round`
-of 2 000 000 is a round of roughly 3 s. Raising `speedup` much further risks
+of 10 000 000 is a round of roughly 38 s. Raising `speedup` much further risks
 outrunning the node, which stalls rather than slowing down — see the ceiling
 discussion in hw_sim's README before changing it.
 

@@ -46,12 +46,17 @@
     "node": {
         "key_path": "/home/vq-user/authentication/private/node.pk8",
         "qtol": 0.09,
-        "clicks_per_round": 400000,
-        "key_basis_mode": "Symmetrical",
+        "clicks_per_round": 10000000,
+        "key_basis_mode": {
+            "Asymmetrical": {
+                "basis": false,
+                "expected_key_basis_probability": 0.9
+            }
+        },
         "decoystates": {
-            "mu1": 0.5,
-            "mu2": 0.1,
-            "p1": 0.7,
+            "mu1": 0.23,
+            "mu2": 0.076,
+            "p1": 0.55,
             "esec": 1e-10,
             "ecor": 1e-10,
             "K": 19
