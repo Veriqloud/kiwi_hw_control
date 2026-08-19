@@ -488,6 +488,8 @@ elif args.status:
             temp = rcv_d(bob)
         if temp < 30:
             temp_s = colored(temp, 'green')
+        else:
+            temp_s = colored(temp, 'yellow')
 
         # pci interface
         xilinx_bob = get_pci_status(bob)
