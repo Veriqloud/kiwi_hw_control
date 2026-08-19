@@ -47,7 +47,8 @@ control(){
     scp hw_alice.py hws_alice.py ctl_alice.py mon_alice.py $Alice:~/hw_control/
     scp lib/*.py $Alice:~/hw_control/lib/
     scp alice_server/*.py $Alice:~/server/
-    scp lib/laser/* $Alice:~/hw_control/lib/laser/
+    ssh $Alice "mkdir -p laserdriver"
+    scp laserdriver/ctl300.py $Alice:~/laserdriver/
     scp restartd.py $Alice:~/server/
     scp logd.py $Alice:~/server/
 

@@ -1,6 +1,6 @@
 #!/bin/python
 
-import socket, json, time, struct, sys, datetime, os
+import socket, json, time, struct, sys, datetime, os, subprocess
 #import numpy as np
 import ctl_alice as ctl
 from lib.fpga import get_tmp, save_tmp, update_tmp, Sync_Gc, wait_for_pps_ret, get_gc
@@ -237,24 +237,23 @@ def compare_gc(conn):
 
 
 
-from ctl_alice import read_laser_coeffs, calc_steinhart_resistance, read_rtact_from_laser, write_laser_config
+# The laser driver carries its own saved per-laser configuration -- operating
+# current, current limit, TEC setpoint and protection window are programmed once
+# with `ctl300.py save` and are not session state. `arm` only switches the laser
+# on and enables tprot; it refuses to run on a TEC that is off or not settled.
+laser_ctl = qlinepath + 'laserdriver/ctl300.py'
 
-def config_laser(conn=None, sendresult=True):
-    laser_file = qlinepath + 'hw_control/config/laser.txt'
-    coeffs = read_laser_coeffs(laser_file)
-
-    A, B, C, Temp, Ilaser= coeffs['A'], coeffs['B'], coeffs['C'], coeffs['Temp'],coeffs['Ilaser']
-    Rcalc = calc_steinhart_resistance(A, B, C, Temp)
-    success = write_laser_config(Rcalc, Ilaser)
-    time.sleep(2)
-    Rread = read_rtact_from_laser("/dev/ttylaser")
-
-    if abs(Rcalc - Rread) > 100:
-        print(f"Warning: Rcalc ({Rcalc:.2f}) differs from Rread ({Rread:.2f}) by more than 100 Ω")
-
+def laser_on(conn=None, sendresult=True):
+    r = subprocess.run([sys.executable, laser_ctl, 'arm'],
+                       capture_output=True, text=True)
+    out = (r.stdout + r.stderr).strip()
+    print(out)
     if sendresult and conn:
-        sendc(conn, f"laser_config_done Rcalc={Rcalc:.6f} Rread={Rread}")
-
+        if r.returncode == 0:
+            sendc(conn, 'laser_on done')
+        else:
+            last = out.splitlines()[-1] if out else f'exit {r.returncode}'
+            sendc(conn, f'laser_on failed: {last}'[:200])
 
 
 def qdistance(conn):
@@ -1714,7 +1713,7 @@ functionmap['free_running'] = free_running
 functionmap['sync_gc'] = sync_gc
 functionmap['compare_gc'] = compare_gc
 functionmap['vca_per'] = vca_per
-functionmap['config_laser'] = config_laser
+functionmap['laser_on'] = laser_on
 functionmap['qdistance'] = qdistance
 functionmap['find_vca'] = find_vca
 functionmap['find_am_bias'] = find_am_bias

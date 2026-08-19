@@ -111,7 +111,7 @@ init                : initialize the FPGA
 sync_gc             : synchronize GC
 compare_gc          : verify the synchronization
 vca_per             : configure VCA percentage
-config_laser        : configure the laser, read and compare resistances
+laser_on            : switch the laser on (parameters come from the driver's saved config)
 qdistance           : measure qdistance
 find_vca_nbrcount   : find VCA with a specified number of counts (0–4500 or up to 6000; default: 3000)
 find_am_bias        : find AM bias
@@ -210,7 +210,7 @@ if args.load:
 
 if args.full_init:
     interact('init')
-    interact('config_laser')
+    interact('laser_on')
     interact('sync_gc')
     interact('free_running')
     interact('find_vca')

@@ -651,7 +651,7 @@ class DemoBackend(Backend):
             return
         if name == "full_init":
             emit("[demo] hws.py --full_init on a running system ...")
-            for step in ("init", "config_laser", "sync_gc", "find_vca",
+            for step in ("init", "laser_on", "sync_gc", "find_vca",
                          "loop_find_gates", "fs_a", "adjust_am", "start"):
                 emit(f"[demo]   {step} done")
             self._error = ""
