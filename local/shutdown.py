@@ -6,8 +6,8 @@ Usage:
     QLINE_CONFIG_DIR=.../config/qline1 python3 shutdown.py [--use_localhost] <alice|bob|both> --yes
 
 Sends the `shutdown` command to restartd (TCP port restartd in network.json), which
-runs `sudo -n /usr/sbin/shutdown -h +0` on the node. Requires vq-user to have
-NOPASSWD sudo for /usr/sbin/shutdown; otherwise restartd replies with a clear error.
+runs `sudo -n /usr/sbin/shutdown -h now` on the node. Requires vq-user to have
+NOPASSWD sudo for exactly that command; otherwise restartd replies with a clear error.
 
 With --use_localhost, connect to localhost on the restartd_<node> port from
 ports_for_localhost.json instead (requires port_forwarding.sh tunnels).

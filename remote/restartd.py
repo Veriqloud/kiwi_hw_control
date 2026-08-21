@@ -144,12 +144,16 @@ def restart(svc):
 # so without that rule this returns a clear error instead of hanging. shutdown
 # forks and returns, so the reply is sent before the box actually halts. Recover
 # a powered-off node with local/wake.sh (wake-on-LAN).
-SHUTDOWN_CMD = ['sudo', '-n', '/usr/sbin/shutdown', '-h', '+0']
+#
+# The argument list has to match the sudoers rule exactly, which grants
+# `/usr/sbin/shutdown -h now`. `-h +0` means the same thing to shutdown but is a
+# different command to sudo, which refuses it.
+SHUTDOWN_CMD = ['sudo', '-n', '/usr/sbin/shutdown', '-h', 'now']
 
 def do_shutdown():
     r = subprocess.run(SHUTDOWN_CMD, capture_output=True, text=True)
     if r.returncode == 0:
-        return "shutdown initiated (shutdown -h +0); node powering off. Recover with local/wake.sh"
+        return "shutdown initiated (shutdown -h now); node powering off. Recover with local/wake.sh"
     msg = r.stderr.strip() or r.stdout.strip() or "unknown error"
     return (f"shutdown FAILED (rc={r.returncode}): {msg}. "
             "vq-user needs NOPASSWD sudo for /usr/sbin/shutdown.")
