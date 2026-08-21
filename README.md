@@ -14,6 +14,7 @@ The program `qber` is for testing purposes and plots the correlation matrix for 
 ├── deployment  # how to deploy on hardware
 ├── gc          # rust program between FPGA and node; provides raw key
 ├── local       # control scripts remaining on your local machine
+│   ├── bias_sweep.py # sweep one Alice knob against Bob's APD counts
 │   ├── hw_alice.py # low level hardware control for Alice
 │   ├── hw_bob.py   # low level hardware control for Bob
 │   ├── hws.py      # Alice-Bob system control such as initial calibration
