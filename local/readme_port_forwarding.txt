@@ -11,6 +11,24 @@ Alice and Bob have TCP servers running that listen on certain ports. There are t
 
 `port_forwarding.sh` will establish port forwarding based on config/network.json and config/ports_for_localhost.json.  
 
+    port_forwarding.sh            start
+    port_forwarding.sh --status   supervisor, ssh and listener state
+    port_forwarding.sh --stop     stop
+
+It runs detached and stays up on its own: a supervisor rebuilds the tunnel when ssh
+exits, and kills ssh when the forwards stop listening. Keepalives drop a connection
+whose peer went away after 45 s. Pid file and log live in $XDG_RUNTIME_DIR/qline
+(/tmp/qline when that is unset).
+
+Rebuild attempts back off 5, 10, 20 ... up to 300 s, and reset to 5 s once a tunnel
+has held for a minute, so an unreachable vq is retried on a widening interval rather
+than several times a minute. A fresh ssh gets 20 s before the listener check applies,
+since it has to authenticate and bind eleven forwards first.
+
+A tunnel left behind by a dead supervisor holds the local ports and can also hold a
+half-open connection to a node, which keeps that node's server blocked on it and
+refusing new clients. Starting clears any such tunnel first.
+
 `hw_alice.py --use_localhost` will read the ports from config/ports_for_localhost.json and connect on localhost:someotherport
 
 
