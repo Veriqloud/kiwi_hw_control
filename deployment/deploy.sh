@@ -51,6 +51,7 @@ control(){
     scp laserdriver/ctl300.py $Alice:~/laserdriver/
     scp restartd.py $Alice:~/server/
     scp logd.py $Alice:~/server/
+    scp node_idle_flag.sh $Alice:~/server/
 
     scp hw_bob.py ctl_bob.py hws_bob.py mon_bob.py $Bob:~/hw_control/
     scp lib/*.py $Bob:~/hw_control/lib/
@@ -59,6 +60,7 @@ control(){
     scp bob_server/*.py $Bob:~/server/
     scp restartd.py $Bob:~/server/
     scp logd.py $Bob:~/server/
+    scp node_idle_flag.sh $Bob:~/server/
     cd -
 
     # Staging copy of the log-rotation config. This only lands in ~/server; a root
