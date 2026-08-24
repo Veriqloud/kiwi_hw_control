@@ -18,7 +18,9 @@ local/wake.sh (wake-on-LAN).
 
 import socket, json, os, sys
 
-CFG = os.environ.get('QLINE_CONFIG_DIR') or os.path.expanduser('~/kiwi_hw_control/config/qline1')
+CFG = os.environ.get('QLINE_CONFIG_DIR')
+if not CFG:
+    sys.exit("please set QLINE_CONFIG_DIR")
 
 
 def send_cmd(s, text):

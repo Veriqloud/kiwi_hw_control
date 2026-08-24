@@ -5,7 +5,9 @@
 # (set_error/clear_error) and does NOT loop/plot.
 import socket, json, struct, os, sys
 
-CFG = os.environ.get('QLINE_CONFIG_DIR') or os.path.expanduser('~/kiwi_hw_control/config/qline1')
+CFG = os.environ.get('QLINE_CONFIG_DIR')
+if not CFG:
+    sys.exit("please set QLINE_CONFIG_DIR")
 # --use_localhost: connect via localhost tunnels (port_forwarding.sh) instead of node IPs.
 use_localhost = '--use_localhost' in sys.argv[1:]
 network = json.load(open(os.path.join(CFG, 'alice/network.json')))

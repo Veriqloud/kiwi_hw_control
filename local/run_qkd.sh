@@ -9,6 +9,9 @@
 # A cold-booted FPGA has 0 counts and the node idles until /tmp/qkd_ready exists,
 # so after a power cycle the command you want is:  run_qkd.sh --init
 # Notes live in memory: qline1-operations, restartd-tool, logd-tool.
+#
+# QLINE_CONFIG_DIR must point at the config dir for the pair; the qline1|qline2
+# argument only selects the ssh aliases.
 set -u
 
 QLINE=qline1; STATUS=0; INIT=0; TUNE=0
@@ -19,7 +22,7 @@ esac; done
 case "$QLINE" in qline1) AS=KAlice; BS=KBob ;; qline2) AS=KAlice2; BS=KBob2 ;; esac
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
-export QLINE_CONFIG_DIR="${QLINE_CONFIG_DIR:-$HOME/kiwi_hw_control/config/$QLINE}"
+export QLINE_CONFIG_DIR="${QLINE_CONFIG_DIR:?please set it to the config dir for this pair}"
 SSH="ssh -o BatchMode=yes -o ConnectTimeout=8"
 QTOL=0.09; fail=0
 ok(){   echo "  [OK]   $*"; }

@@ -36,7 +36,7 @@ done
 set -- "${_args[@]}"
 
 if [ "$USE_LOCALHOST" = 1 ]; then
-    CFG="${QLINE_CONFIG_DIR:-$HOME/kiwi_hw_control/config/qline1}"
+    CFG="${QLINE_CONFIG_DIR:?please set it to the config dir}"
     ALICE_IP="localhost"
     BOB_IP="localhost"
     ALICE_PORT=$(jq '.kms_alice' "$CFG/ports_for_localhost.json")

@@ -79,7 +79,9 @@ def main():
     ap.add_argument('--show', action='store_true', help='open a window instead of saving')
     args = ap.parse_args()
 
-    cfg = os.environ.get('QLINE_CONFIG_DIR') or os.path.expanduser('~/kiwi_hw_control/config/qline1')
+    cfg = os.environ.get('QLINE_CONFIG_DIR')
+    if not cfg:
+        sys.exit("please set QLINE_CONFIG_DIR")
     times, keylen, qber = parse(fetch_stats(cfg, args.node, args.n, args.use_localhost))
     if len(times) < 2:
         sys.exit('not enough data points to plot')
