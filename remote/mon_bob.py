@@ -212,9 +212,18 @@ def handle_client(conn, addr):
         
 
             elif command == 'get_rng_status':
-                with open(rng_errorfile, 'rb') as f:
-                    status = f.read()
-                status = int.from_bytes(status, byteorder='little')
+                try:
+                    with open(rng_errorfile, 'rb') as f:
+                        status = f.read()
+                    status = int.from_bytes(status, byteorder='little')
+                except FileNotFoundError:
+                    # rng2fpga writes this file every time it starts, and /tmp is
+                    # cleared at boot, so its absence means the rng service has not
+                    # run since this machine came up -- nothing is feeding the fpga.
+                    # That is an error state rather than an unknown one, so report a
+                    # non-zero status; 256 is outside the range of the one-byte flag
+                    # rng2fpga writes, so it cannot be mistaken for one of its codes.
+                    status = 256
                 send_i(conn, int(status))
             
             elif command == 'get_spd_temp':

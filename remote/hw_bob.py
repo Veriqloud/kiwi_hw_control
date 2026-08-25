@@ -290,9 +290,13 @@ while True:
                 
             
             elif command == 'get_info':
-                with open(HW_CONTROL+'config/tmp.txt') as f:
-                    s = f.read()
-                    sendc(s)
+                try:
+                    with open(HW_CONTROL+'config/tmp.txt') as f:
+                        s = f.read()
+                except FileNotFoundError:
+                    s = ('no hardware parameters yet: '
+                         'run "hw_bob.py init --clean" to write the defaults')
+                sendc(s)
             elif command == 'get_gc':
                 gc = get_gc()
                 #gc = ctl.Get_Current_Gc()
