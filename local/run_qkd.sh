@@ -2,8 +2,11 @@
 # run_qkd.sh - bring up the qline pair from the control host and report key status.
 #   (default)  wake -> wait -> health-check -> report QBER + stored keys
 #   --status   report only, no wake (and don't wait for a round)
-#   --init     hws.py --full_init (retried up to 3x); REQUIRED after a power cycle.
+#   --init     hws.py --full_init_<nm> (retried up to 3x); REQUIRED after a power
+#              cycle. Needs --laser, because Alice carries a 1310 and a 1510 laser
+#              and which one is patched in is a fact about the bench, not the config.
 #              Its `start` step auto-raises /tmp/qkd_ready, so the node resumes QKD.
+#   --laser    1310|1510, the laser currently patched in (required with --init)
 #   --tune     hws.py --auto_control if QBER is above tolerance
 #
 # A cold-booted FPGA has 0 counts and the node idles until /tmp/qkd_ready exists,
@@ -14,11 +17,16 @@
 # argument only selects the ssh aliases.
 set -u
 
-QLINE=qline1; STATUS=0; INIT=0; TUNE=0
+QLINE=qline1; STATUS=0; INIT=0; TUNE=0; LASER=
 for a in "$@"; do case "$a" in
   --status) STATUS=1 ;; --init) INIT=1 ;; --tune) TUNE=1 ;;
+  --laser=*) LASER="${a#--laser=}" ;;
+  1310|1510) LASER="$a" ;;
   qline1|qline2) QLINE="$a" ;; *) echo "unknown arg: $a"; exit 2 ;;
 esac; done
+case "$LASER" in ''|1310|1510) ;; *) echo "unknown laser: $LASER (1310|1510)"; exit 2 ;; esac
+[ "$INIT" = 0 ] || [ -n "$LASER" ] || {
+  echo "--init needs the laser: run_qkd.sh --init --laser 1310|1510"; exit 2; }
 case "$QLINE" in qline1) AS=KAlice; BS=KBob ;; qline2) AS=KAlice2; BS=KBob2 ;; esac
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -60,11 +68,11 @@ done; done
 
 # 4. calibrate (cold FPGA needs it; full_init's `start` auto-raises /tmp/qkd_ready)
 if [ "$INIT" = 1 ]; then
-  hdr "Calibrate (hws --full_init, up to 3 tries)"
+  hdr "Calibrate (hws --full_init_$LASER, up to 3 tries)"
   for t in 1 2 3; do
-    out=$(python3 "$HERE/hws.py" --full_init 2>&1)
+    out=$(python3 "$HERE/hws.py" "--full_init_$LASER" 2>&1)
     if echo "$out" | grep -q "start done" && ! echo "$out" | grep -qiE "command or error|CalledProcessError|can not open"; then
-      ok "full_init succeeded (try $t)"; break
+      ok "full_init_$LASER succeeded (try $t)"; break
     fi
     [ $t = 3 ] && act "full_init failed 3x - inspect: local/logs.py alice tail hws" \
               || warn "full_init try $t failed (fs_a is stochastic); retrying"

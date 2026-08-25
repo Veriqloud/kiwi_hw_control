@@ -46,7 +46,7 @@ def get_tmp():
     return : dictionary from config/tmp.txt
     """
     t = {}
-    floatlist = ['qdistance', 'pol0', 'pol1', 'pol2', 'pol3', 'vca', 'am_bias','am2_bias',  'am2_bias_min', 'angle0', 'angle1', 'angle2', 'angle3', 'vca_calib', 'decoy_p0', 'basis_p0']
+    floatlist = ['qdistance_1310', 'qdistance_1510', 'pol0', 'pol1', 'pol2', 'pol3', 'vca', 'am_bias','am2_bias',  'am2_bias_min', 'angle0', 'angle1', 'angle2', 'angle3', 'vca_calib', 'decoy_p0', 'basis_p0']
     strlist = ['spd_mode', 'am_mode', 'pm_mode', 'feedback', 'soft_gate', 'insert_zeros', 'am2_mode']
     with open(HW_CONTROL+"config/tmp.txt") as f:
         lines = f.readlines()
@@ -77,7 +77,7 @@ def get_calibrated(filename):
     return : dictionary from /home/vq-user/config/filename
     """
     t = {}
-    floatlist = ['qdistance', 'pol0', 'pol1', 'pol2', 'pol3', 'vca', 'am_bias','am2_bias',  'am2_bias_min', 'angle0', 'angle1', 'angle2', 'angle3', 'vca_calib', 'decoy_p0', 'basis_p0']
+    floatlist = ['qdistance_1310', 'qdistance_1510', 'pol0', 'pol1', 'pol2', 'pol3', 'vca', 'am_bias','am2_bias',  'am2_bias_min', 'angle0', 'angle1', 'angle2', 'angle3', 'vca_calib', 'decoy_p0', 'basis_p0']
     strlist = ['spd_mode', 'am_mode', 'pm_mode', 'feedback', 'soft_gate', 'insert_zeros', 'am2_mode']
     with open("/home/vq-user/config/calibration/"+filename) as f:
         lines = f.readlines()

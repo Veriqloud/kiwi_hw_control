@@ -243,8 +243,23 @@ def compare_gc(conn):
 # on and enables tprot; it refuses to run on a TEC that is off or not settled.
 laser_ctl = qlinepath + 'laserdriver/ctl300.py'
 
-def laser_on(conn=None, sendresult=True):
-    r = subprocess.run([sys.executable, laser_ctl, 'arm'],
+def set_laser(conn, nm):
+    """Record which laser is patched in.
+
+    The fiber is moved by hand, so this is the only place the software learns
+    which of the two is connected. Everything wavelength-dependent reads it back
+    out of tmp.txt rather than taking a parameter of its own.
+    """
+    update_tmp('laser', nm)
+    print(colored(f'laser set to {nm} nm', 'green', force_color=True))
+    if conn:
+        sendc(conn, f'set_laser {nm} done')
+
+
+def laser_on(conn=None, nm=None, sendresult=True):
+    if nm is None:
+        raise ValueError('laser_on needs a wavelength: laser_on_1310 or laser_on_1510')
+    r = subprocess.run([sys.executable, laser_ctl, 'arm', '-w', str(nm)],
                        capture_output=True, text=True)
     out = (r.stdout + r.stderr).strip()
     print(out)
@@ -257,6 +272,12 @@ def laser_on(conn=None, sendresult=True):
 
 
 def qdistance(conn):
+    # Which key this sweep lands in follows the patched-in laser, the same one
+    # Update_Dac reads; ctl.qdistance_for_laser raises if that is not set, which
+    # is what stops a sweep from overwriting the other laser's value.
+    t = get_tmp()
+    ctl.qdistance_for_laser(t)
+    qkey = f"qdistance_{t['laser']}"
     sendc(bob, 'qdistance')
     best_q = 0.0
     max_count = 0
@@ -266,7 +287,7 @@ def qdistance(conn):
     low_th = 150
 
     for qd in np.arange(0.0, 1.01, 0.1):
-        update_tmp('qdistance', qd)
+        update_tmp(qkey, qd)
         ctl.Update_Dac()
         time.sleep(0.2)
         sendc(bob, 'get counts')
@@ -286,7 +307,7 @@ def qdistance(conn):
     end = min(1.0, best_q + 0.075)
 
     for qd in np.arange(start, end, 0.025):
-        update_tmp('qdistance', qd)
+        update_tmp(qkey, qd)
         ctl.Update_Dac()
         time.sleep(0.2)
         sendc(bob, 'get counts')
@@ -302,7 +323,7 @@ def qdistance(conn):
     fine_end = min(1.0, refined_q + 0.021)
 
     for qd in np.arange(fine_start, fine_end, 0.01):
-        update_tmp('qdistance', qd)
+        update_tmp(qkey, qd)
         ctl.Update_Dac()
         time.sleep(0.2)
         sendc(bob, 'get counts')
@@ -312,7 +333,7 @@ def qdistance(conn):
             max_count = diff_count
             fine_q = qd
 
-    update_tmp('qdistance', fine_q)
+    update_tmp(qkey, fine_q)
     #update_default('qdistance', fine_q)
     ctl.Update_Dac()
     msg = colored(f"{fine_q:.3f} / {max_count} counts", "green")
@@ -1714,6 +1735,7 @@ functionmap['sync_gc'] = sync_gc
 functionmap['compare_gc'] = compare_gc
 functionmap['vca_per'] = vca_per
 functionmap['laser_on'] = laser_on
+functionmap['set_laser'] = set_laser
 functionmap['qdistance'] = qdistance
 functionmap['find_vca'] = find_vca
 functionmap['find_am_bias'] = find_am_bias
@@ -1813,6 +1835,14 @@ while True:
                     per = int(command[len('vca_per_'):])
                     print('command: ', command)
                     functionmap['vca_per'](conn, per)
+                elif command.startswith('laser_on_'):
+                    nm = int(command[len('laser_on_'):])
+                    print('command: ', command)
+                    functionmap['laser_on'](conn, nm)
+                elif command.startswith('set_laser_'):
+                    nm = int(command[len('set_laser_'):])
+                    print('command: ', command)
+                    functionmap['set_laser'](conn, nm)
                 elif command.startswith('save_'):
                     name = command[len('save_'):]
                     functionmap['save'](conn, name)

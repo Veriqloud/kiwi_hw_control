@@ -102,7 +102,10 @@ parser = argparse.ArgumentParser(
     description="""
 Options:
 --use_localhost : connect to localhost instead of the IP from network.json (useful for port forwarding)
---full_init     : reset and calibrate the system
+--full_init_1310 / --full_init_1510
+                : reset and calibrate the system for the laser named. Alice carries both;
+                  the fiber is patched by hand, so the wavelength has to be stated and
+                  there is no bare --full_init.
 --command       : execute one or more specific commands
 --monitoring    : run the monitoring loop
 
@@ -111,8 +114,11 @@ init                : initialize the FPGA
 sync_gc             : synchronize GC
 compare_gc          : verify the synchronization
 vca_per             : configure VCA percentage
-laser_on            : switch the laser on (parameters come from the driver's saved config)
-qdistance           : measure qdistance
+laser_on_1310 / laser_on_1510
+                    : switch that laser on (current and limit come from the driver's saved config)
+set_laser_1310 / set_laser_1510
+                    : record which laser is patched in; everything wavelength-dependent reads it back
+qdistance           : measure qdistance, into the key of the patched-in laser
 find_vca_nbrcount   : find VCA with a specified number of counts (0–4500 or up to 6000; default: 3000)
 find_am_bias        : find AM bias
 verify_am_bias      : verify AM bias
@@ -169,8 +175,10 @@ parser.add_argument("--monitoring", action="store_true",
 parser.add_argument("--auto_control", action="store_true",
                     help="run monitoring loop")
 
-parser.add_argument("--full_init", action="store_true",
-                    help="to be replaced")
+parser.add_argument("--full_init_1310", action="store_true",
+                    help="reset and calibrate for the 1310 nm laser")
+parser.add_argument("--full_init_1510", action="store_true",
+                    help="reset and calibrate for the 1510 nm laser")
 
 # parse arguments
 args = parser.parse_args()
@@ -208,20 +216,23 @@ if args.load:
     interact('load_'+args.load)
 
 
-if args.full_init:
+def full_init(nm):
+    # set_laser first: Update_Dac refuses to run until it knows which laser is
+    # patched in, so every step below that touches the modulator depends on it.
+    interact(f'set_laser_{nm}')
     interact('init')
-    interact('laser_on')
+    interact(f'laser_on_{nm}')
     interact('sync_gc')
     interact('free_running')
     interact('find_vca')
     interact('loop_find_am_bias')
-#    interact('loop_find_am2_bias')
+    interact('loop_find_am2_bias')
 #    interact('find_am2_bias')
     interact('pol_bob')
     interact('vca_per_90')
     interact('loop_find_gates')
-#    interact('qdistance')
-#    interact('loop_find_gates')
+    interact('qdistance')
+    interact('loop_find_gates')
     interact('fs_b')
     interact('fs_a')
     interact('fd_b')
@@ -235,6 +246,11 @@ if args.full_init:
 #    interact('adjust_angles_a')
 #    interact('adjust_angles_b')
     interact('start')
+
+
+for nm in (1310, 1510):
+    if getattr(args, f'full_init_{nm}'):
+        full_init(nm)
 
 if args.auto_control:
    # for _ in range(3):

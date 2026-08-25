@@ -265,6 +265,29 @@ def gen_decoy():
 
     
     
+def qdistance_for_laser(t):
+    """The arm delay of the laser currently patched in, per `laser` in tmp.txt.
+
+    The two lasers need different values and the fiber between them is swapped
+    by hand, so which one is connected cannot be read from the hardware.
+    `laser` is that statement, written by hws' full_init_<nm>.  Absent, it means
+    nobody has said which laser this is -- and defaulting would apply the other
+    laser's calibration to whatever is actually on the bench, silently, on every
+    Update_Dac.  So this raises instead.
+    """
+    nm = t.get('laser')
+    if nm is None:
+        raise KeyError(
+            "'laser' is not set in config/tmp.txt -- nothing has said which "
+            "laser is patched in. Run 'hws.py --full_init_1310' or "
+            "'hws.py --full_init_1510'.")
+    key = f'qdistance_{nm}'
+    if key not in t:
+        raise KeyError(f"'{key}' is missing from config/tmp.txt -- "
+                       f"run 'hws.py --full_init_{nm}' to measure it")
+    return t[key]
+
+
 def Update_Dac():
     # update from tmp.txt
     # Generate sequences for dac0 and dac1 and write to device.
@@ -275,7 +298,7 @@ def Update_Dac():
     elif t['am_mode'] == 'single':
         dac0 = gen_seq.dac0_single(64, t['am_shift'])
     elif t['am_mode'] == 'double':
-        dac0 = gen_seq.dac0_double(64, t['qdistance'], t['am_shift'])
+        dac0 = gen_seq.dac0_double(64, qdistance_for_laser(t), t['am_shift'])
     elif t['am_mode'] == 'single64':
         dac0 = gen_seq.dac0_single_single(64, t['am_shift'])
 
@@ -441,7 +464,11 @@ def rst_config():
     t['angle1'] = 0.18
     t['angle2'] = -0.18
     t['angle3'] = 0.36
-    t['qdistance'] = 0.25
+    # One arm delay per laser; `laser` is deliberately not set here, so a
+    # freshly reset board refuses to drive the modulator until somebody
+    # says which laser is patched in (see qdistance_for_laser).
+    t['qdistance_1310'] = 0.25
+    t['qdistance_1510'] = 0.25
     t['fiber_delay_mod'] = 0
     t['fiber_delay'] = 0
     t['fiber_delay_long'] = 0
