@@ -4,6 +4,22 @@
 115200 8N1, no flow control, commands terminated \\r\\n. The board echoes each
 command, returns the value, then a ">>" prompt.
 
+Every Alice carries two drivers, one per laser, so every invocation names the
+laser it means:
+
+  -w 1310                   LD-PD 1310 nm
+  -w 1510                   LD4B 1510 nm DFB
+
+The two FT232H bridges report no serial number, so which of them becomes
+/dev/ttyUSB0 is decided by enumeration order and changes across reboots -- the
+`ttylaser` udev symlink matches both and lands on whichever came up last.  So
+-w does not resolve to a fixed device node.  It reads `ilmax` off each driver
+and picks the one whose limit matches the laser asked for: `save` writes ilmax,
+the board keeps it across power cycles, and 120 vs 350 mA tells the two lasers
+apart with no room for a near miss.  A board still at the 400 mA power-on
+default carries no configuration and therefore no identity; it can only be
+reached with an explicit --port, which is what programming a fresh board needs.
+
 Subcommands:
   query                     read-only dump of the interesting registers
   up  [-c <mA>] -r <ohm>    full bring-up: TEC, settle, laser on
@@ -28,36 +44,58 @@ driver carries a saved per-laser configuration, so:
     setting it -- 400 mA is the board's power-on default, so seeing that means
     the saved config did not load, not that the limit needs writing.
 
-Program a board once per laser:
+Program a board once per laser.  A fresh board is still at ilmax 400 and cannot
+be found by -w yet, so name it by port the first time; afterwards -w finds it:
 
-    save -c 200 --ilmax 350 -r 10000 --rtmin 8000 --rtmax 12500   # LD-PD 1310
-    save -c 115                                                   # LD4B 1510
+    save -w 1310 --port /dev/serial/by-path/<...> -c 200   # LD-PD 1310
+    save -w 1510 --port /dev/serial/by-path/<...> -c 115   # LD4B 1510
 
-Where a value *is* passed, the defaults target the **LD4B 1510 nm DFB**
-(S/N 2600935/36), whose spec MAX Iop is 120 mA -- so `--ilmax` defaults to 120
-and must not be raised.  Defaulting to the *lower* of the two lasers' limits is
-deliberate: a 1310 unit run on 1510 defaults is merely underpowered, whereas the
-reverse overdrives a 120 mA laser by 90 mA.
+`--ilmax`, `-r/--rtset`, `--rtmin` and `--rtmax` default to the values for the
+laser named by -w (see LASERS below); an explicit flag still wins.  The LD4B
+1510 (S/N 2600935/36) has a spec MAX Iop of 120 mA, so its `--ilmax` is 120 and
+must not be raised.  `-c` has no default at all, per-laser or otherwise -- an
+absent -c leaves the programmed setpoint alone.
 """
 import argparse
-import fcntl, math, os, re, sys, termios, time
+import fcntl, glob, math, os, re, sys, termios, time
 
-PORT = "/dev/ttyUSB0"
+# The bridges have no serial number, so the by-path names -- which carry the USB
+# port the driver is plugged into -- are the only stable handles on them.
+PORT_GLOB = "/dev/serial/by-path/*-port0"
+
+# Per-laser saved configuration.  `ilmax` doubles as the board's identity: it is
+# part of what `save` persists, and the two limits are 230 mA apart.
+LASERS = {
+    1310: dict(model="LD-PD 1310", ilmax=350.0, rtset=9939.4,
+               rtmin=8144.6, rtmax=12122.9),
+    1510: dict(model="LD4B 1510", ilmax=120.0, rtset=9939.4,
+               rtmin=7986.9, rtmax=12471.3),
+}
+
+# The board's power-on ilmax.  50 mA above the LD-PD's absolute maximum and 280
+# above the LD4B's, so it is never a configured value -- seeing it means the
+# saved config did not load.
+UNPROGRAMMED_ILMAX = 400.0
 
 QUERY_SET = ["version", "err", "lason", "tecon", "lckon", "tprot", "ilmax",
              "ilaser", "vlaser", "iphd", "rtset", "rtact", "rtmin", "rtmax",
              "itec", "vtec", "tboard"]
 
 
+class DriverUnavailable(Exception):
+    """This driver could not be opened; another one may still be the right one."""
+
+
 class CTL300:
-    def __init__(self, port=PORT):
+    def __init__(self, port):
         if not os.path.exists(port):
-            sys.exit(f"error: {port} does not exist — driver unplugged?")
+            raise DriverUnavailable(f"{port} does not exist — driver unplugged?")
         try:
             self.fd = os.open(port, os.O_RDWR | os.O_NOCTTY | os.O_NONBLOCK)
         except PermissionError:
-            sys.exit(f"error: no permission to open {port} — see "
-                     "laserdriver/99-ftdi-laserdriver.rules")
+            raise DriverUnavailable(f"no permission to open {port} — see "
+                                    "laserdriver/99-ftdi-laserdriver.rules")
+        self.port = port
         # Two processes on one tty interleave their replies, and a command that
         # reads back someone else's answer looks exactly like a register refusing
         # to take a value -- including on `lason`, where that reads as a laser
@@ -66,8 +104,8 @@ class CTL300:
             fcntl.flock(self.fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except OSError:
             os.close(self.fd)
-            sys.exit(f"error: {port} is already open in another process — "
-                     "finish or stop that one first")
+            raise DriverUnavailable(f"{port} is already open in another process — "
+                                    "finish or stop that one first")
         self._configure()
         time.sleep(0.1)
         # Opening the port can wake a banner and a prompt out of the board.  This
@@ -193,6 +231,74 @@ def verify_dark(d, timeout=3.0):
     sys.exit("error: laser is still emitting — do NOT touch the fiber\n"
              f"{detail}\n"
              "  re-run 'ctl300.py disarm', then check the meter reads dark")
+
+
+def driver_ports():
+    """The by-path names of the drivers, one per physical bridge.
+
+    /dev/serial/by-path lists every device twice, once under `usb-0:` and once
+    under `usbv2-0:`; both are the same tty.  Opening the duplicate of a board
+    already held would fail the exclusive flock and report it as busy, so
+    collapse them by the node they resolve to.
+    """
+    by_node = {}
+    for port in sorted(glob.glob(PORT_GLOB)):
+        by_node.setdefault(os.path.realpath(port), port)
+    return sorted(by_node.values())
+
+
+def open_driver(wavelength, explicit_port=None):
+    """Open the driver of `wavelength`, identified by the ilmax it has saved.
+
+    Opening each candidate in turn is what makes this safe against the bridges
+    having no serial: the board is asked which laser it is configured for
+    instead of being inferred from a device node that moves.  A board that is
+    not the one asked for is closed again untouched -- reading ilmax writes
+    nothing.
+
+    Refusing on no match is the point of the function.  The failure this guards
+    against is arming the 1310 board while meaning the 1510: `-c 200` into a
+    laser whose absolute maximum is 120 mA destroys it, and a mixed-up device
+    node is exactly how that happens.
+    """
+    spec = LASERS[wavelength]
+    if explicit_port:
+        d = CTL300(explicit_port)
+        ilmax = d.num("ilmax")
+        if ilmax != spec["ilmax"]:
+            print(f"warning: {explicit_port} has ilmax {ilmax} mA, but "
+                  f"{wavelength} nm ({spec['model']}) expects {spec['ilmax']} mA\n"
+                  "  proceeding because --port was given explicitly — make sure "
+                  "this is the board you mean", file=sys.stderr)
+        return d
+
+    matched, others = None, []
+    for port in driver_ports():
+        try:
+            d = CTL300(port)
+        except DriverUnavailable as e:
+            others.append(f"{port}: {e}")
+            continue
+        ilmax = d.num("ilmax")
+        if ilmax == spec["ilmax"] and matched is None:
+            matched = d
+            continue
+        others.append(f"{port}: ilmax {ilmax} mA" +
+                      ("  (unprogrammed — power-on default)"
+                       if ilmax == UNPROGRAMMED_ILMAX else ""))
+        d.close()
+
+    if matched is None:
+        detail = "\n".join("  " + o for o in others) or "  (no drivers found)"
+        sys.exit(f"error: no driver is configured for {wavelength} nm "
+                 f"({spec['model']}, ilmax {spec['ilmax']} mA)\n"
+                 f"{detail}\n"
+                 "  a board at 400 mA has no saved config and cannot be "
+                 "identified — program it with an explicit --port, e.g.\n"
+                 f"    ctl300.py save -w {wavelength} --port <by-path> -c <mA>")
+    print(f"  driver       {matched.port}\n"
+          f"  laser        {wavelength} nm  ({spec['model']})")
+    return matched
 
 
 def do_query(d):
@@ -443,6 +549,12 @@ if __name__ == "__main__":
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("action", choices=["query", "up", "down", "save", "arm", "disarm", "temp"])
+    p.add_argument("-w", "--wavelength", type=int, required=True, choices=sorted(LASERS),
+                   help="which laser to address; selects the driver and the "
+                        "ilmax/rtset/rtmin/rtmax defaults")
+    p.add_argument("--port", default=None,
+                   help="address this driver directly instead of finding it by "
+                        "ilmax — needed for a board that is not programmed yet")
     p.add_argument("--tecon", type=int, default=1, choices=[0, 1],
                    help="TEC state to persist (save only)")
     # No default: an absent -c leaves the programmed setpoint alone (see the
@@ -450,13 +562,13 @@ if __name__ == "__main__":
     # default -- so its current-ramp scan is unaffected by this.
     p.add_argument("-c", "--current", type=float, default=None,
                    help="ilaser, mA -- omit to keep the programmed setpoint")
-    p.add_argument("-r", "--rtset", type=float, default=9939.4,
+    p.add_argument("-r", "--rtset", type=float, default=None,
                    help="thermistor setpoint, ohm (9939.4 = 25.00 C, the sheet's Tc)")
-    p.add_argument("--ilmax", type=float, default=120.0,
+    p.add_argument("--ilmax", type=float, default=None,
                    help="software current limit, mA -- save only, up never writes it "
-                        "(120 = LD4B spec MAX Iop, do not raise)")
-    p.add_argument("--rtmin", type=float, default=7986.9, help="hot limit, ohm (30.5 C)")
-    p.add_argument("--rtmax", type=float, default=12471.3, help="cold limit, ohm (19.5 C)")
+                        "(LD4B spec MAX Iop is 120, do not raise)")
+    p.add_argument("--rtmin", type=float, default=None, help="hot limit, ohm")
+    p.add_argument("--rtmax", type=float, default=None, help="cold limit, ohm")
     p.add_argument("--tol", type=float, default=20.0, help="settle tolerance, ohm")
     p.add_argument("--timeout", type=float, default=300.0, help="settle timeout, s")
     p.add_argument("-T", "--celsius", type=float, help="chip temperature setpoint, C (temp only)")
@@ -464,7 +576,15 @@ if __name__ == "__main__":
                    help="+/- C of protection window around the setpoint (temp only)")
     args = p.parse_args()
 
-    d = CTL300()
+    spec = LASERS[args.wavelength]
+    for key in ("ilmax", "rtset", "rtmin", "rtmax"):
+        if getattr(args, key) is None:
+            setattr(args, key, spec[key])
+
+    try:
+        d = open_driver(args.wavelength, args.port)
+    except DriverUnavailable as e:
+        sys.exit(f"error: {e}")
     try:
         if args.action == "query":
             do_query(d)
