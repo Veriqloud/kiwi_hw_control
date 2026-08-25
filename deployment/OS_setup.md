@@ -215,6 +215,54 @@ wrong module of the same name, not a bad bitstream.
 
 
 
+# FPGA bitstream
+
+Flashed from the node itself over the board's USB link, with Opal Kelly's
+FrontPanel SDK (5.3.6, unpacked in `~/FrontPanel/`; no system install needed --
+`flashloader` finds `libokFrontPanel.so.1` by relative path). It needs
+`liblua5.3-0`, which is not on a fresh install:
+
+```.bash
+sudo apt-get install -y --no-install-recommends liblua5.3-0
+cd ~/FrontPanel/FrontPanel-Ubuntu22.04LTS-x64-5.3.6/Samples/FlashLoader/Cxx
+sudo ./flashloader w ~/hw_bitstream/Qline_turnkey_top_wrapper.bit
+```
+
+`w` writes the configuration flash and sets the bitstream to load at boot, so it
+survives a power cycle -- and only takes effect at the next one. On a board that
+boots from system flash the write path deliberately skips `ConfigureFPGA`, so the
+running design is untouched and PCIe stays up during the write; `r` and `c` do
+reconfigure the FPGA, which drops the endpoint and the xdma device nodes.
+
+Which bitstream is on a board is not recorded anywhere, so read it off the
+hardware. `slv_reg10` (byte offset 40 of the fastdac block) exists from bit_jul7
+on; write a value and read it back:
+
+```.bash
+cd ~/hw_control && python3 -c "
+import lib.fpga as f
+o=f.read(0x30000,40); f.write(0x30000,40,0x1234); b=f.read(0x30000,40); f.write(0x30000,40,o)
+print('jul7 or later' if b==0x1234 else 'older than jul7')"
+```
+
+## After every power cycle: clear the sticky health flags
+
+The jesd_transport endpoint free-runs `rd_en_4` from the first PPS edge and
+ignores `dout_empty`, so E3 (endpoint over-read) latches during bring-up, before
+entropy streaming is primed -- and once latched it masks every later event. Once
+`rng.service` is up, clear it and check nothing comes back:
+
+```.bash
+python3 hw_alice.py get --clear_rng_err     # or hw_bob.py
+python3 hw_alice.py get --rng_err           # sticky should stay 0
+```
+
+`raw` stays 1 after the clear; that view only resets with the datapath reset and
+means "fired since then". A `sticky` bit that re-latches is a live fault: E1 or
+decoy E1 means entropy starved and the angle stream has been statistically wrong
+since, with no fifo flag showing it.
+
+
 # Tranfer files
 
 clone repo `git@github.com:Veriqloud/kiwi_hw_control.git` and probably `git@github.com:Veriqloud/hw_sim.git`
