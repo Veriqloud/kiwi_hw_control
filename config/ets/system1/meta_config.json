@@ -1,0 +1,75 @@
+{
+    "ip": {
+        "alice": "192.168.1.85",
+        "bob": "192.168.1.86",
+        "alice_wrs": "192.168.10.11",
+        "bob_wrs": "192.168.10.12"
+    },
+    "port": {
+        "hw": 13000,
+        "hws": 13001,
+        "mon": 13002,
+        "kms_alice": 13003,
+        "kms_bob": 13004,
+        "gc": 13005,
+        "qber": 13006,
+        "node_alice": 13007,
+        "node_bob": 13008,
+        "showlogs": 13009,
+        "restartd": 13010,
+        "logd": 13011
+    },
+    "file": {
+        "trng": "/dev/xdma0_h2c_1",
+        "de_trng": "/dev/xdma0_h2c_2",
+        "gcr": "/dev/xdma0_c2h_1",
+        "gc": "/dev/xdma0_h2c_0",
+        "angle": "/dev/xdma0_c2h_3",
+        "result": "/tmp/result.fifo",
+        "gcuser": "",
+        "fpgareg": "/dev/xdma0_user",
+        "startstop": "/tmp/gc_startstop",
+        "hw_params": "/home/vq-user/hw_control/config/tmp.txt",
+        "kms": "/tmp/kms.fifo"
+    },
+    "kms": {
+        "alice_peer_id": "QmVPJNLM6GxYyCqunHgFqNFdJwoBbv1ya9AK3yXSSdo27y",
+        "bob_peer_id": "QmRWtfuuDneG81VNN3QWkefiYeCdZpbPZTcf2qTZZmhyjy",
+        "key_lifetime_ms": 3600000,
+        "default_key_size": 512,
+        "max_key_count": 100000,
+        "authentication": false,
+        "ca_path": "/home/vq-user/authentication/certs/ca.crt",
+        "cert_path": "/home/vq-user/authentication/certs/cert.pem",
+        "key_path": "/home/vq-user/authentication/private/eckey_pkcs8.pem"
+    },
+    "node": {
+        "key_path": "/home/vq-user/authentication/private/node.pk8",
+        "qtol": 0.09,
+        "clicks_per_round": 10000000,
+        "key_basis_mode": {
+            "Asymmetrical": {
+                "expected_key_basis_probability": 0.9
+            }
+        },
+        "decoystates": {
+            "mu1": 0.23,
+            "mu2": 0.076,
+            "p1": 0.55,
+            "esec": 1e-10,
+            "ecor": 1e-10,
+            "K": 19
+        }
+    },
+    "tls": {
+        "country": "FR",
+        "state": "Paris",
+        "locality": "Paris",
+        "org": "VeriQloud",
+        "org_unit": "Veriqloud-KME",
+        "ca_cn": "VQKME",
+        "validity_days": 1095,
+        "ec_curve": "secp384r1",
+        "extra_sans": []
+    }
+}
