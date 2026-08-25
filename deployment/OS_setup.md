@@ -151,16 +151,32 @@ compile driver and install
 
 ~~~~.bash
 git clone https://github.com/Xilinx/dma_ip_drivers.git
-cd XDMA/linux-kernel/xdma/
+cd dma_ip_drivers/XDMA/linux-kernel/xdma/
 sudo make clean
 sudo make install
 ~~~~
+
+This installs to `/lib/modules/$(uname -r)/xdma/xdma.ko`.
 
 Ubuntu 24.04.02: there is already an xdma module preinstalled that does not work for us. To make sure depmod loads our custom module of the same name, modify the priority file `/etc/depmod.d/ubuntu.conf` in the following way. This will look first in the folder xdma, where our custom module was copied to by the previous command
 
 ```
 search xdma updates ubuntu built-in
 ```
+
+then `sudo depmod -a`. Check which of the two `modules.dep` resolved to:
+
+```.bash
+grep -o '^[^:]*xdma[^:]*\.ko[^:]*' /lib/modules/$(uname -r)/modules.dep
+```
+
+`xdma/xdma.ko` is ours; `kernel/drivers/dma/xilinx/xdma.ko.zst` is Ubuntu's and
+gives no `/dev/xdma0_*`. A package update can reset `ubuntu.conf` to the stock
+`search updates ubuntu built-in`, which flips the answer at the next `depmod`
+(kernel update, DKMS trigger, or by hand) -- so re-check this line after one.
+
+**Secure Boot only.** Check with `mokutil --sb-state`; skip this block and the
+`mokutil --import` below when it reports SecureBoot disabled.
 
 generate keys for signing kernel module and sign the module that was just installed
 
@@ -183,7 +199,19 @@ register the key to the motherboard
 sudo mokutil --import signing_key.x509
 ~~~~
 
-reboot and follow instructions to enroll MOK (machine owner key). Check after reboot that the module was loaded: `lsmod | grep xdma`
+reboot and follow instructions to enroll MOK (machine owner key).
+
+Check after reboot. Both modules are named `xdma`, so `lsmod` cannot tell them
+apart -- ask which file is loaded, and that the device nodes exist:
+
+```.bash
+modinfo xdma | grep -E 'filename|version'   # .../xdma/xdma.ko, version 2025.2.0
+ls /dev/xdma0_user                          # must exist
+lspci -d 10ee: -k                           # "Kernel driver in use: xdma"
+```
+
+An endpoint that enumerates with no driver bound and no `/dev/xdma0_*` is the
+wrong module of the same name, not a bad bitstream.
 
 
 
