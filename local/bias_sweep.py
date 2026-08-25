@@ -2,7 +2,7 @@
 """
 Sweep one Alice knob and read Bob's APD counts at each point.
 
-    QLINE_CONFIG_DIR=.../config/ets python3 bias_sweep.py [--use_localhost] \
+    QLINE_CONFIG_DIR=.../config/ets/system1 python3 bias_sweep.py [--use_localhost] \
         --knob am2_bias --from 0 --to 10 --step 0.5
 
 Knobs: am_bias, am2_bias, vca.  Counts come from Bob's mon `get_counts`
