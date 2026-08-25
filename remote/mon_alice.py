@@ -134,11 +134,20 @@ def handle_client(conn, addr):
                 send_i(conn, int(status))
             
             elif command == 'get_pci_status':
-                ret = subprocess.check_output("lspci | grep Xilinx", shell=True)
-                if "Xilinx" in str(ret):
+                # An enumerated endpoint is not the same as a usable one: Ubuntu
+                # ships an in-tree module also called xdma that binds nothing and
+                # leaves no device node, so check for the node as well.
+                # check_output would also raise here whenever grep matched
+                # nothing, which took mon down instead of reporting 'missing'.
+                pci = subprocess.run("lspci -d 10ee: | grep -qi xilinx",
+                                     shell=True).returncode == 0
+                node = Path('/dev/xdma0_user').exists()
+                if pci and node:
                     sendc(conn, 'ok')
+                elif not pci:
+                    sendc(conn, 'no xilinx pci device')
                 else:
-                    sendc(conn, 'missing')
+                    sendc(conn, 'no /dev/xdma0_user (driver not bound)')
             
             elif command == 'get_fifo_status':
                 status_ddr = ddr_status2()
@@ -174,8 +183,24 @@ def handle_client(conn, addr):
                     send_i(conn, status[i])
             
             elif command == 'get_wrs_ip_status':
-                r = subprocess.run("ip ad | grep 192.168.10", shell=True, capture_output=True).returncode
-                send_i(conn, r)
+                # 0 == good, matching the returncode convention the client reads.
+                # The address alone does not say the link is up -- an interface
+                # keeps its configured address with the cable out -- so require
+                # the carrier too.
+                try:
+                    with open('/sys/class/net/eth_wrs/carrier') as f:
+                        carrier = f.read().strip() == '1'
+                except OSError:
+                    carrier = False
+                has_ip = subprocess.run("ip -4 ad show eth_wrs | grep -q 192.168.10",
+                                        shell=True).returncode == 0
+                send_i(conn, 0 if (carrier and has_ip) else 1)
+
+            elif command == 'get_qkd_ready':
+                # The node idles until this exists; hws' `start` step raises it
+                # and /tmp clears at boot, so it also says whether the pair has
+                # been calibrated since the last power cycle.
+                sendc(conn, 'up' if Path('/tmp/qkd_ready').exists() else 'absent')
 
             elif command == 'get_node_stats':
                 try:

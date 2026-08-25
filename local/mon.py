@@ -48,9 +48,14 @@ def connect_to_alice(use_localhost=False):
 
 
 def recv_exact(socket, l):
+    # recv returns b'' forever once the peer is gone, so a bare accumulate loop
+    # spins at 100% CPU instead of failing. Raise so the caller sees it.
     m = bytes(0)
-    while len(m)<l:
-        m += socket.recv(l - len(m))
+    while len(m) < l:
+        chunk = socket.recv(l - len(m))
+        if not chunk:
+            raise ConnectionError("connection closed by mon")
+        m += chunk
     return m
 
 # send command
