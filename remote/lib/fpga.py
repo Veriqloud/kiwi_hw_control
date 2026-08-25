@@ -1202,7 +1202,9 @@ def write_decoy_p0(p0_q15):
     write(offset, [0, 0], [0, 1])
 
 def rng_fifos_mon():
-    # flag layout of the pre-decoy bitstreams (4 flags); kept for old bitstreams
+    # Four fifo flags at offset 36, on bitstreams before bit_jul20. That
+    # register is no longer driven from bit_jul20 on -- it reads back its
+    # reset value there -- and the health register above replaces it.
     offset = 0x30000
     addr = 0
     write(offset, [addr, addr], [0, 2])
@@ -1216,26 +1218,41 @@ def rng_fifos_mon():
     #print(rng_almost_full, rng_empty, de_rng_almost_full, de_rng_empty)
     return rng_almost_full, rng_empty, de_rng_almost_full, de_rng_empty
 
-def rng_fifos_mon_v2():
-    # flag layout of the tunable-p0 bitstreams (bit_jul7 and later, 8 flags)
-    offset = 0x30000
-    addr = 0
-    write(offset, [addr, addr], [0, 2])
-    time.sleep(0.01)
-    #Read reg
-    mon_reg = read(offset, 36)
-    # rng: fastdac entropy fifo 128x16, rng_uv: fastdac uneven fifo 1x2
-    # de_rng: decoy entropy fifo 128x16, de_rng_uv: decoy uneven fifo 1x2
-    rng_almost_full = (mon_reg & 0x80)>>7
-    rng_empty = (mon_reg & 0x40)>>6
-    rng_uv_almost_full = (mon_reg & 0x20)>>5
-    rng_uv_empty = (mon_reg & 0x10)>>4
-    de_rng_almost_full = (mon_reg & 0x8)>>3
-    de_rng_empty = (mon_reg & 0x4)>>2
-    de_rng_uv_almost_full = (mon_reg & 0x2)>>1
-    de_rng_uv_empty = mon_reg & 0x1
-    return (rng_almost_full, rng_empty, rng_uv_almost_full, rng_uv_empty,
-            de_rng_almost_full, de_rng_empty, de_rng_uv_almost_full, de_rng_uv_empty)
+# Health register, byte offset 0x2C of the fastdac block (bit_jul20 and later;
+# earlier bitstreams do not implement the slot). Read: [7:4] raw view -- "fired
+# since the datapath reset" -- and [3:0] W1C sticky -- "fired since the last
+# clear". Both nibbles are ordered {decoy E1, E3, E2, E1}. Writing 1s to [3:0]
+# clears the matching sticky bits. See kiwi_fpga abc/docs/monitoring.md section 6.
+RNG_ERR_ADDR = 44
+
+# LSB first, matching the nibble order above.
+RNG_ERR_FLAGS = ('E1_underrun', 'E2_read_gate', 'E3_over_read', 'decoy_E1_underrun')
+
+
+def rng_err_mon():
+    """(sticky, raw) -- four bits each, LSB first per RNG_ERR_FLAGS.
+
+    E1 and decoy E1 are the ones that matter for key: entropy starved, the
+    take-clamp zero-filled the buffer and the range decoder kept decoding it,
+    so the angle (or decoy) stream has been statistically wrong since the bit
+    fired -- with no FIFO flag showing anything, which is why this register
+    exists. E2 and E3 latching means an RTL contract broke, not a rate problem.
+    """
+    v = read(0x30000, RNG_ERR_ADDR)
+    sticky = tuple((v >> i) & 1 for i in range(4))
+    raw = tuple((v >> (4 + i)) & 1 for i in range(4))
+    return sticky, raw
+
+
+def rng_err_clear():
+    """Clear all four sticky bits (W1C).
+
+    Sticky set dominates clear in rng_monitor, so an event landing in the same
+    cycle is not lost. Per monitoring.md the bring-up order is: reset the rng,
+    reset the decoy, clear here, then start the rng service -- otherwise the
+    bits latched during reset mask everything after them.
+    """
+    write(0x30000, RNG_ERR_ADDR, 0xF)
 
 
 def Angle(num, save=False):

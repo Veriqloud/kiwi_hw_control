@@ -62,8 +62,8 @@ sendc(alice, 'get_rng_status'); out['rng_alice'] = rcv_i(alice); p("rng_alice do
 sendc(bob,   'get_rng_status'); out['rng_bob']   = rcv_i(bob);   p("rng_bob done")
 
 if not brief:
-    sendc(alice, 'get_fifo_status'); out['fifo_alice'] = [rcv_i(alice) for _ in range(6)]; p("fifo_alice done")
-    sendc(bob,   'get_fifo_status'); out['fifo_bob']   = [rcv_i(bob) for _ in range(6)];   p("fifo_bob done")
+    sendc(alice, 'get_fifo_status'); out['fifo_alice'] = [rcv_i(alice) for _ in range(6)]  # 4 ddr, rng_err sticky, rng_err raw; p("fifo_alice done")
+    sendc(bob,   'get_fifo_status'); out['fifo_bob']   = [rcv_i(bob) for _ in range(6)]  # 4 ddr, rng_err sticky, rng_err raw;   p("fifo_bob done")
 
 sendc(alice, 'get_server_status'); out['server_alice'] = [rcv_i(alice) for _ in range(4)]; p("server_alice done")
 sendc(bob,   'get_server_status'); out['server_bob']   = [rcv_i(bob) for _ in range(4)];   p("server_bob done")

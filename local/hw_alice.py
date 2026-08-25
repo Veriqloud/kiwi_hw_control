@@ -174,8 +174,11 @@ def get(args):
     elif args.ddr_status:
         sendc('get_ddr_status')
         print(rcvc())
-    elif args.rng_fifos:
-        sendc('get_rng_fifos')
+    elif args.rng_err:
+        sendc('get_rng_err')
+        print(rcvc())
+    elif args.clear_rng_err:
+        sendc('clear_rng_err')
         print(rcvc())
     elif args.ltc:
         sendc('get_ltc_info')
@@ -268,8 +271,11 @@ parser_get.add_argument("--gc", action="store_true",
                         help="get current global counter")
 parser_get.add_argument("--ddr_status", action="store_true",
                         help="print ddr status")
-parser_get.add_argument("--rng_fifos", action="store_true",
-                        help="print rng fifo status flags (tunable-p0 bitstream)")
+parser_get.add_argument("--rng_err", action="store_true",
+                        help="print the rng health flags E1/E2/E3/decoy E1, "
+                             "sticky and raw (bit_jul20 and later)")
+parser_get.add_argument("--clear_rng_err", action="store_true",
+                        help="clear the sticky rng health flags")
 parser_get.add_argument("--ltc", action="store_true",
                         help="print clock chip registers")
 parser_get.add_argument("--sda", action="store_true",

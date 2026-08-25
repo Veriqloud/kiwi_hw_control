@@ -164,8 +164,8 @@ def fifo_status(socket, with_decoy=True):
     gc_out_f = rcv_i(socket)
     gc_in_f = rcv_i(socket)
     alpha_out_f = rcv_i(socket)
-    rng_empty = rcv_i(socket)
-    de_rng_empty = rcv_i(socket)
+    rng_err_sticky = rcv_i(socket)
+    rng_err_raw = rcv_i(socket)
     fifo_s = ""
     if vfifo_f!=0:
         fifo_s += 'vfifo_full'
@@ -175,11 +175,15 @@ def fifo_status(socket, with_decoy=True):
         fifo_s += 'gc_in_full'
     if alpha_out_f !=0:
         fifo_s += 'alpha_out_full'
-    if rng_empty:
-        fifo_s += 'rng_empty'
-    if with_decoy:
-        if de_rng_empty:
-            fifo_s += 'decoy_rng_empty'
+    # Health register: E1 and decoy E1 mean the angle stream has been
+    # statistically wrong since they fired, with no fifo flag showing it.
+    # Report sticky; raw only adds "and it is still asserted upstream".
+    names = ('E1_underrun', 'E2_read_gate', 'E3_over_read', 'decoy_E1_underrun')
+    for i, n in enumerate(names):
+        if n.startswith('decoy') and not with_decoy:
+            continue
+        if (rng_err_sticky >> i) & 1:
+            fifo_s += n + ('(raw)' if (rng_err_raw >> i) & 1 else '') + ' '
     if fifo_s == "":
         fifo_s = colored('ok', 'green')
     else:

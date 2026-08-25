@@ -6,7 +6,7 @@ import json, struct
 import datetime
 from lib.fpga import update_tmp, save_tmp, get_tmp
 import lib.gen_seq as gen_seq
-from lib.fpga import get_arrival_time, ddr_status2, get_gc, get_ltc_info, get_sda_info, get_fda_info, rng_fifos_mon_v2
+from lib.fpga import get_arrival_time, ddr_status2, get_gc, get_ltc_info, get_sda_info, get_fda_info, rng_err_mon, rng_err_clear
 import numpy as np, pickle
 import subprocess
 from pathlib import Path
@@ -151,11 +151,16 @@ def handle_client(conn, addr):
             
             elif command == 'get_fifo_status':
                 status_ddr = ddr_status2()
-                status_rng = rng_fifos_mon_v2()
+                # Four ddr flags, then the health register packed as two nibbles:
+                # sticky ("since last clear") and raw ("since datapath reset").
+                # Same six ints on the wire as before, different meaning -- the
+                # two rng values used to be fifo-empty flags decoded out of a
+                # register that no longer carries them.
+                sticky, raw = rng_err_mon()
                 for i in range(4):
                     send_i(conn, status_ddr[i])
-                send_i(conn, status_rng[1])
-                send_i(conn, status_rng[5])
+                send_i(conn, sum(b << i for i, b in enumerate(sticky)))
+                send_i(conn, sum(b << i for i, b in enumerate(raw)))
             
             elif command == 'get_gc':
                 gc = get_gc()
