@@ -133,6 +133,23 @@ void aes_ctr_rng(uint8_t *buf, int len) {
 
 
 
+// The device appends a health-check status byte to every block it sends; 0 is
+// healthy. Keep /tmp/rng_errorflag holding the CURRENT byte, so a reader can
+// tell "failing now" from "failed once and recovered" -- the log keeps the
+// history. It is unsigned: the byte is a device code, and printing it signed
+// turned 0xF1 into -15 while mon read the same file as 241.
+static void write_errorflag(unsigned char error) {
+    FILE *errorfile = fopen("/tmp/rng_errorflag", "w");
+    if (errorfile == NULL) {
+        fprintf(stderr, "unable to open errorflag file\n");
+        return;
+    }
+    if (fwrite(&error, sizeof(error), 1, errorfile) != 1) {
+        fprintf(stderr, "unable to write to errorfile\n");
+    }
+    fclose(errorfile);
+}
+
 int main(int argc, char *argv[]){
     if (argc != 2) {
         printf("usage: rng2fpga <config_file>\n");
@@ -199,15 +216,8 @@ int main(int argc, char *argv[]){
         return 1;
 	} 				    
     // create the errorfile and write the errorbyte in there (0 == no error)
-    FILE *errorfile = fopen("/tmp/rng_errorflag", "w");
-    if (errorfile == NULL) {
-        fprintf(stderr, "unable to open errorflag file\n");
-    }
-    char error = buf[8];
-    if (fwrite(&error, sizeof(char), 1, errorfile) != 1){
-        fprintf(stderr, "unable to write to errorfile\n");
-    }
-    fclose(errorfile);
+    unsigned char last_error = buf[8];
+    write_errorflag(last_error);
     if (buf[8] != 0){
         fprintf(stderr, "error byte was not 0; exiting.\n");
         return -1;
@@ -245,20 +255,24 @@ int main(int argc, char *argv[]){
 			i = i + n_rd;
 
 		}
-        char error = rbytes[16000];
-        if (error){
-            FILE *errorfile = fopen("/tmp/rng_errorflag", "w");
-            if (errorfile == NULL) {
-                fprintf(stderr, "unable to open errorflag file\n");
+        unsigned char error = rbytes[16000];
+        if (error != last_error){
+            write_errorflag(error);
+            if (error){
+                printf("RNG ERROR 0x%02X (%u). closing and reopening device\n",
+                       (unsigned)error, (unsigned)error);
+            } else {
+                printf("RNG recovered, status byte back to 0\n");
             }
-            if (fwrite(&error, sizeof(char), 1, errorfile) != 1){
-                fprintf(stderr, "unable to write to errorfile\n");
-            }
-            fclose(errorfile);
-            printf("RNG ERROR. closing and reopening device %d\n", error);
             fflush(stdout);
+            last_error = error;
+        }
+        if (error){
+            // No `int` here: declaring one shadows the fd the read loop uses,
+            // leaving it closed. It only appeared to work because close() frees
+            // the lowest descriptor and this open() takes the same number back.
 	        close(fd);
-            int fd = open(config.trng_source, O_RDWR | O_NOCTTY);
+            fd = open(config.trng_source, O_RDWR | O_NOCTTY);
             if (fd < 0){
                 printf("Could not reopen the USB! \n");
                 return 1;
