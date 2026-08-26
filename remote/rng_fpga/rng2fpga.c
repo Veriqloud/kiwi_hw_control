@@ -138,6 +138,18 @@ void aes_ctr_rng(uint8_t *buf, int len) {
 // tell "failing now" from "failed once and recovered" -- the log keeps the
 // history. It is unsigned: the byte is a device code, and printing it signed
 // turned 0xF1 into -15 while mon read the same file as 241.
+// Toggle lines are stamped to millisecond resolution: a block is far shorter
+// than a second, so whole seconds cannot tell a one-block glitch from a burst.
+static void log_time(void) {
+    struct timespec ts;
+    clock_gettime(CLOCK_REALTIME, &ts);
+    struct tm tm;
+    localtime_r(&ts.tv_sec, &tm);
+    printf("%d-%02d-%02d %02d:%02d:%02d.%03ld ",
+           tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
+           tm.tm_hour, tm.tm_min, tm.tm_sec, ts.tv_nsec / 1000000);
+}
+
 static void write_errorflag(unsigned char error) {
     FILE *errorfile = fopen("/tmp/rng_errorflag", "w");
     if (errorfile == NULL) {
@@ -235,6 +247,8 @@ int main(int argc, char *argv[]){
 		return -EINVAL;
 	}
     signal(SIGINT, sigint_handler);
+    // Consecutive blocks whose status byte was non-zero, reported on recovery.
+    unsigned long error_blocks = 0;
 	while(1){
         char rbytes[16001] = {0};  
         uint8_t cpu_rbytes[16000] = {0};
@@ -258,15 +272,18 @@ int main(int argc, char *argv[]){
         unsigned char error = rbytes[16000];
         if (error != last_error){
             write_errorflag(error);
+            log_time();
             if (error){
                 printf("RNG ERROR 0x%02X (%u). closing and reopening device\n",
                        (unsigned)error, (unsigned)error);
             } else {
-                printf("RNG recovered, status byte back to 0\n");
+                printf("RNG recovered after %lu block%s, status byte back to 0\n",
+                       error_blocks, error_blocks == 1 ? "" : "s");
             }
             fflush(stdout);
             last_error = error;
         }
+        error_blocks = error ? error_blocks + 1 : 0;
         if (error){
             // No `int` here: declaring one shadows the fd the read loop uses,
             // leaving it closed. It only appeared to work because close() frees
