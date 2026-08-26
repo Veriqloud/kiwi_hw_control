@@ -992,10 +992,14 @@ def Reset_Tdc():
     print("Reset TDC clock")
 
 def Config_Tdc():
-    Reg_Mngt_Tdc() #Setting fpga control registers for SM under lclk 
-    Reset_Tdc() #Could be before or after Reg_Mngt_Tdc()
+    # The lclk frame decoder locks onto the AS6501 serial stream, so it is reset
+    # and enabled last: a power-on reset of the chip (first line of
+    # AS6501_regs.txt) breaks the frame alignment and the decoder does not
+    # recover on its own -- clicks stop reaching the counters until lrst.
+    Reset_Tdc() #Reset the TDC reference clock
     Set_AS6501() #Setting registers of TDC chip
     Get_reg_new(1,'tdc', 0x18) #Start the tdc, setting register of TDC chip
+    Reg_Mngt_Tdc() #Setting fpga control registers for SM under lclk
     Get_AS6501() #Reading registers of TDC chip
 
 def Stop_sim(fre_divider,start):
