@@ -22,26 +22,33 @@ def lin_seq_2():
 def dac0_off(cycle_num):
     return np.zeros(cycle_num*10, dtype=int)
 
+# The rising edge of dac0 is what triggers the pulse generator, and +-1 is
+# already full scale, so the only way to steepen it is to spend fewer samples on
+# it. Two intervals is the steepest edge that still keeps a sample at zero, and
+# keeping that zero sample where it is holds the trigger instant fixed -- so the
+# calibrated am_shift keeps its meaning. Dropping it for a one-interval step
+# would put the crossing on a half-sample boundary, which the whole-sample roll
+# below cannot express.
+TRANSITION = np.array([-1, -1, 0, 1, 1])
+
 def dac0_single(cycle_num, shift):
     cycle_num = cycle_num // 2
     shift = shift + 2
-    transition = np.array([-1, np.sin(-np.pi/4), 0, np.sin(np.pi/4), 1])
+    transition = TRANSITION
     rest = np.linspace(1, -1, 20-len(transition))
     seq0 = np.zeros(20)
     seq0[:len(rest)] = rest
     seq0[len(rest):] = transition
     seq = np.zeros(cycle_num * 20)
-    seqs = np.zeros(cycle_num * 20)
     for i in range(cycle_num):
         seq[i*20:i*20+20] = seq0
-    seqs[shift:] = seq[:-shift]
-    seqs[:shift] = seq[-shift:]
+    seqs = np.roll(seq, shift)
     return np.array(seqs*32767 + 32768, dtype=int)
 
 def dac0_single_single(cycle_num, shift):
     cycle_num = cycle_num
     shift = shift + 3   # needs to be shifted one more to overlap with dac0_single in real
-    transition = np.array([-1, np.sin(-np.pi/4), 0, np.sin(np.pi/4), 1])
+    transition = TRANSITION
     len_const = cycle_num*5 - 2*len(transition)
     up = np.ones(len_const)
     down = -1*np.ones(len_const) 
@@ -51,9 +58,7 @@ def dac0_single_single(cycle_num, shift):
     seq[0:len_const] = up
     seq[len_const:len_const + len(rest)] = rest
     seq[len_const + len(rest):-len(transition)] = down
-    seqs = np.zeros(cycle_num * 10)
-    seqs[shift:] = seq[:-shift]
-    seqs[:shift] = seq[-shift:]
+    seqs = np.roll(seq, shift)
     return np.array(seqs*32767 + 32768, dtype=int)
 
 def dac0_double(cycle_num, distance, shift):
