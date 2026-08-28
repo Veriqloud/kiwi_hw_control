@@ -180,8 +180,20 @@ while True:
                 ctl.Set_Am2_Bias(value)
             elif command == 'set_qdistance':
                 value = rcv_d()
-                ctl.update_tmp('qdistance', value)
-                ctl.Update_Dac()
+                # The two lasers hold separate arm delays and the fiber between
+                # them is swapped by hand, so the value lands in the key for the
+                # laser `laser` names -- the same one Update_Dac reads. Nothing
+                # reads a flat 'qdistance', and get_tmp parses any key outside
+                # its float list with int(), so writing one breaks every later
+                # read of tmp.txt.
+                t = get_tmp()
+                try:
+                    ctl.qdistance_for_laser(t)
+                except KeyError as e:
+                    print(f"[hw_alice] set_qdistance refused: {e}")
+                else:
+                    update_tmp(f"qdistance_{t['laser']}", value)
+                    ctl.Update_Dac()
             elif command == 'set_pm_mode':
                 pm_mode = rcvc()
                 update_tmp('pm_mode', pm_mode)
