@@ -33,7 +33,7 @@
         "kms": "/tmp/kms.fifo"
     },
     "kms": {
-        "alice_peer_id": "QmSdKNcSXU3kfWzdcb3tXUfM9kzh3jXrXf7CDvtkHByKN9",
+        "alice_peer_id": "QmT7oP6PjFqAoiDCg9Uaj7yb6ywYWHC7mPNpbRXc1KR7B6",
         "bob_peer_id": "QmTSRXSoP3icdQcL5ohtRiiQZ7JDeHZEFw1K3rBomecyux",
         "key_lifetime_ms": 3600000,
         "default_key_size": 512,
