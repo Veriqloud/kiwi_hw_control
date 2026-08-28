@@ -1,7 +1,7 @@
 #!/bin/python
 
 from termcolor import colored
-import socket, os
+import socket, os, subprocess, sys
 import numpy as np
 import json
 import datetime
@@ -40,6 +40,38 @@ server_socket.listen()
 
 
 print(f"[hw_alice] {datetime.datetime.now()}\tServer listening on {host}:{port}")
+
+
+# The laser driver carries its own saved per-laser configuration -- operating
+# current, current limit, TEC setpoint and protection window are programmed once
+# with `ctl300.py save` and are not session state. `arm` only switches the laser
+# on and enables tprot; it refuses to run on a TEC that is off or not settled.
+# `disarm` switches it off and leaves the TEC at setpoint, so the next arm costs
+# no re-settle.
+laser_ctl = qlinepath + 'laserdriver/ctl300.py'
+
+
+def laser_state(state):
+    """Arm or disarm the laser that tmp.txt says is patched in.
+
+    The wavelength is not a parameter here for the same reason it is not one in
+    qdistance_for_laser: the fiber is moved by hand, `laser` in tmp.txt is the
+    only record of which of the two is connected, and defaulting would arm the
+    wrong board.  Absent, this reports instead of guessing.
+    """
+    nm = get_tmp().get('laser')
+    if nm is None:
+        return ("'laser' is not set in config/tmp.txt -- nothing has said which "
+                "laser is patched in; run hws.py --full_init_1310/1510 or set it")
+    action = 'arm' if state == 'on' else 'disarm'
+    r = subprocess.run([sys.executable, laser_ctl, action, '-w', str(nm)],
+                       capture_output=True, text=True)
+    out = (r.stdout + r.stderr).strip()
+    print(out)
+    if r.returncode == 0:
+        return f'laser {nm} nm {state} done'
+    last = out.splitlines()[-1] if out else f'exit {r.returncode}'
+    return f'laser {nm} nm {state} failed: {last}'[:200]
 
 
 while True:
@@ -214,6 +246,9 @@ while True:
             elif command == 'set_basis_p0':
                 p = rcv_d()
                 ctl.set_basis_p0(p)
+            elif command == 'set_laser_state':
+                state = rcvc()
+                sendc(laser_state(state))
 
             elif command == 'get_info':
                 try:

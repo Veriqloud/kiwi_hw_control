@@ -116,6 +116,8 @@ compare_gc          : verify the synchronization
 vca_per             : configure VCA percentage
 laser_on_1310 / laser_on_1510
                     : switch that laser on (current and limit come from the driver's saved config)
+laser_off_1310 / laser_off_1510
+                    : switch that laser off, leaving the TEC at setpoint
 set_laser_1310 / set_laser_1510
                     : record which laser is patched in; everything wavelength-dependent reads it back
 qdistance           : measure qdistance, into the key of the patched-in laser

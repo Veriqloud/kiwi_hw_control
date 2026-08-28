@@ -271,6 +271,28 @@ def laser_on(conn=None, nm=None, sendresult=True):
             sendc(conn, f'laser_on failed: {last}'[:200])
 
 
+def laser_off(conn=None, nm=None, sendresult=True):
+    """Switch the laser off, leaving the TEC at setpoint.
+
+    `disarm` rather than `down`: the chip stays stabilised, so the next arm
+    costs no TEC re-settle and successive measurements stay thermally
+    comparable.  Turning the TEC off as well is `ctl300.py down`, which has to
+    clear tprot first and is deliberately not wired to a one-word command.
+    """
+    if nm is None:
+        raise ValueError('laser_off needs a wavelength: laser_off_1310 or laser_off_1510')
+    r = subprocess.run([sys.executable, laser_ctl, 'disarm', '-w', str(nm)],
+                       capture_output=True, text=True)
+    out = (r.stdout + r.stderr).strip()
+    print(out)
+    if sendresult and conn:
+        if r.returncode == 0:
+            sendc(conn, 'laser_off done')
+        else:
+            last = out.splitlines()[-1] if out else f'exit {r.returncode}'
+            sendc(conn, f'laser_off failed: {last}'[:200])
+
+
 def qdistance(conn):
     # Which key this sweep lands in follows the patched-in laser, the same one
     # Update_Dac reads; ctl.qdistance_for_laser raises if that is not set, which
@@ -1735,6 +1757,7 @@ functionmap['sync_gc'] = sync_gc
 functionmap['compare_gc'] = compare_gc
 functionmap['vca_per'] = vca_per
 functionmap['laser_on'] = laser_on
+functionmap['laser_off'] = laser_off
 functionmap['set_laser'] = set_laser
 functionmap['qdistance'] = qdistance
 functionmap['find_vca'] = find_vca
@@ -1839,6 +1862,10 @@ while True:
                     nm = int(command[len('laser_on_'):])
                     print('command: ', command)
                     functionmap['laser_on'](conn, nm)
+                elif command.startswith('laser_off_'):
+                    nm = int(command[len('laser_off_'):])
+                    print('command: ', command)
+                    functionmap['laser_off'](conn, nm)
                 elif command.startswith('set_laser_'):
                     nm = int(command[len('set_laser_'):])
                     print('command: ', command)

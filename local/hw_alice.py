@@ -154,6 +154,10 @@ def set(args):
     elif args.basis_p0 is not None:
         sendc('set_basis_p0')
         send_d(args.basis_p0)
+    elif args.laser:
+        sendc('set_laser_state')
+        sendc(args.laser)
+        print(rcvc())
     # keep last: --decoy_delay has default=0 (never None), so this branch
     # swallows anything placed after it
     elif args.decoy_delay is not None:
@@ -260,6 +264,9 @@ parser_set.add_argument("--pos",type=int, default=0, help="peak position for sin
 parser_set.add_argument("--decoy_delay",type=int, default=0, help="decoy delay value")
 parser_set.add_argument("--decoy_p0", type=float, metavar="p",
                         help="probability of decoy rng bit = 0; float [0,1]; true_rng mode only")
+parser_set.add_argument("--laser", choices=['on', 'off'],
+                        help="arm/disarm the laser named by `laser` in tmp.txt; "
+                             "off leaves the TEC at setpoint")
 parser_set.add_argument("--basis_p0", type=float, metavar="p",
                         help="probability of basis-choice rng bit = 0; float [0,1]; true_rng mode only")
 
