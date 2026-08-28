@@ -405,6 +405,14 @@ def init_sda():
     Config_Sda()
     for i in range(8):
      Set_vol(i, 0)
+    # Set_vol drives the DAC directly and bypasses the Set_* wrappers that
+    # record what was written, so tmp.txt has to be squared with the zeroed
+    # channels here: 7 is vca, 5 am_bias, 4 am2_bias.
+    t = get_tmp()
+    t['vca'] = 0
+    t['am_bias'] = 0
+    t['am2_bias'] = 0
+    save_tmp(t)
     #d = get_default()
     #Set_Vca(d['vca'])
     #Set_Am_Bias(d['am_bias'])

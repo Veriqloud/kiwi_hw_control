@@ -1009,6 +1009,13 @@ def init_sda():
     Config_Sda()
     for i in range(8):
      Set_vol(i, 0)
+    # Set_vol drives the DAC directly and bypasses Set_Pol, which records what
+    # was written, so tmp.txt has to be squared with the zeroed channels here:
+    # 0-3 are pol0-pol3.
+    t = get_tmp()
+    for ch in range(4):
+        t['pol'+str(ch)] = 0
+    save_tmp(t)
 
 def init_jic():
     Config_Jic()
