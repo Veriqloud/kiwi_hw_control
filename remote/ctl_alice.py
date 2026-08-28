@@ -101,8 +101,8 @@ def update_bias():
     am=t['am_bias']
     am2=t['am2_bias']
     Set_vol(5, am)
-    if (am2>10) or (am2<0):
-        print("Voltage out of range. Choose a value between 0 and 10")
+    if (am2>10) or (am2<-10):
+        print("Voltage out of range. Choose a value between -10 and 10")
         exit()
     Set_vol(4, am2)
 
@@ -190,8 +190,8 @@ def Set_Am_Bias(voltage):
     update_tmp('am_bias', voltage)
 
 def Set_Am2_Bias(voltage):
-    if (voltage>10) or (voltage<0):
-        print("Voltage out of range. Choose a value between 0 and 10")
+    if (voltage>10) or (voltage<-10):
+        print("Voltage out of range. Choose a value between -10 and 10")
         exit()
     Set_vol(4, voltage)
     update_tmp('am2_bias', voltage)

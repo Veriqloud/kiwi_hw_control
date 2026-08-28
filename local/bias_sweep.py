@@ -40,11 +40,11 @@ import csv
 
 WINDOW = 0.1     # s, hardware count-integration window
 
-# Set_Am2_Bias exits the hw server when handed a value outside [0,10], which
-# takes the server down with it, so every knob carries a hard range.
+# Set_Am2_Bias and Set_Vca exit the hw server when handed a value outside their
+# range, which takes the server down with it, so every knob carries a hard range.
 KNOBS = {
     'am_bias':  dict(cmd='set_am_bias',  lo=-10.0, hi=10.0),
-    'am2_bias': dict(cmd='set_am2_bias', lo=0.0,   hi=10.0),
+    'am2_bias': dict(cmd='set_am2_bias', lo=-10.0, hi=10.0),
     'vca':      dict(cmd='set_vca',      lo=0.0,   hi=5.0),
 }
 AM_MODES = ['off', 'single', 'double', 'single64']
