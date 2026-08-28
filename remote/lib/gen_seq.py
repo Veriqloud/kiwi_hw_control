@@ -22,19 +22,47 @@ def lin_seq_2():
 def dac0_off(cycle_num):
     return np.zeros(cycle_num*10, dtype=int)
 
-# The rising edge of dac0 is what triggers the pulse generator, and +-1 is
-# already full scale, so the only way to steepen it is to spend fewer samples on
-# it. Two intervals is the steepest edge that still keeps a sample at zero, and
-# keeping that zero sample where it is holds the trigger instant fixed -- so the
-# calibrated am_shift keeps its meaning. Dropping it for a one-interval step
-# would put the crossing on a half-sample boundary, which the whole-sample roll
-# below cannot express.
-TRANSITION = np.array([-1, -1, 0, 1, 1])
+# The rising edge of dac0 is what triggers the pulse generator, and +-1 is already
+# full scale, so slew can only be bought by spending fewer samples on the edge.
+# Which shape wins depends on the channel bandwidth, which is why `am_edge` in
+# tmp.txt selects one at runtime instead of this being a code change per attempt.
+#
+# Every shape must cross zero exactly once per period on the way up. A shape that
+# does not start at -1 leaves a second, equally fast rising crossing where the
+# falling ramp joins it, and the pulse generator fires on both.
+#
+#   name      edge         raw slew   crossing   notes
+#   soft      4 intervals  0.707      x.0        the original sin(+-pi/4) waypoints
+#   sharp     2 intervals  1.000      x.0        keeps a sample at zero
+#   step      1 interval   2.000      x.5        bare full-scale step
+#   preemph   1 interval   2.000      x.5        dips to -0.2 first, pre-charging
+#                                                the channel; best of the four
+#                                                at moderate bandwidth
+#
+# A one-interval edge (step, preemph) puts the crossing on a half-sample boundary,
+# which the whole-sample roll below cannot absorb, so am_shift wants re-checking
+# by +-1 after switching to or from one.
+EDGES = {
+    'soft':    np.array([-1, np.sin(-np.pi/4), 0, np.sin(np.pi/4), 1]),
+    'sharp':   np.array([-1, -1, 0, 1, 1]),
+    'step':    np.array([-1, -1, -1, -1, 1]),
+    'preemph': np.array([-1, -1, -0.2, -1, 1, 0.2]),
+}
+DEFAULT_EDGE = 'preemph'
 
-def dac0_single(cycle_num, shift):
+
+def edge(name=None):
+    """The dac0 rising-edge shape named by `am_edge`, defaulting to DEFAULT_EDGE."""
+    if name is None:
+        name = DEFAULT_EDGE
+    if name not in EDGES:
+        raise KeyError(f"unknown am_edge {name!r} -- choose from {sorted(EDGES)}")
+    return EDGES[name]
+
+def dac0_single(cycle_num, shift, am_edge=None):
     cycle_num = cycle_num // 2
     shift = shift + 2
-    transition = TRANSITION
+    transition = edge(am_edge)
     rest = np.linspace(1, -1, 20-len(transition))
     seq0 = np.zeros(20)
     seq0[:len(rest)] = rest
@@ -45,10 +73,10 @@ def dac0_single(cycle_num, shift):
     seqs = np.roll(seq, shift)
     return np.array(seqs*32767 + 32768, dtype=int)
 
-def dac0_single_single(cycle_num, shift):
+def dac0_single_single(cycle_num, shift, am_edge=None):
     cycle_num = cycle_num
     shift = shift + 3   # needs to be shifted one more to overlap with dac0_single in real
-    transition = TRANSITION
+    transition = edge(am_edge)
     len_const = cycle_num*5 - 2*len(transition)
     up = np.ones(len_const)
     down = -1*np.ones(len_const) 

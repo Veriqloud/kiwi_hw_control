@@ -47,7 +47,7 @@ def get_tmp():
     """
     t = {}
     floatlist = ['qdistance_1310', 'qdistance_1510', 'pol0', 'pol1', 'pol2', 'pol3', 'vca', 'am_bias','am2_bias',  'am2_bias_min', 'angle0', 'angle1', 'angle2', 'angle3', 'vca_calib', 'decoy_p0', 'basis_p0']
-    strlist = ['spd_mode', 'am_mode', 'pm_mode', 'feedback', 'soft_gate', 'insert_zeros', 'am2_mode']
+    strlist = ['spd_mode', 'am_mode', 'pm_mode', 'feedback', 'soft_gate', 'insert_zeros', 'am2_mode', 'am_edge']
     with open(HW_CONTROL+"config/tmp.txt") as f:
         lines = f.readlines()
         for l in lines:
@@ -78,7 +78,7 @@ def get_calibrated(filename):
     """
     t = {}
     floatlist = ['qdistance_1310', 'qdistance_1510', 'pol0', 'pol1', 'pol2', 'pol3', 'vca', 'am_bias','am2_bias',  'am2_bias_min', 'angle0', 'angle1', 'angle2', 'angle3', 'vca_calib', 'decoy_p0', 'basis_p0']
-    strlist = ['spd_mode', 'am_mode', 'pm_mode', 'feedback', 'soft_gate', 'insert_zeros', 'am2_mode']
+    strlist = ['spd_mode', 'am_mode', 'pm_mode', 'feedback', 'soft_gate', 'insert_zeros', 'am2_mode', 'am_edge']
     with open("/home/vq-user/config/calibration/"+filename) as f:
         lines = f.readlines()
         for l in lines:

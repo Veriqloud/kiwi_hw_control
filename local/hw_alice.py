@@ -141,6 +141,9 @@ def set(args):
     elif args.am2_mode:
         sendc('set_am2_mode')
         sendc(args.am2_mode)
+    elif args.am_edge:
+        sendc('set_am_edge')
+        sendc(args.am_edge)
     elif args.zero_pos:
         sendc('set_zero_pos')
         send_i(args.zero_pos)
@@ -244,6 +247,10 @@ parser_set.add_argument("--am_mode", choices=['off', 'single', 'double', 'single
                         help="send single pulse at 40MHz or double pulse at 80MHz or single64 at 80MHz/64")
 parser_set.add_argument("--am2_mode", choices=['off', 'single', 'fake_rng', 'true_rng'],
                         help="second amplitude modulator for decoy state")
+parser_set.add_argument("--am_edge", choices=['soft', 'sharp', 'step', 'preemph'],
+                        help="dac0 rising-edge shape, the one that triggers the pulse "
+                             "generator; steeper costs a half-sample of timing, so "
+                             "re-check am_shift after switching to or from step/preemph")
 parser_set.add_argument("--am_shift", type=int, metavar=("steps"), 
                         help="time shift pulse generation in steps of 1.25ns")
 parser_set.add_argument("--pm_shift", type=int, metavar=("steps"), 

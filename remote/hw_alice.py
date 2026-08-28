@@ -232,6 +232,16 @@ while True:
                 mode = rcvc()
                 update_tmp('am_mode', mode)
                 ctl.Update_Dac()
+            elif command == 'set_am_edge':
+                name = rcvc()
+                # Validate before writing: an unknown name would make every later
+                # Update_Dac raise, and the value is already in tmp.txt by then.
+                if name not in gen_seq.EDGES:
+                    print(f"[hw_alice] set_am_edge refused: unknown edge {name!r}, "
+                          f"choose from {sorted(gen_seq.EDGES)}")
+                else:
+                    update_tmp('am_edge', name)
+                    ctl.Update_Dac()
             elif command == 'set_am2_mode':
                 mode = rcvc()
                 update_tmp('am2_mode', mode)

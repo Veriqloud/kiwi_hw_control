@@ -293,14 +293,15 @@ def Update_Dac():
     # Generate sequences for dac0 and dac1 and write to device.
     # Update am_shift and pm_shift
     t = get_tmp()
+    am_edge = t.get('am_edge')
     if t['am_mode'] == 'off':
         dac0 = gen_seq.dac0_off(64)
     elif t['am_mode'] == 'single':
-        dac0 = gen_seq.dac0_single(64, t['am_shift'])
+        dac0 = gen_seq.dac0_single(64, t['am_shift'], am_edge)
     elif t['am_mode'] == 'double':
         dac0 = gen_seq.dac0_double(64, qdistance_for_laser(t), t['am_shift'])
     elif t['am_mode'] == 'single64':
-        dac0 = gen_seq.dac0_single_single(64, t['am_shift'])
+        dac0 = gen_seq.dac0_single_single(64, t['am_shift'], am_edge)
 
     if t['pm_mode'] == 'off':
         Write_Pm_Mode('seq64')
@@ -461,6 +462,7 @@ def rst_config():
     t['am_mode'] = 'off'
     t['am2_mode'] = 'off'
     t['am_shift'] = 0
+    t['am_edge'] = gen_seq.DEFAULT_EDGE
     t['pm_mode'] = 'off'
     t['pm_shift'] = 0
     t['vca'] = 2
