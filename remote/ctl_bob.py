@@ -192,7 +192,18 @@ def Gen_Gate():
     t = get_tmp()
     delay = t['gate_delay']
     Set_t0(t['t0'])
-        
+
+    # Width of the electrical pulse that gates the APD, in 1.0417 ns pattern
+    # slots. The Aurea OEM API has no gate-width call at all, so this is the
+    # only width control there is. `.get` with a default keeps both keys
+    # optional: tmp.txt needs no line until one is set, and get_tmp()
+    # int()-parses them correctly when it is. 8 slots is 8.33 ns.
+    width = t.get('gate_duty', 8)
+    # Extra pattern offset, in slots, on top of the coarse position carried by
+    # gate_delay. This is what walks the gate in 1.0417 ns steps; the coarse
+    # field alone moves in fours.
+    offset = t.get('gate_offset', 0)
+
     timestep = 3.383    # fine delay timestep in ps
     delay_au = round(delay/timestep)
     fine_max = 404      # corresponds to 1/3 of coarse delay
@@ -215,7 +226,13 @@ def Gen_Gate():
         fine2 = fine2_abs - df2
         direction2 = 1 if fine2 > 0 else 0
 
-        write_delay_master(2,coarse, abs(fine0), direction0) 
+        # slv_reg1[22:15] -- the old duty_val/delay_val pair -- is not read by
+        # this bitstream. Gate width and coarse position come from the pattern
+        # register; write_delay_master still carries the ODELAY fine delay,
+        # which is unchanged.
+        pattern = gate_pattern(width, 4*coarse + offset)
+        write_gate_pattern(pattern)
+        write_delay_master(0, 0, abs(fine0), direction0)
         write_delay_slaves(abs(fine1), direction1, abs(fine2), direction2)
 
         params_en()
@@ -229,7 +246,8 @@ def Gen_Gate():
         f.write(str(fine1_abs)+'\n')
         f.write(str(fine2_abs)+'\n')
 
-    print("gate pulse delay set to", delay/1000, "sn")
+    print("gate pulse delay set to", delay/1000, "ns, width", width,
+          "slots, pattern", format(pattern, '#05x'))
     print(coarse, fine0, fine1, fine2)
     print(coarse, direction0, direction1, direction2)
 

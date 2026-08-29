@@ -738,6 +738,27 @@ def write_delay_master(duty, tune, fine, inc):
     transfer = calculate_delay(duty, tune, fine, inc)
     write(0x15000, 4, transfer)
 
+# APD gate pattern, 12 bits in slv_reg6. One bit per 1.0417 ns slot of the
+# 12.5 ns gate period, bit 0 first; the run of set bits is the gate width and
+# its offset is the coarse position. params_en() latches it together with
+# slv_reg1 and slv_reg3 on the same rising edge.
+GATE_SLOTS = 12
+GATE_SLOT_PS = 12500 / GATE_SLOTS       # 1041.67 ps
+
+def gate_pattern(width_slots, offset_slots):
+    """Contiguous gate: width_slots wide, starting offset_slots into the period.
+
+    Wraps around the period end, so an offset near 12 splits the run across
+    bit 11 and bit 0 rather than truncating it.
+    """
+    if not 1 <= width_slots <= GATE_SLOTS:
+        exit("gate width must be 1..%d slots" % GATE_SLOTS)
+    p = ((1 << width_slots) - 1) << (offset_slots % GATE_SLOTS)
+    return (p | (p >> GATE_SLOTS)) & 0xFFF
+
+def write_gate_pattern(pattern):
+    write(0x15000, 0x18, pattern & 0xFFF)
+
 def write_delay_slaves(fine1, inc1, fine2, inc2):
     transfer = (fine2*16)<<17|inc2<<16|(fine1*16)<<1|inc1
     write(0x15000, 0xc, transfer)

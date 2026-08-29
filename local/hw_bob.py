@@ -161,6 +161,12 @@ def set(args):
     elif args.spd_eff:
         sendc('set_spd_eff')
         send_i(int(args.spd_eff))
+    elif args.gate_duty is not None:
+        sendc('set_gate_duty')
+        send_i(int(args.gate_duty))
+    elif args.gate_offset is not None:
+        sendc('set_gate_offset')
+        send_i(int(args.gate_offset))
     elif args.spd_delay is not None:
         sendc('set_spd_delay')
         send_i(int(args.spd_delay))
@@ -294,6 +300,15 @@ parser_set.add_argument("--zero_pos", type=int,
                         help="insert zeros at this position for feedback")
 parser_set.add_argument("--spd_mode", choices=['free', 'gated'], 
                         help="free running or gated")
+parser_set.add_argument("--gate_duty", type=int, metavar="slots",
+                        help="width of the electrical pulse gating the APD, in "
+                             "1.0417 ns slots of the 12.5 ns period (1-12); the "
+                             "Aurea API has no gate-width call, so this is the "
+                             "only width control. Default 8")
+parser_set.add_argument("--gate_offset", type=int, metavar="slots",
+                        help="shift the gate pattern by this many 1.0417 ns "
+                             "slots, on top of the position from --spd_delay. "
+                             "Default 0")
 parser_set.add_argument("--spd_delay", type=int, metavar="time",  
                         help="delay time in ps")
 parser_set.add_argument("--spd_deadtime", type=int, metavar="time",

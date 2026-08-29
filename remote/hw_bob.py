@@ -236,6 +236,14 @@ while True:
                 aurea.effi(eff)
                 aurea.close()
                 update_tmp('spd_eff', eff)
+            elif command == 'set_gate_duty':
+                duty = rcv_i()
+                update_tmp('gate_duty', duty)
+                ctl.Gen_Gate()
+            elif command == 'set_gate_offset':
+                offset = rcv_i()
+                update_tmp('gate_offset', offset)
+                ctl.Gen_Gate()
             elif command == 'set_spd_delay':
                 delay = rcv_i()
                 update_tmp('gate_delay', delay)
