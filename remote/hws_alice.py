@@ -584,27 +584,23 @@ def vca_per(conn, per=90):
 
 
 
-def find_am_bias(conn, range_val=0.5, step=0.1, sendresult=True):
-    sendc(bob, 'find_am_bias')
-    t = get_tmp()
-    bias_default = t['am_bias']
-    am_mode_backup = t['am_mode']
-    update_tmp('am_mode', 'off')
-    ctl.Update_Dac()
-    counts = []
-    bias_values = []
+def _am_bias_scan(centre, range_val, step, direction):
+    """Count the AM output across `centre` +- `range_val`, in `step` volts.
 
-    num_points = int(2 * range_val / step) + 1
+    Returns (bias_values, counts) in the order they were measured.
+
+    The dwell that makes each count belong to the bias just written lives on
+    Bob's side: his find_am_bias handler sleeps 0.2 s -- two of the counter's
+    free-running 0.1 s windows -- before every read, which is what guarantees
+    the window it returns began after the write.
+    """
+    counts, bias_values = [], []
     prev_count = None
     increase_count = 0
-
-    if bias_default >= 0:
-        direction = -1
-    else:
-        direction = 1
+    num_points = int(2 * range_val / step) + 1
 
     for i in range(num_points):
-        bias = bias_default + direction * (-range_val + step * i)
+        bias = round(centre + direction * (-range_val + step * i), 4)
         if bias < -10 or bias > 10:
             continue
 
@@ -627,50 +623,108 @@ def find_am_bias(conn, range_val=0.5, step=0.1, sendresult=True):
                     break
         prev_count = count
 
-    min_counts = min(counts)
-    min_idx = counts.index(min_counts)
-    am_bias_opt = bias_values[min_idx]
+    return bias_values, counts
+
+
+def find_am_bias(conn, range_val=0.5, step=0.1, sendresult=True, max_moves=4):
+    """Find the AM transmission null and record it as `am_bias_min`.
+
+    Starts from `am_bias_min`, the last null found, rather than from whatever
+    `am_bias` currently holds: `init_sda` zeroes every slow DAC channel and
+    writes am_bias 0 to tmp.txt, so after an init the current value carries no
+    information about where the null is, while the recorded minimum still does.
+
+    A minimum that lands on the edge of the scan is not a minimum -- the null is
+    outside the window and the scan simply ran out of range. When that happens
+    the window is re-centred on that edge and the scan repeats, so the search
+    walks to the null instead of stopping at its own boundary and reporting the
+    boundary as the answer.
+    """
+    sendc(bob, 'find_am_bias')
+    t = get_tmp()
+    am_mode_backup = t['am_mode']
+    update_tmp('am_mode', 'off')
+    ctl.Update_Dac()
+
+    centre = t.get('am_bias_min', t['am_bias'])
+    # Fixed for the whole search: re-centring already walks towards the null,
+    # and recomputing it per move would let the scan turn back on itself.
+    direction = -1 if centre >= 0 else 1
+    am_bias_opt, counts = centre, []
+
+    for move in range(max_moves):
+        bias_values, counts = _am_bias_scan(centre, range_val, step, direction)
+        if not counts:
+            break
+        min_idx = counts.index(min(counts))
+        am_bias_opt = bias_values[min_idx]
+        edge = min_idx in (0, len(counts) - 1)
+        at_limit = am_bias_opt <= -10 + step or am_bias_opt >= 10 - step
+        print(f"scan around {centre}: min {min(counts)} at {am_bias_opt}"
+              f"{' (on the edge of the scan)' if edge else ''}")
+        if not edge or at_limit or move == max_moves - 1:
+            break
+        # The null is beyond this window; look again from where the scan stopped.
+        centre = am_bias_opt
+
     ctl.Set_Am_Bias(am_bias_opt)
+    update_tmp('am_bias_min', am_bias_opt)
     sendc(bob, 'done')
     update_tmp('am_mode', am_mode_backup)
     ctl.Update_Dac()
     if sendresult:
         sendc(conn, 'find_am_bias done')
-    print(f"Min count: {min_counts}, optimal bias: {am_bias_opt}\n")
+    print(f"Min count: {min(counts) if counts else 'none'}, "
+          f"optimal bias: {am_bias_opt}\n")
     return am_bias_opt
 
 
-def verify_am_bias(conn, sendresult=True):
+def verify_am_bias(conn, sendresult=True, delta=0.2, min_ratio=2.0):
+    """Check that `am_bias` really sits in the transmission null.
+
+    The test is that both neighbours a small step away are brighter, because
+    that is what "this is the null" means. Comparing against a point 2 V away
+    cannot say it: on a monotonic slope -- which is exactly what a search that
+    stopped at the edge of its range returns -- a 2 V step is always far
+    brighter, so that test passed the one case it needed to catch, certifying a
+    bias 26x off the null as good.
+
+    The far point is still measured, because the on/off ratio it gives is the
+    extinction figure worth logging; it just no longer decides the verdict.
+    """
     sendc(bob, 'verify_am_bias')
     t = get_tmp()
     am_mode_backup = t['am_mode']
+    bias = t['am_bias']
 
     update_tmp('am_mode', 'off')
     ctl.Update_Dac()
     time.sleep(0.2)
 
-    sendc(bob, 'get counts')
-    count_off = rcv_i(bob)
+    def count_at(v):
+        ctl.Set_Am_Bias(max(-10, min(10, round(v, 4))))
+        sendc(bob, 'get counts')
+        return rcv_i(bob)
 
-    bias = t['am_bias']
-    if bias + 2 <= 10:
-        am_final = bias + 2
+    count_off = count_at(bias)
+    count_lo = count_at(bias - delta)
+    count_hi = count_at(bias + delta)
+    count_ref = count_at(bias + 2 if bias + 2 <= 10 else bias - 2)
+    sendc(bob, 'done')
+
+    local = min(count_lo, count_hi) / max(count_off, 1)
+    ratio = count_ref / max(count_off, 1)
+    result = local >= min_ratio
+
+    if result:
+        m = colored(f"success: ref/off = {ratio:.2f} ({count_ref}/{count_off}), "
+                    f"+-{delta} V gives {count_lo}/{count_hi} \n",
+                    "green", force_color=True)
     else:
-        am_final = bias - 2
-
-    ctl.Set_Am_Bias(am_final)
-    ctl.Update_Dac()
-    time.sleep(0.2)
-    sendc(bob, 'get counts')
-    count_ref = rcv_i(bob)
-
-    ratio = count_ref / count_off
-    if ratio >= 1.5:
-        m = colored(f"success: ref/off = {ratio:.2f} ({count_ref}/{count_off}) \n", "green", force_color=True)
-        result = True
-    else:
-        m = colored(f"fail ref/off = {ratio:.2f} ({count_ref}/{count_off}) \n", "yellow", force_color=True)
-        result = False
+        m = colored(f"fail: {bias} is not a null -- +-{delta} V gives "
+                    f"{count_lo}/{count_hi} against {count_off}, only "
+                    f"{local:.2f}x. ref/off = {ratio:.2f} \n",
+                    "yellow", force_color=True)
 
     ctl.Set_Am_Bias(bias)
     update_tmp('am_mode', am_mode_backup)
@@ -701,27 +755,22 @@ def loop_find_am_bias(conn):
     ctl.Set_Am2_Bias(best_v)
     sendc(bob, 'done')
 
-    am_bias_opt = find_am_bias(conn, 0.8, step=0.2, sendresult=False)
+    # Coarse then fine, always: the coarse step is 0.2 V and the null is
+    # narrower than that, so the coarse pass locates the right volt and the fine
+    # pass finds the bottom. Gating the fine pass on the coarse result being bad
+    # is what let a coarse scan that stopped at the edge of its own range stand
+    # as the answer.
+    find_am_bias(conn, 0.8, step=0.2, sendresult=False)
+    am_bias_opt = find_am_bias(conn, 0.3, step=0.1, sendresult=False)
     result, count_double, count_off = verify_am_bias(conn, sendresult=False)
-
     ratio = count_double / count_off
 
-    if  ratio < 5:
+    if not result:
+        find_am_bias(conn, 20, step=1, sendresult=False)
+        find_am_bias(conn, 1, step=0.2, sendresult=False)
         am_bias_opt = find_am_bias(conn, 0.3, step=0.1, sendresult=False)
         result, count_double, count_off = verify_am_bias(conn, sendresult=False)
         ratio = count_double / count_off
-
-    if not result:
-        am_bias_opt = find_am_bias(conn, 20, step=1, sendresult=False)
-        am_bias_opt = find_am_bias(conn, 1, step=0.2, sendresult=False)
-
-        result, count_double, count_off = verify_am_bias(conn, sendresult=False)
-        ratio = count_double / count_off
-
-        if ratio < 5:
-            am_bias_opt = find_am_bias(conn, 0.3, step=0.1, sendresult=False)
-            result, count_double, count_off = verify_am_bias(conn, sendresult=False)
-            ratio = count_double / count_off
 
     if result:
         m = colored(f"success: double/off = {ratio:.2f} ({count_double}/{count_off})\n", "green", force_color=True)

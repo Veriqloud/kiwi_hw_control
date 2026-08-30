@@ -468,6 +468,7 @@ def rst_config():
     t['vca'] = 2
     t['vca_calib'] = 0
     t['am_bias'] = 0
+    t['am_bias_min'] = 0
     t['am2_bias'] = 2
     t['am2_bias_min'] = 0
     t['angle0'] = 0

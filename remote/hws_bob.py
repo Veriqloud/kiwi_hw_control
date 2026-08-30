@@ -500,8 +500,11 @@ while True:
 
                 elif command == 'verify_am_bias':
                     #print(colored('verify_am_bias', 'cyan', force_color=True))
-                    for i in range(2):
-                        rcvc()
+                    # Driven by Alice until she says 'done', like find_am_bias:
+                    # the verdict now needs the two neighbours of the null as
+                    # well as the null itself, and a fixed count of reads here
+                    # desynchronises the link the moment that changes again.
+                    while rcvc() == 'get counts':
                         time.sleep(0.2)
                         count = ctl.counts_fast()[0]
                         send_i(count)
