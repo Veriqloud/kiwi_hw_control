@@ -19,6 +19,28 @@ def lin_seq_2():
     seq[::2] = -seq[::2]
     return seq
 
+# The dac0 analog output is inverted with respect to the values below, so the
+# pulse generator sees a rising edge where these sequences fall. Emitting the
+# inverted sequence puts the trigger back on the edge each shape is built around.
+#
+# It matters for more than polarity. In dac0_double the falling crossings sit at
+# indices 2 and 7, where seq0 passes through exactly 0 -- a fixed 5 samples apart
+# and independent of `distance`, so triggering on them pins the pulse pair at half
+# the period and qdistance has no effect at all. The rising crossings are the ones
+# that carry it. In dac0_single the falling crossing lands mid-ramp, where the slew
+# is ~0.14/sample against 2.0 for the edge, which is why the trigger was marginal.
+#
+# dac0_off is a constant and needs no polarity; dac1 drives the phase modulator,
+# is not edge-triggered, and is left alone.
+DAC0_INVERT = True
+
+
+def _dac0_codes(seq):
+    """Scale a [-1, 1] sequence to dac0 codes, applying the output inversion."""
+    s = -np.asarray(seq) if DAC0_INVERT else np.asarray(seq)
+    return np.array(s * 32767 + 32768, dtype=int)
+
+
 def dac0_off(cycle_num):
     return np.zeros(cycle_num*10, dtype=int)
 
@@ -71,7 +93,7 @@ def dac0_single(cycle_num, shift, am_edge=None):
     for i in range(cycle_num):
         seq[i*20:i*20+20] = seq0
     seqs = np.roll(seq, shift)
-    return np.array(seqs*32767 + 32768, dtype=int)
+    return _dac0_codes(seqs)
 
 def dac0_single_single(cycle_num, shift, am_edge=None):
     cycle_num = cycle_num
@@ -87,7 +109,7 @@ def dac0_single_single(cycle_num, shift, am_edge=None):
     seq[len_const:len_const + len(rest)] = rest
     seq[len_const + len(rest):-len(transition)] = down
     seqs = np.roll(seq, shift)
-    return np.array(seqs*32767 + 32768, dtype=int)
+    return _dac0_codes(seqs)
 
 def dac0_double(cycle_num, distance, shift):
     cycle_num = cycle_num 
@@ -102,7 +124,7 @@ def dac0_double(cycle_num, distance, shift):
         seqs[:shift] = seq[-shift:]
     else:
         seqs = seq
-    return np.array(seqs*32767 + 32768, dtype=int)
+    return _dac0_codes(seqs)
 
 
 def dac1_sample(seq, shift):

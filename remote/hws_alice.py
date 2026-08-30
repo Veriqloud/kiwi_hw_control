@@ -765,6 +765,93 @@ def loop_find_gates(conn):
 
 
 #########################################################################
+def find_gates(conn, sendresult=True, force=False):
+    """Place both gates from the interferometer geometry Bob measures.
+
+    Bob leads the exchange: he asks for each modulator state he needs and Alice
+    answers, so a new measurement step is a change on his side only.  What comes
+    back is a qdistance and an am_shift computed from t1 and t2 rather than
+    searched for, which is why this replaces `ad` -> `find_sp` -> `ad` ->
+    `verify_gates` rather than wrapping it.
+
+    Alice keeps ownership of her own settings throughout: `qdistance` lands in
+    the key of the laser actually patched in, and the decoy modulator is parked
+    for the measurement and put back afterwards.
+    """
+    t = get_tmp()
+    ctl.qdistance_for_laser(t)          # refuses if `laser` is not set
+    qkey = f"qdistance_{t['laser']}"
+    am2_backup = t['am2_mode']
+    update_tmp('am2_mode', 'off')
+    ctl.Update_Decoy()
+
+    sendc(bob, 'find_gates_force' if force else 'find_gates')
+    pic = b''
+    m = ''
+    try:
+        while True:
+            m = rcvc(bob)
+            if m.startswith('done'):
+                pic = rcv_data(bob)
+                break
+
+            reply = 'ok'
+            if m == 'laser':
+                reply = str(t['laser'])
+            elif m == 'am_edge':
+                reply = get_tmp().get('am_edge') or gen_seq.DEFAULT_EDGE
+            elif m.startswith('report '):
+                print(colored('bob: ' + m[len('report '):], 'cyan', force_color=True))
+            elif m.startswith('am_shift '):
+                update_tmp('am_shift', int(m.split()[1]) % 640)
+                ctl.Update_Dac()
+                time.sleep(0.2)
+            elif m.startswith('qdistance '):
+                update_tmp(qkey, float(m.split()[1]))
+                ctl.Update_Dac()
+                time.sleep(0.2)
+            elif m.startswith('am '):
+                update_tmp('am_mode', m.split()[1])
+                ctl.Update_Dac()
+                time.sleep(0.2)
+            else:
+                reply = 'unknown request'
+            sendc(bob, reply)
+    finally:
+        update_tmp('am2_mode', am2_backup)
+        ctl.Update_Decoy()
+
+    status = m[len('done '):] if m.startswith('done ') else 'fail: no result'
+    colour = 'green' if status.startswith('success') else 'red'
+    out = colored('find_gates ' + status + ' \n', colour, force_color=True)
+    print(out)
+    if sendresult:
+        send_data(conn, pic)
+        sendc(conn, out)
+    return status.startswith('success'), pic
+
+
+def loop_find_gates_new(conn):
+    """find_gates, retried once -- the retry is only ever worth one attempt.
+
+    A failure here is a wrong measurement, not a search that landed badly, so
+    repeating it only helps when something was still settling (the am null
+    drifts within a session).  Two attempts, then report.
+    """
+    for attempt in range(2):
+        ok, pic = find_gates(conn, sendresult=False)
+        if ok:
+            send_data(conn, pic)
+            sendc(conn, colored('loop_find_gates success: gates placed \n',
+                                'green', force_color=True))
+            return
+        print(colored(f'find_gates attempt {attempt + 1} failed', 'yellow',
+                      force_color=True))
+    send_data(conn, pic)
+    sendc(conn, colored('loop_find_gates fail: gates not placed \n', 'red',
+                        force_color=True))
+
+
 def find_am2_bias(conn, range_val=0.5, step=0.1, sendresult=True):
     sendc(bob, 'find_am2_bias')
     t = get_tmp()
@@ -1747,6 +1834,14 @@ def wait_for_node_idle(timeout=60):
 
 
 # for convencience
+# Commands whose reply is a picture followed by a string. The admin client
+# reads the picture first, so a failure that skips it leaves the client blocked
+# on a length prefix that never arrives -- which is what an unknown command
+# used to look like from the outside: a ten minute hang, not an error.
+DATA_COMMANDS = ('verify_gates', 'loop_find_gates', 'find_gates',
+                 'find_gates_force', 'loop_find_gates_new')
+
+
 functionmap = {}
 functionmap['clean'] = clean
 functionmap['save'] = save
@@ -1771,6 +1866,8 @@ functionmap['loop_find_am2_bias'] = loop_find_am2_bias
 functionmap['pol_bob'] = pol_bob
 functionmap['ad'] = ad
 functionmap['check_gate_edge'] = check_gate_edge
+functionmap['find_gates'] = find_gates
+functionmap['loop_find_gates_new'] = loop_find_gates_new
 functionmap['find_sp'] = find_sp
 functionmap['verify_gates'] = verify_gates
 functionmap['fs_b'] = fs_b
@@ -1870,6 +1967,9 @@ while True:
                     nm = int(command[len('set_laser_'):])
                     print('command: ', command)
                     functionmap['set_laser'](conn, nm)
+                elif command.startswith('find_gates'):
+                    print('command: ', command)
+                    functionmap['find_gates'](conn, force=command.endswith('_force'))
                 elif command.startswith('save_'):
                     name = command[len('save_'):]
                     functionmap['save'](conn, name)
@@ -1887,6 +1987,8 @@ while True:
                 connect_to_bob(max_tries=30)
                 clear_flag_calibrating()
                 try:
+                    if command in DATA_COMMANDS:
+                        send_data(conn, b'')
                     sendc(conn, colored(f'fail: Bob link lost during {command}', 'red', force_color=True))
                 except OSError:
                     break
@@ -1898,7 +2000,9 @@ while True:
                 print(colored('unkown command or error in function '+command+f': {e}', 'red', force_color=True))
                 clear_flag_calibrating()
                 try:
-                    sendc(conn, colored('unknown command or error in function '+command, 'red', force_color=True))
+                    if command in DATA_COMMANDS:
+                        send_data(conn, b'')
+                    sendc(conn, colored('fail: unknown command or error in function '+command, 'red', force_color=True))
                 except OSError:
                     break
                 continue

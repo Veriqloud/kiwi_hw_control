@@ -2,6 +2,7 @@
 #!/bin/python
 
 import socket, json, time, os, struct, datetime, os
+import traceback
 #import numpy as np
 import ctl_bob as ctl
 import lib.gen_seq as gen_seq
@@ -631,6 +632,33 @@ while True:
                         data = f.read()
                     send_data(data)
                     sendc(status)
+
+
+                elif command in ('find_gates', 'find_gates_force'):
+                    print(colored(command, 'cyan', force_color=True))
+                    link = ctl.Link(sendc, rcvc, send_data)
+                    try:
+                        status, msg = ctl.Find_Gates(
+                            link, force=command.endswith('_force'))
+                    except Exception as e:
+                        # Report the failure over the link rather than letting it
+                        # drop the connection: Alice is waiting for the next
+                        # request in the find_gates exchange, and a clean 'done
+                        # fail' tells her what went wrong instead of surfacing as
+                        # a lost Bob link with no reason attached.
+                        status, msg = 'fail', f'{type(e).__name__}: {e}'
+                        print(colored('find_gates ' + msg, 'red', force_color=True))
+                        traceback.print_exc()
+                    else:
+                        print(colored(f'find_gates {status}: {msg}',
+                                      'green' if status == 'success' else 'red',
+                                      force_color=True))
+                    try:
+                        with open(HW_CONTROL + 'data/calib_res/find_gates.png', 'rb') as f:
+                            pic = f.read()
+                    except OSError:
+                        pic = b''
+                    link.finish(f'{status}: {msg}', pic)
 
 
                 elif command == 'fs_b':

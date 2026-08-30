@@ -129,6 +129,13 @@ loop_find_gates     : loop to find gates
 find_am2_bias       : find second AM bias
 pol_bob             : optimize Bob's polarization controller
 ad                  : adjust the gate delay
+find_gates          : place both gates from the interferometer geometry. Measures the
+                      single-pulse histogram, reads t1 (the ~1 m arm) and t2 (the ~2 m
+                      port recombination) off it, and computes qdistance, am_shift, t0,
+                      the APD gate width and delay and both soft gates from them. The
+                      hardware constants land in Bob's config/system_constants.json.
+find_gates_force    : the same, re-measuring the stored constants instead of reusing them
+loop_find_gates_new : find_gates, retried once
 check_gate_edge     : check the physical SPD gate is not on a slope/dip, recentre if it is
 find_sp             : find single peak
 verify_gates        : verify gates
@@ -192,9 +199,13 @@ connect_to_alice(args.use_localhost)
 
 def interact(command):
     sendc(command)
-    if (command == 'verify_gates') or (command == 'loop_find_gates'):
+    if command in ('verify_gates', 'loop_find_gates'):
         pic = rcv_data()
         with open('pics/verify_gates.png', 'wb') as f:
+            f.write(pic)
+    elif command in ('find_gates', 'find_gates_force', 'loop_find_gates_new'):
+        pic = rcv_data()
+        with open('pics/find_gates.png', 'wb') as f:
             f.write(pic)
     try:
         m = rcvc()
@@ -232,9 +243,18 @@ def full_init(nm):
 #    interact('find_am2_bias')
     interact('pol_bob')
     interact('vca_per_90')
-    interact('loop_find_gates')
-    interact('qdistance')
-    interact('loop_find_gates')
+    # Gate placement is computed from the interferometer geometry: find_gates
+    # reads t1 and t2 off the single-pulse histogram and derives qdistance,
+    # am_shift, t0, the APD gate and both soft gates from them. qdistance comes
+    # out of t1 in closed form, so the sweep for it is not needed either.
+    #
+    # It depends on the am null, and reports how far the gated light stands above
+    # the modulator's leakage so a bad null is visible rather than silent. Do not
+    # re-run loop_find_am_bias to freshen it first: on system1 it settles on -0.8
+    # where a sweep in am_mode off puts the null at -1.0 to -1.1, and at -0.8 the
+    # single-pulse histogram is flat and find_gates has nothing to measure.
+    # `bias_sweep.py --knob am_bias --am_mode off` is the reliable null.
+    interact('find_gates')
     interact('fs_b')
     interact('fs_a')
     interact('fd_b')

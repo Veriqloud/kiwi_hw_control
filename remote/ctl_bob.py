@@ -7,6 +7,8 @@ import numpy as np
 import mmap
 import lib.gen_seq as gen_seq
 import lib.cal as cal_lib
+import lib.timing as timing
+import lib.sysconst as sysconst
 from lib.fpga import *
 from lib.aurea.Aurea import Aurea
 from scipy.optimize import curve_fit
@@ -896,6 +898,667 @@ def verify_gate_double(input_file, input_file2, gate0, gate1, width, binstep=2):
 
 
 
+
+
+#-------------------------FIND GATES------------------------------------------
+#
+# Gate placement computed from the single-pulse histogram instead of searched
+# for.  One pulse per 25 ns frame arrives four times -- p0, p0+t1, p0+t2,
+# p0+t1+t2 -- because Bob's unbalanced Mach-Zehnder splits it t1 apart and its
+# two complementary output ports are recombined onto the one detector through
+# the 2 m delay t2.  Those two numbers fix everything downstream:
+#
+#   t1  the separation Alice's pulse pair must have for the comb to merge, so
+#       qdistance follows from it in closed form (lib/timing.qdistance_for_arm)
+#   t2  the separation of the two interfering peaks, hence how wide the APD
+#       gate has to open and where the two soft gates go
+#   p0  where the comb sits in the timing frame, hence am_shift, t0 and
+#       gate_delay
+#
+# t1, t2 and the APD constants are properties of the hardware, not of the
+# tuning, so they are measured once and kept in config/system_constants.json
+# (lib/sysconst); a later run reads them back and only re-locates p0.
+#
+# Everything here works in the frame the link actually runs in -- gated.  The
+# free-running detector timestamps the same photon several ns earlier or later
+# than the gated one, which is measured here as `mode_offset` and is large
+# enough to put a gate on the wrong peak if it is ignored.
+
+FG_CLICKS = 20000           # clicks per analysis histogram
+FG_CLICKS_SWEEP = 10000     # clicks per step of the gate-width sweep
+FG_SKIP = 2000              # leading clicks to drop; the first ones are stale
+FG_MIN_RATE = 150           # counts/0.1 s: below this Download_Time stalls
+FG_MIN_RATE_SWEEP = 40      # a narrow gate passes little; just download slower
+FG_BINW = 2                 # units per histogram bin (40 ps)
+FG_TARGET = 60              # where the first gated peak is put, in units
+FG_GATE_WIDTHS = (6, 7, 8, 9, 10)   # gate widths to characterise, in slots
+FG_OPEN_GATE = 12           # slots: all ones, the gate never closes
+FG_SOFT_W = 30              # soft gate width in units, as elsewhere in the tree
+FG_MIN_RATIO = 2.0          # in-window double/off below which gates are not good
+FG_MAX_FIT = 5.0            # units: comb fit worse than this is a placement failure
+FG_PLACED_TOL = 15          # units: how far the gated peak may sit from the target
+# Which peak the target refers to. Stored with the prediction residual, since a
+# residual measured against a different choice of reference peak is meaningless.
+FG_CONVENTION = 'portA_first'
+
+
+class Link:
+    """The Alice end of find_gates, as the three calls the routine needs.
+
+    hws_bob defines sendc/rcvc/send_data as closures over the accepted socket,
+    so the routine cannot import them; it gets them passed in instead and the
+    whole exchange stays readable here rather than in the dispatch chain.
+    """
+
+    def __init__(self, sendc, rcvc, send_data):
+        self._sendc = sendc
+        self._rcvc = rcvc
+        self._send_data = send_data
+
+    def ask(self, request):
+        """Tell Alice to do something and wait for her acknowledgement."""
+        self._sendc(request)
+        return self._rcvc()
+
+    def report(self, text):
+        self.ask('report ' + text[:200])
+
+    def finish(self, status, picture=b''):
+        """End the exchange: the verdict, then the diagnostic plot.
+
+        The verdict goes first and the plot always follows, so Alice can read
+        both unconditionally -- a failure that produced no plot still sends an
+        empty one rather than leaving her blocked on a read that never comes.
+        """
+        self._sendc('done ' + status[:200])
+        self._send_data(picture or b'')
+
+
+def Fg_Rate(n=3):
+    return float(np.mean([get_counts()[0] for _ in range(n)]))
+
+
+def Fg_Histogram(num_clicks, prefix, frame, binw=FG_BINW, min_rate=FG_MIN_RATE):
+    """Fold `num_clicks` fresh time tags into one `frame`.
+
+    Refuses instead of hanging when there is too little light: Download_Time
+    shells out to `dma_from_device -c`, which waits for its full count and
+    never returns if the clicks do not arrive -- and the stray reader it leaves
+    behind survives a restart of hw.service and blocks every later read.
+    """
+    rate = Fg_Rate()
+    if rate < min_rate:
+        raise RuntimeError(
+            f"only {rate:.0f} counts/0.1 s -- too few for a {num_clicks} click "
+            f"download, which would stall. Check the laser, vca, am_bias and "
+            f"that the APD gate is open.")
+    Download_Time(num_clicks, prefix)
+    t = np.loadtxt(HW_CONTROL + 'data/tdc/' + prefix + '.txt', usecols=1)
+    if len(t) > FG_SKIP * 2:
+        t = t[FG_SKIP:]
+    return timing.fold(t, frame, binw), rate
+
+
+def Fg_Set_Gate(delay_ps, width_slots):
+    """Put the APD gate at `delay_ps` with a `width_slots` wide pattern."""
+    update_tmp('gate_delay', int(round(delay_ps)) % 12500)
+    update_tmp('gate_duty', int(width_slots))
+    update_tmp('gate_offset', 0)
+    Gen_Gate()
+    time.sleep(0.3)
+
+
+def Fg_Measure_Window(h, binw=FG_BINW):
+    """Where the APD gate window is and how wide it opens, from one histogram.
+
+    Gated, the histogram is hard zero outside the window and carries the
+    pedestal inside it, so the pedestal maps the window directly -- no CW light
+    and no am_bias excursion off the null, which would have to be undone again.
+
+    Returns None when the histogram is not gated at all (nothing reads zero),
+    which is what a 12-slot all-ones pattern looks like.
+    """
+    # Filter Alice's pulses out first: they sit inside the window and are many
+    # times taller than the pedestal that maps it, so every width taken against
+    # the raw histogram would measure a pulse instead of the gate.
+    prof = timing.pedestal_profile(h)
+    sup = timing.support(prof, binw)
+    if sup is None:
+        return None
+    start, width = sup
+    n = len(prof)
+    lo = int(round(start / binw))
+    inside = np.array([prof[(lo + i) % n] for i in range(int(round(width / binw)))])
+    peak = float(inside.max()) if inside.size else 0.0
+    if peak <= 0:
+        return None
+    # Half-height width, not the full support: the gate profile is a sharp hump
+    # rather than a plateau, and this is the width over which a pulse is still
+    # detected with useful efficiency.
+    half = float((inside > 0.5 * peak).sum()) * binw
+    # Centroid rather than the middle of the support, which the soft shoulders
+    # of the hump would bias.
+    idx = np.arange(len(inside))
+    centre = (start + float((idx * inside).sum() / inside.sum()) * binw + binw / 2.0)
+    return {
+        'start': float(start),
+        'support': float(width),
+        'half': half,
+        'top_hat': float(inside.sum() / peak * binw),
+        'centre': float(centre % (n * binw)),
+    }
+
+
+def Fg_Peaks(h, nmax=4, binw=FG_BINW):
+    peaks, base = timing.find_peaks(h, binw=binw, nmax=nmax)
+    return peaks, base
+
+
+def Fg_Gate_Table(const, widths=FG_GATE_WIDTHS, delay_ps=None):
+    """Measure what window each gate width opens, and record it.
+
+    Runs with whatever light is present -- the pedestal is the probe -- so it
+    needs no cooperation from Alice, and the result is a property of the board
+    that later runs read back instead of repeating.
+    """
+    t = get_tmp()
+    delay_ps = t['gate_delay'] if delay_ps is None else delay_ps
+    measured = {}
+    for w in widths:
+        Fg_Set_Gate(delay_ps, w)
+        try:
+            h, rate = Fg_Histogram(FG_CLICKS_SWEEP, 'fg_gate', timing.PERIOD,
+                                  min_rate=FG_MIN_RATE_SWEEP)
+        except RuntimeError as e:
+            print(f"  gate {w:>2} slots: {e}")
+            continue
+        win = Fg_Measure_Window(h)
+        if win is None:
+            print(f"  gate {w:>2} slots: not gated (window covers the period)")
+            continue
+        measured[w] = win
+        # The decision is taken on the support -- the full extent over which the
+        # gate passes anything. It is the only one of the three that rises
+        # monotonically with the pattern width when measured against the
+        # pedestal; the half-height width of a hump that is part gate profile
+        # and part afterpulse decay does not, and reading a width off it picked
+        # gates by noise.
+        sysconst.put_gate_window(const, w, win['support'], half=win['half'],
+                                 top_hat=win['top_hat'], rate=rate)
+        print(f"  gate {w:>2} slots: passes {win['support'] * timing.UNIT_PS / 1000:5.2f} ns, "
+              f"half height {win['half'] * timing.UNIT_PS / 1000:5.2f} ns, "
+              f"top hat {win['top_hat'] * timing.UNIT_PS / 1000:5.2f} ns, "
+              f"rate {rate:.0f}")
+    return measured
+
+
+def Fg_Centre_At_Zero(width_slots, probe_delay_ps=0):
+    """Where the gate window sits when gate_delay and t0 are both zero.
+
+    One measurement turns gate placement into arithmetic: the window centre
+    moves with gate_delay one-for-one, and t0 shifts every time tag, so putting
+    the window at unit C is
+
+        gate_delay = ((C - t0 - centre_at_zero) mod 625) * 20 ps
+
+    which replaces `ad`, whose falling-edge target was fixed in the timing frame
+    and took whichever comb peaks happened to fall inside it.
+    """
+    t = get_tmp()
+    Fg_Set_Gate(probe_delay_ps, width_slots)
+    h, _ = Fg_Histogram(FG_CLICKS_SWEEP, 'fg_centre', timing.PERIOD)
+    win = Fg_Measure_Window(h)
+    if win is None:
+        raise RuntimeError(f"the {width_slots} slot gate does not close the "
+                           f"period, so its centre cannot be located")
+    centre0 = (win['centre'] - t['t0'] - probe_delay_ps / timing.UNIT_PS) % timing.PERIOD
+    return centre0, win
+
+
+def Fg_Gate_Delay(centre_units, t0, centre_at_zero):
+    """gate_delay in ps that puts the window centre at `centre_units`."""
+    return ((centre_units - t0 - centre_at_zero) % timing.PERIOD) * timing.UNIT_PS
+
+
+def Fg_Emission_Slots(am_mode, am_shift, qdistance, am_edge):
+    """Rising dac0 crossings of `am_mode`, in slots -- where Alice's light leaves.
+
+    Read off the generated codes rather than hard-coded, so a change to the edge
+    shapes or to qdistance is picked up automatically.  The single and double
+    patterns put their edges at different places inside their periods, and that
+    difference is exactly what lets a measurement made on the single pulse place
+    the double-pulse comb.
+    """
+    if am_mode == 'single':
+        codes = gen_seq.dac0_single(64, am_shift, am_edge)
+    elif am_mode == 'double':
+        codes = gen_seq.dac0_double(64, qdistance, am_shift)
+    else:
+        raise ValueError(f"no emission geometry for am_mode {am_mode!r}")
+    return timing.rising_crossings(codes)
+
+
+def Fg_Refine_Window(h_double, h_off, nominal, soft_w, reach=None, step=2):
+    """Slide one soft gate onto the light, within half a window of where the
+    geometry put it.
+
+    The geometry places the window on the peak's centroid, which is the right
+    thing to derive but not quite where the counts are: the carved peak rises
+    fast and decays slowly, so a window centred on its centroid clips the
+    leading edge and buys tail instead -- worth 25% of the signal on the first
+    port as measured on system1.
+
+    Maximises the excess over the am-off reference rather than the raw counts,
+    so the window is drawn to the light the modulator adds rather than to
+    whatever leaks through anyway. The reach is bounded to half a window: this
+    trims a placement, it cannot wander onto the neighbouring comb peak.
+    """
+    reach = soft_w // 2 if reach is None else reach
+    scale = (h_double.sum() / max(h_off.sum(), 1.0)) if h_off is not None else 0.0
+
+    def excess(start):
+        got = Fg_Window_Sum(h_double, start, soft_w)
+        if h_off is None:
+            return got
+        return got - Fg_Window_Sum(h_off, start, soft_w) * scale
+
+    best = max(range(int(nominal) - reach, int(nominal) + reach + 1, step),
+               key=excess)
+    return best % timing.PERIOD, excess(best), excess(int(nominal))
+
+
+def Fg_Choose_Gate_Width(candidates, centre_units, starts, t0, centre0_ref,
+                        ref_slots, soft_w):
+    """Pick the gate width that actually captures both peaks best.
+
+    Which width is right cannot be read off the measured window: the support
+    over-counts the edges, where detection efficiency is poor, and the
+    half-height and top-hat widths of a profile that is part gate and part
+    afterpulse decay do not even rise monotonically with the pattern.  So the
+    width is narrowed to the candidates the measured geometry allows and then
+    decided by what each one collects in the two windows -- scored on the weaker
+    of the two, since a gate is only as good as the port it captures least.
+
+    The window centre is not re-measured per candidate: gate_pattern extends the
+    run of bits forwards from the offset, so widening it moves the centre by
+    exactly half the added width.
+    """
+    best = None
+    for w in candidates:
+        centre0 = centre0_ref + timing.gate_centre_shift(w, ref_slots)
+        Fg_Set_Gate(Fg_Gate_Delay(centre_units, t0, centre0), w)
+        try:
+            h, rate = Fg_Histogram(FG_CLICKS_SWEEP, 'fg_width', timing.PERIOD,
+                                   min_rate=FG_MIN_RATE_SWEEP)
+        except RuntimeError as e:
+            print(f"  gate {w:>2} slots: {e}")
+            continue
+        base = timing.baseline(h)
+        nbins = int(round(soft_w / FG_BINW))
+        excess = [Fg_Window_Sum(h, g, soft_w) - base * nbins for g in starts]
+        score = min(excess)
+        print(f"  gate {w:>2} slots: captures {excess[0]:6.0f} and {excess[1]:6.0f} "
+              f"above pedestal, rate {rate:.0f}")
+        if best is None or score > best[0]:
+            best = (score, w, centre0)
+    if best is None:
+        raise RuntimeError("no gate width produced a usable histogram")
+    return best[1], best[2]
+
+
+def Fg_Plot(h_single, sol, h_double, h_off, gates, path):
+    """Two panels: what was measured, and where the gates ended up."""
+    fig, (ax0, ax1) = plt.subplots(2, 1, figsize=(11, 7))
+
+    x = (np.arange(len(h_single)) + 0.5) * FG_BINW * timing.UNIT_PS / 1000.0
+    ax0.plot(x, h_single, color='black', lw=0.8)
+    for name, off, colour in (('p0', 0, 'grey'), ('p0+t1', sol['t1'], 'tab:blue'),
+                              ('p0+t2', sol['t2'], 'tab:green'),
+                              ('p0+t1+t2', sol['t1'] + sol['t2'], 'tab:red')):
+        pos = ((sol['p0'] + off) % timing.SP_FRAME) * timing.UNIT_PS / 1000.0
+        ax0.axvline(pos, color=colour, ls='--', lw=1)
+        ax0.annotate(name, (pos, ax0.get_ylim()[1]), color=colour,
+                     fontsize=8, rotation=90, va='top')
+    ax0.set_title(f"single pulse, free running: t1 = {sol['t1_ns']:.3f} ns, "
+                  f"t2 = {sol['t2_ns']:.3f} ns, residual {sol['residual_ns']:.3f} ns")
+    ax0.set_xlabel('ns in the 25 ns single-pulse frame')
+    ax0.set_ylabel('counts')
+    ax0.set_ylim(0)
+
+    if h_double is not None:
+        x = (np.arange(len(h_double)) + 0.5) * FG_BINW * timing.UNIT_PS / 1000.0
+        if h_off is not None:
+            ax1.plot(x, h_off, color='tab:blue', ls='--', lw=0.8, label='am off')
+        ax1.plot(x, h_double, color='tab:red', lw=0.9, label='am double')
+        for i, (g, w) in enumerate(gates):
+            ax1.axvspan(g * timing.UNIT_PS / 1000.0,
+                        (g + w) * timing.UNIT_PS / 1000.0,
+                        color='orange' if i == 0 else 'purple', alpha=0.25,
+                        label=f'soft gate {i}')
+        ax1.legend(fontsize=8)
+        ax1.set_title('double pulse, gated, with the placed soft gates')
+        ax1.set_xlabel('ns in the 12.5 ns period')
+        ax1.set_ylabel('counts')
+        ax1.set_ylim(0)
+
+    fig.tight_layout()
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    fig.savefig(path, dpi=140)
+    plt.close(fig)
+
+
+def Fg_Window_Sum(h, start, width, binw=FG_BINW):
+    n = len(h)
+    lo = int(round(start / binw))
+    return float(sum(h[(lo + i) % n] for i in range(int(round(width / binw)))))
+
+
+def Find_Gates(link, force=False):
+    """Place both gates from the single-pulse geometry, and verify the result.
+
+    `link` talks to Alice; `force` re-measures the hardware constants instead of
+    reading them back.  Returns (status, message).
+    """
+    const = sysconst.load()
+    laser = link.ask('laser')
+    t = get_tmp()
+    entry = {'soft_gate': t['soft_gate'], 'spd_mode': t['spd_mode'],
+             'gate_delay': t['gate_delay'], 'gate_duty': t.get('gate_duty', 8),
+             't0': t['t0']}
+    update_tmp('soft_gate', 'off')
+    Update_Softgate()
+    try:
+        return _find_gates(link, const, laser, entry, force)
+    finally:
+        # Whatever went wrong, do not leave the link filtering on windows that
+        # were never placed -- a half-finished run would otherwise look like a
+        # working gate with almost no counts.
+        update_tmp('soft_gate', entry['soft_gate'])
+        Update_Softgate()
+
+
+def _find_gates(link, const, laser, entry, force):
+    # ------------------------------------------- geometry, in the gated frame --
+    # Measured gated, with the pattern held all-ones so the gate never closes.
+    # The link runs gated, and the detector timestamps a gated photon several ns
+    # away from a free-running one, so measuring the geometry free-running and
+    # applying it gated puts every gate on the wrong peak.  All-ones also keeps
+    # all four arrivals visible, which a real gate does not: it opens under 5 ns
+    # of the 12.5 ns period, and with only two arrivals showing, p0 cannot be
+    # told from p0+t2.
+    link.ask('am single')
+    link.ask('am_shift 0')
+    Ensure_Spd_Mode('gated')
+    Fg_Set_Gate(entry['gate_delay'], FG_OPEN_GATE)
+    h_gate, rate_g = Fg_Histogram(FG_CLICKS, 'fg_single_gated', timing.SP_FRAME)
+    peaks_g, base_g = Fg_Peaks(h_gate)
+    if len(peaks_g) != 4:
+        raise RuntimeError(
+            f"the single-pulse histogram has {len(peaks_g)} peaks, not 4 "
+            f"(rate {rate_g:.0f}/0.1 s, pedestal {base_g:.0f}). A flat histogram "
+            f"here is an am_bias off the null far more often than it is a gate "
+            f"problem -- sweep it in am_mode off and re-null before retrying.")
+    sol = timing.solve_single_pulse([p['pos'] for p in peaks_g])
+    complaints = timing.check_single_pulse(sol)
+    if complaints:
+        raise RuntimeError('single-pulse geometry does not hold: ' +
+                           '; '.join(complaints))
+    t1, t2 = sol['t1'], sol['t2']
+    print(f"gated: p0 {sol['p0']:.1f} units, t1 {sol['t1_ns']:.3f} ns, "
+          f"t2 {sol['t2_ns']:.3f} ns, residual {sol['residual_ns']:.3f} ns")
+    link.report(f"t1 {sol['t1_ns']:.3f} ns, t2 {sol['t2_ns']:.3f} ns")
+
+    qdistance, separation = timing.qdistance_for_arm(t1)
+    first, second, forward, arc = timing.gate_pair(t1, t2)
+    sysconst.put_interferometer(const, laser, t1, t2, sol['residual'],
+                                qdistance, separation)
+
+    # ------------------------------------ free running, for the APD constant --
+    # Not used for placement -- only to record how far the free-running detector
+    # timestamps the same photon from the gated one.  Bounded to half a peak
+    # spacing, because beyond that the two histograms cannot say which arrival
+    # matches which and the answer would be a multiple of t1 rather than a delay.
+    Ensure_Spd_Mode('continuous')
+    h_cont, _ = Fg_Histogram(FG_CLICKS, 'fg_single_cont', timing.SP_FRAME)
+    peaks_c, _ = Fg_Peaks(h_cont)
+    mode_offset = None
+    if len(peaks_c) == 4:
+        sol_c = timing.solve_single_pulse([p['pos'] for p in peaks_c])
+        if not timing.check_single_pulse(sol_c):
+            d = (sol['p0'] - sol_c['p0']) % timing.SP_FRAME
+            mode_offset = d - timing.SP_FRAME if d > timing.SP_FRAME / 2 else d
+    if mode_offset is None:
+        link.report('free-running histogram unusable; apd mode offset not updated')
+    else:
+        print(f"free running to gated offset "
+              f"{mode_offset * timing.UNIT_PS / 1000:+.3f} ns")
+        link.report(f"apd mode offset {mode_offset * timing.UNIT_PS / 1000:+.3f} ns")
+    Ensure_Spd_Mode('gated')
+
+    # ------------------------------------------------- coarse 64-frame shift --
+    link.ask('am single64')
+    coarse = Measure_Sp64()
+
+    # --------------------------------------------- put the comb on the target --
+    # Where Alice's light leaves differs between the single and double patterns,
+    # so the measurement is carried across through the two patterns' own rising
+    # edges rather than assumed equal; whatever that misses by is measured below
+    # and kept, so the next run predicts instead of correcting.
+    am_edge = link.ask('am_edge').strip()
+    c_single = Fg_Emission_Slots('single', 0, qdistance, am_edge)[0]
+    c_double = Fg_Emission_Slots('double', 0, qdistance, am_edge)[0]
+    delay = (sol['p0'] - c_single * timing.SLOT - entry['t0']) % timing.PERIOD
+    seq = sysconst.get_sequence(const, laser)
+    usable = (seq and seq.get('am_edge') == am_edge
+              and seq.get('convention') == FG_CONVENTION)
+    residual = seq['residual_units'] if usable else 0.0
+    x0 = (c_double * timing.SLOT + delay + first + residual) % timing.PERIOD
+    am_shift, t0 = timing.shift_for_target(x0, FG_TARGET)
+    print(f"predicted first gated peak at {x0:.1f} units -> am_shift {am_shift}, t0 {t0}")
+
+    update_tmp('t0', t0)
+    Gen_Gate()
+    link.ask(f'qdistance {qdistance:.6f}')
+    link.ask(f'am_shift {(am_shift + coarse) % 640}')
+    link.ask('am double')
+
+    offsets, weights = timing.comb_offsets(t1, t2)
+    for attempt in range(5):
+        h_comb, _ = Fg_Histogram(FG_CLICKS, 'fg_comb', timing.PERIOD)
+        peaks_d, _ = Fg_Peaks(h_comb, nmax=None)
+        if not peaks_d:
+            raise RuntimeError("no peaks in the double-pulse histogram")
+        # The comb has been shifted to put its first interfering peak on the
+        # target, so that is where the origin should be -- but only once the
+        # single-to-double emission offset is known, which it is not on the very
+        # first run of a system. A prior that is wrong by more than half a comb
+        # spacing pulls the fit onto its neighbour, which is worse than none, so
+        # the first look of a first run goes without one and the loop below
+        # converges instead.
+        trust_prior = attempt > 0 or usable
+        origin, score, margin = timing.comb_origin(
+            [(p['pos'], p['area']) for p in peaks_d], offsets, weights,
+            prior=(FG_TARGET - first) % timing.PERIOD if trust_prior else None)
+        got = (origin + first) % timing.PERIOD
+        error = (FG_TARGET - got + timing.PERIOD / 2) % timing.PERIOD - timing.PERIOD / 2
+        print(f"comb origin {origin:.1f} (fit {score:.1f} units, margin "
+              f"{margin:.1f}), first gated peak at {got:.1f}, "
+              f"{-error * timing.UNIT_PS / 1000:+.3f} ns from the target")
+        residual_new = residual - error
+        # Split the correction the same way the placement was: whole slots are
+        # Alice's am_shift, the remainder is t0 on this side.
+        slots = int(round(error / timing.SLOT))
+        t0 = int(round(t0 + error - slots * timing.SLOT)) % timing.PERIOD
+        update_tmp('t0', t0)
+        Gen_Gate()
+        if slots == 0:
+            break
+        # More than half a slot out: the whole-slot part has to move too, which
+        # means telling Alice and looking again rather than trimming t0.
+        am_shift = (am_shift + slots) % timing.SLOTS_PER_PERIOD
+        link.ask(f'am_shift {(am_shift + coarse) % 640}')
+        residual = residual_new
+    else:
+        raise RuntimeError("the comb will not settle on the target position")
+    sysconst.put_sequence(const, laser, residual_new, am_edge, FG_CONVENTION)
+
+    # ------------------------------------------------- close the gate onto it --
+    table = sysconst.window_per_slot(const)
+    if force or not table:
+        print("measuring what each gate width opens")
+        Fg_Gate_Table(const)
+        table = sysconst.window_per_slot(const)
+    # The APD gate spans the short arc between the two ports -- it is periodic,
+    # so it does not care that they belong to different sides of the period.
+    candidates = timing.gate_slot_candidates(arc, table)
+    print(f"gate widths that can hold a {arc * timing.UNIT_PS / 1000:.2f} ns "
+          f"arc: {candidates}")
+
+    # Narrow the windows if the ports come closer together than the standard
+    # width, so the two never overlap -- overlapping windows count the same
+    # clicks into both channels and look like a placement failure.
+    soft_w = int(min(FG_SOFT_W, max(8, arc - 4)))
+    if soft_w < FG_SOFT_W:
+        link.report(f"the two ports are only {arc * timing.UNIT_PS / 1000:.2f} ns "
+                    f"apart, so the soft gates are narrowed to "
+                    f"{soft_w * timing.UNIT_PS / 1000:.2f} ns")
+    if not timing.gate_target_fits(FG_TARGET, forward, soft_w):
+        raise RuntimeError(
+            f"port B trails port A by {forward * timing.UNIT_PS / 1000:.2f} ns, "
+            f"which does not leave room for both windows in one period at "
+            f"target {FG_TARGET}. Both must share a period or the two clicks "
+            f"carry different double-pulse indices.")
+
+    t0_now = get_tmp()['t0']
+    starts = (FG_TARGET - soft_w / 2.0, FG_TARGET + forward - soft_w / 2.0)
+    # Centre of the short arc, measured forward from port B through the period
+    # boundary to port A -- so the gate straddles the wrap, which the pattern
+    # register handles.
+    centre = (FG_TARGET + forward + arc / 2.0) % timing.PERIOD
+    centre0_ref, _ = Fg_Centre_At_Zero(candidates[0])
+    width_slots, centre0 = Fg_Choose_Gate_Width(
+        candidates, centre, starts, t0_now, centre0_ref, candidates[0], soft_w)
+    Fg_Set_Gate(Fg_Gate_Delay(centre, t0_now, centre0), width_slots)
+    sysconst.put_apd(const, centre_at_zero_units=round(centre0_ref, 2),
+                     centre_ref_slots=candidates[0],
+                     gate_slot_ps=round(timing.GATE_SLOT * timing.UNIT_PS, 2),
+                     **({'mode_offset_units': round(mode_offset, 2)}
+                        if mode_offset is not None else {}))
+    sysconst.save(const)
+
+    # ------------------------------------------------------------- verify -----
+    h_double, rate_double = Fg_Histogram(FG_CLICKS, 'fg_double', timing.PERIOD)
+    link.ask('am off')
+    rate_off = Fg_Rate()
+    try:
+        # Fewer clicks and a lower floor than the signal histograms: a well
+        # nulled modulator passes so little here that the reference cannot be
+        # collected at all, and refusing to place gates because the extinction
+        # is *good* would be the wrong way round.
+        h_off, _ = Fg_Histogram(FG_CLICKS_SWEEP, 'fg_off', timing.PERIOD,
+                                min_rate=FG_MIN_RATE_SWEEP)
+    except RuntimeError as e:
+        print(f"am-off reference not collectable ({e}); "
+              f"falling back to the count rates")
+        h_off = None
+    link.ask('am double')
+
+    nominal = starts
+    gates = [Fg_Refine_Window(h_double, h_off, n, soft_w) for n in nominal]
+    g0, g1 = gates[0][0], gates[1][0]
+    for i, (g, got, was) in enumerate(gates):
+        print(f"soft gate {i}: {int(nominal[i])} -> {g} units, "
+              f"signal {was:.0f} -> {got:.0f} ({got / max(was, 1) - 1:+.0%})")
+    set_Softgate(g0, g1, soft_w, soft_w)
+    t = get_tmp()
+    t['soft_gate0'], t['soft_gate1'] = g0, g1
+    t['w0'], t['w1'] = soft_w, soft_w
+    save_tmp(t)
+
+    # How far the light in each window stands above the modulator's leakage.
+    #
+    # Both histograms hold a fixed number of clicks, not a fixed time, so a ratio
+    # of their window sums compares only *shape* -- it says how much more of its
+    # light double mode puts in the window, and silently discards the fact that
+    # carving raises the rate three-fold in the first place. The quantity that
+    # matters is counts per second in the window, so the shape ratio is
+    # multiplied back by the rate ratio.
+    rate_ratio = rate_double / rate_off if rate_off > 0 else float('inf')
+    shape = [float('nan'), float('nan')]
+    if h_off is not None:
+        td, to = max(h_double.sum(), 1.0), max(h_off.sum(), 1.0)
+        shape = []
+        for g in (g0, g1):
+            d = Fg_Window_Sum(h_double, g, soft_w) / td
+            o = Fg_Window_Sum(h_off, g, soft_w) / to
+            shape.append(d / o if o > 0 else float('inf'))
+        ratios = [sh * rate_ratio for sh in shape]
+        how = 'in-window signal/leakage'
+    else:
+        ratios = [rate_ratio, rate_ratio]
+        how = 'count rate ratio only (am-off histogram not collectable)'
+    # The pair decides, not the weaker half: the two ports are complementary, so
+    # the phase Alice and Bob happen to sit at moves light from one to the other
+    # while their sum stays put. Balancing them is what adjust_soft_gates and the
+    # phase-shift steps do, later and deliberately.
+    pair = sum(ratios) / 2.0
+    print(f"{how}: {ratios[0]:.2f} and {ratios[1]:.2f}, pair {pair:.2f} "
+          f"(shape {shape[0]:.2f}/{shape[1]:.2f}, rates {rate_double:.0f} vs "
+          f"{rate_off:.0f} counts/0.1 s)")
+
+    # End-to-end check on the histogram the verdict is taken from, with the final
+    # t0 and the real gate in place -- not on the wide-open measurement that the
+    # placement was computed from.
+    peaks_v, _ = Fg_Peaks(h_double, nmax=None)
+    landed = min(((p['pos'] - FG_TARGET + timing.PERIOD / 2) % timing.PERIOD
+                  - timing.PERIOD / 2 for p in peaks_v), key=abs) if peaks_v else None
+
+    Fg_Plot(h_gate, sol, h_double, h_off, [(g0, soft_w), (g1, soft_w)],
+            HW_CONTROL + 'data/calib_res/find_gates.png')
+
+    # Two separate questions, reported separately. Whether the gates are on the
+    # peaks is what this routine controls, and the comb fit answers it to a few
+    # tens of ps. Whether the peaks stand above the modulator's leakage is a
+    # property of the am null and the optics, and reporting a drifted null as
+    # "bad gates" is what sent the old path hunting for a placement that was
+    # never the problem.
+    placed = (score <= FG_MAX_FIT and landed is not None
+              and abs(landed) <= FG_PLACED_TOL)
+    contrast = pair >= FG_MIN_RATIO
+    msg = (f"t1 {sol['t1_ns']:.3f} ns, t2 {sol['t2_ns']:.3f} ns, "
+           f"qdistance {qdistance:.4f}, gate {width_slots} slots, "
+           f"soft gates {g0}/{g1}, signal/leakage {ratios[0]:.2f}/{ratios[1]:.2f}"
+           f" (pair {pair:.2f}), rates {rate_double:.0f}/{rate_off:.0f}")
+    if not placed:
+        off = ('no peak found' if landed is None
+               else f"{abs(landed) * timing.UNIT_PS / 1000:.2f} ns off target")
+        msg = f"gates not placed (comb fit {score:.1f} units, {off}): " + msg
+    elif not contrast:
+        msg = (f"gates placed on the peaks, but the light in them stands only "
+               f"{pair:.2f}x above the modulator's leakage -- re-null am_bias "
+               f"and repeat: " + msg)
+    ok = placed and contrast
+
+    sysconst.put_last_run(
+        const, status='success' if ok else 'fail', laser=laser,
+        t1_ns=round(sol['t1_ns'], 4), t2_ns=round(sol['t2_ns'], 4),
+        qdistance=round(qdistance, 4), gate_slots=int(width_slots),
+        soft_gate0=int(g0), soft_gate1=int(g1), soft_w=int(soft_w),
+        forward_ns=round(forward * timing.UNIT_PS / 1000.0, 4),
+        arc_ns=round(arc * timing.UNIT_PS / 1000.0, 4),
+        signal_leakage=[round(r, 2) for r in ratios],
+        shape=[round(x, 2) for x in shape],
+        rate_double=round(rate_double), rate_off=round(rate_off),
+        comb_fit_units=round(score, 2),
+        placed_offset_ns=(None if landed is None
+                          else round(landed * timing.UNIT_PS / 1000.0, 4)),
+        t0=int(get_tmp()['t0']))
+    sysconst.save(const)
+    # The verdict is the in-window ratio against the am-off reference, which is
+    # the comparison verify_gate_double loaded and then never used: its test was
+    # peak > background + 20 on the double trace alone, so a feature no bigger
+    # than it is with the modulator off passed as a gated peak.
+    return ('success' if ok else 'fail'), msg
 
 
 def plot_single_peak():
