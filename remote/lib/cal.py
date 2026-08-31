@@ -8,6 +8,32 @@ from termcolor import colored
 HW_CONTROL = '/home/vq-user/hw_control/'
 LOG = '/home/vq-user/log/calibration/'
 
+# Acceptance band for the fitted fringe frequency, as the B of Sine_Function --
+# the number of whole fringe periods across the 64-slot sequence, since the fit
+# runs against bin_center/64. Real fringes on both ETS systems land between 0.8
+# and 4.1. Below 0.8 the scan does not contain a whole period so its length
+# cannot be measured; above 5 there are too few samples per period to tell a
+# fringe from the bin-to-bin alternation that a mis-aligned de-interleave leaves
+# behind, which otherwise fits at B near the Nyquist of 32.
+FRINGE_B_MIN = 0.8
+FRINGE_B_MAX = 5.0
+
+# The same band as the half period plot_shift returns and the BB84 angles are
+# set from: half_period = 1/(2B). Derived rather than written out a second time.
+# The two used to disagree -- Best_Shift took 1.85 < B < 5 and plot_shift
+# 0.13 <= hp <= 0.23, i.e. 2.17 < B < 3.85 -- so a shift could be chosen on a
+# period that plot_shift then discarded, silently substituting the 0.18 default.
+FRINGE_HP_MIN = 1.0 / (2.0 * FRINGE_B_MAX)
+FRINGE_HP_MAX = 1.0 / (2.0 * FRINGE_B_MIN)
+FRINGE_HP_DEFAULT = 0.18
+
+# A fringe is judged on contrast, not on raw amplitude: the old `50 <= |amp|`
+# was a count, so it failed a system for running at a lower rate -- system2's
+# fringes were rejected at amplitude 48.6 while carrying 0.71 visibility. The
+# significance term is what keeps a high-contrast fit to a handful of counts out.
+FRINGE_MIN_VISIBILITY = 0.25
+FRINGE_MIN_SIGMA = 5.0
+
 def Shift_Unit(j,party,gc_comp):
     #times_ref_click0=[]
     #times_ref_click1=[]
@@ -73,30 +99,46 @@ def Fit_Sine(party,gc_comp):
 
 
         amp_guess = (max(n0)-min(n0))/2
-        fre_guess = np.pi*2*10*Fre_Est(bin_center0,n0)
+        # Clamped into the band so a bad FFT estimate cannot start the fit
+        # outside the bounds it is about to be held to.
+        fre_guess = min(max(np.pi*2*10*Fre_Est(bin_center0,n0), FRINGE_B_MIN),
+                        FRINGE_B_MAX)
         phase_guess = 0
         offset_guess = np.mean(n0)
-        param_bounds = ([0, 1, -np.pi, -np.inf],[200, 3, np.pi, np.inf])	# print(amp_guess)
-        # FIT SIN
+        # These bounds were defined here and never passed to curve_fit, so a bad
+        # frequency estimate could run the fit away to a degenerate near-DC
+        # solution -- seen at A = 2e5, B = 0.01 on real data, twice. The band is
+        # the acceptance band, so a fit cannot land where it would be rejected
+        # anyway, and the amplitude is no longer capped at 200.
+        param_bounds = ([0, FRINGE_B_MIN, -np.pi, -np.inf],
+                        [np.inf, FRINGE_B_MAX, np.pi, np.inf])
         initial_guess_0 = [amp_guess, fre_guess, phase_guess, offset_guess]
-        params_0, params_covariance_0 = curve_fit(Sine_Function, bin_center0/64, n0, p0=initial_guess_0, maxfev=10000)
+        params_0, params_covariance_0 = curve_fit(
+            Sine_Function, bin_center0/64, n0, p0=initial_guess_0,
+            bounds=param_bounds, maxfev=10000)
         A0,B0,C0,D0 = params_0
-        fitted_y_data_0 = Sine_Function(bin_center0/64, A0, B0, C0, D0)
-        return_arr.append((round(A0,2),round(B0,2),i))
+        return_arr.append((round(A0,2),round(B0,2),round(D0,2),i))
 
     return return_arr
 
 def Best_Shift(party,gc_comp):
     return_arr = Fit_Sine(party,gc_comp)
     amp_fre_arr=[]
-    print("amp     fre   i")
-    for amp,fre,i in return_arr:
-        if (abs(amp) < 1000 and abs(amp) >= 50):
-            if (1.85<fre<5):
-                amp_fre_arr.append(((abs(amp)*fre),i))
-                print(f"{abs(amp):.2f}  {fre:.2f}  {i:.2f}")
+    print(f"accepting visibility >= {FRINGE_MIN_VISIBILITY}, "
+          f"{FRINGE_MIN_SIGMA} sigma over Poisson, "
+          f"{FRINGE_B_MIN} <= B <= {FRINGE_B_MAX}")
+    print("  i     amp      B  offset     vis   sigma  verdict")
+    for amp,fre,off,i in return_arr:
+        vis = abs(amp) / max(off, 1.0)
+        sigma = abs(amp) / np.sqrt(max(off, 1.0))
+        ok = (vis >= FRINGE_MIN_VISIBILITY and sigma >= FRINGE_MIN_SIGMA
+              and FRINGE_B_MIN <= fre <= FRINGE_B_MAX)
+        if ok:
+            amp_fre_arr.append(((abs(amp)*fre),i))
+        print(f"{i:>3} {abs(amp):>7.1f} {fre:>6.2f} {off:>7.1f} "
+              f"{vis:>7.2f} {sigma:>7.1f}  {'accept' if ok else 'reject'}")
     if not amp_fre_arr:
-          print(colored('amp_fre_arr is empty', 'red'))
+          print(colored('no shift passed the fringe acceptance test', 'red'))
           return None
     max_ele = max(amp_fre_arr, key=lambda t: t[0])
     best_shift = max_ele[1]
@@ -208,7 +250,7 @@ def plot_all_shifts(party, gc_comp=None):
 def plot_shift(party, shift,gc_comp):
     if shift is None:
         plot_all_shifts(party, gc_comp)
-        return 0.18
+        return FRINGE_HP_DEFAULT
 
     times0, times1 = Shift_Unit(shift, party,gc_comp)
 
@@ -227,7 +269,10 @@ def plot_shift(party, shift,gc_comp):
     offset_guess0 = np.mean(n0)
 
     guess0 = [amp_guess0, fre_guess0, phase_guess0, offset_guess0]
-    bounds = ([0, 1, -np.pi, -np.inf], [200, 3, np.pi, np.inf])
+    # Same band and same freedom as Fit_Sine, so the fit that decides the shift
+    # and the fit that reports its period cannot disagree about what is possible.
+    bounds = ([0, FRINGE_B_MIN, -np.pi, -np.inf],
+              [np.inf, FRINGE_B_MAX, np.pi, np.inf])
 
     amp_guess1 = (max(n1) - min(n1)) / 2
     fre_guess1 = 2 * np.pi * 10 * Fre_Est(bin_center1, n1)
@@ -257,14 +302,23 @@ def plot_shift(party, shift,gc_comp):
         A1, B1, C1, D1 = params1
         half_period1 = 1 / (2 * B1)
 
-        if 0.13 <= half_period0 <= 0.23 and 0.13 <= half_period1 <= 0.23:
+        in0 = FRINGE_HP_MIN <= half_period0 <= FRINGE_HP_MAX
+        in1 = FRINGE_HP_MIN <= half_period1 <= FRINGE_HP_MAX
+        if in0 and in1:
             half_period = (half_period0 + half_period1) / 2
-        elif 0.13 <= half_period0 <= 0.23:
+        elif in0:
             half_period = half_period0
-        elif 0.13 <= half_period1 <= 0.23:
+        elif in1:
             half_period = half_period1
         else:
-            half_period = 0.18
+            # Neither port gave a period inside the band the shift was accepted
+            # on, so there is nothing measured to use. Say so: the angles are
+            # about to be set from a default rather than from this measurement.
+            print(colored(f"half period {half_period0:.3f}/{half_period1:.3f} "
+                          f"outside {FRINGE_HP_MIN:.3f}-{FRINGE_HP_MAX:.3f}; "
+                          f"falling back to {FRINGE_HP_DEFAULT}",
+                          'yellow', force_color=True))
+            half_period = FRINGE_HP_DEFAULT
 
         plt.figure()
         plt.plot(bin_center0, n0, 'o', label='r=0 data', color='blue')
@@ -281,7 +335,7 @@ def plot_shift(party, shift,gc_comp):
         return round(half_period, 3)
     except Exception as e:
         print(f"[Error in plot_shift for {party} shift={shift}]: {e}")
-        return 0.18
+        return FRINGE_HP_DEFAULT
 
 # Best_Shift('bob')
 
