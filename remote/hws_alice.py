@@ -1143,6 +1143,23 @@ def _fresh_qber(n=3, timeout=90):
 GATE_QBER_REGRESS = 0.15
 
 
+def scan_gate(conn, sendresult=True):
+    """Put Bob's physical SPD gate where the pulse comb actually is.
+
+    Alice has to be carving while Bob scans, so am_mode goes to double first and
+    Update_Dac runs before Bob is told to start.
+    """
+    update_tmp('am_mode', 'double')
+    ctl.Update_Dac()
+    time.sleep(0.2)
+    sendc(bob, 'scan_gate')
+    m = rcvc(bob)
+    print(colored('scan_gate ' + m, 'cyan', force_color=True))
+    if sendresult:
+        sendc(conn, 'scan_gate ' + m)
+    return m
+
+
 def check_gate_edge(conn):
     """Ask Bob to check its physical SPD gate placement, and VERIFY any move.
 
@@ -1914,6 +1931,7 @@ functionmap['verify_am2_bias'] = verify_am2_bias
 functionmap['loop_find_am2_bias'] = loop_find_am2_bias
 functionmap['pol_bob'] = pol_bob
 functionmap['ad'] = ad
+functionmap['scan_gate'] = scan_gate
 functionmap['check_gate_edge'] = check_gate_edge
 functionmap['find_gates'] = find_gates
 functionmap['loop_find_gates_new'] = loop_find_gates_new

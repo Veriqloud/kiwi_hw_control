@@ -547,6 +547,19 @@ while True:
                     sendc('done')
 
 
+                elif command == 'scan_gate':
+                    print(colored('scan_gate', 'cyan', force_color=True))
+                    try:
+                        delay, rate, frac = ctl.Scan_Gate()
+                        msg = (f'gate {delay} ps (rate {rate:.0f}, '
+                               f'peak fraction {frac:.2f})')
+                        print(colored(msg, 'green', force_color=True))
+                    except Exception as e:
+                        msg = f'fail: scan_gate errored ({e})'
+                        print(colored(msg, 'red', force_color=True))
+                    sendc(msg[:250])
+
+
                 elif command == 'check_gate_edge':
                     print(colored('check_gate_edge', 'cyan', force_color=True))
                     try:

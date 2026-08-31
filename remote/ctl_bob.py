@@ -810,6 +810,85 @@ def fall_edge(file_path):
 #    return lf
 
 
+def Scan_Gate(coarse_step=400, fine_step=100, num_clicks=10000, verbose=True):
+    """Sweep the physical SPD gate over a full period and keep the best position.
+
+    `ad` aligns the gate window to a fixed place in the timing frame and leaves
+    it there, so whichever comb peaks happen to fall inside are the ones that get
+    gated -- and they need not be the strong ones. This looks instead at what the
+    gate actually captures.
+
+    Scored as (count rate) x (fraction of the histogram sitting in peaks).
+    Download_Time collects a FIXED number of clicks, so its histogram gives the
+    shape but says nothing about the level; the level has to come from the
+    counters. Use the unwindowed `total`: click0/click1 count only inside the
+    soft_gate0/soft_gate1 windows and read zero whenever the gate moves away from
+    them, whatever `soft_gate` is set to, which makes them useless for a scan.
+
+    num_clicks stays at 10000: `dma_from_device -c` rejects smaller requests
+    (exit 128), and every other call site in the tree uses 10000 or more.
+
+    Returns (best_delay_ps, rate, peak_fraction).
+    """
+    t = get_tmp()
+    entry_delay = t['gate_delay']
+    entry_soft = t['soft_gate']
+    update_tmp('soft_gate', 'off')
+    Update_Softgate()
+    Ensure_Spd_Mode('gated')
+
+    def score_at(delay):
+        update_tmp('gate_delay', int(delay) % 12500)
+        Gen_Gate()
+        time.sleep(0.3)
+        rate = float(np.mean([get_counts()[0] for _ in range(3)]))
+        Download_Time(num_clicks, 'scan_gate')
+        data = np.loadtxt(HW_CONTROL + 'data/tdc/scan_gate.txt', usecols=1) % 625
+        h, _ = np.histogram(data, bins=np.arange(0, 625, 2))
+        # The pedestal has to be measured INSIDE the open window. Gated, most of
+        # the period is hard zero, so a median over the whole histogram is 0 and
+        # every occupied bin then counts as peak -- the fraction saturates at 1.0
+        # and the score degenerates into the raw rate.
+        openbins = h[h > 0]
+        base = float(np.median(openbins)) if openbins.size else 0.0
+        thr = base + 4 * np.sqrt(max(base, 1.0))
+        frac = float(np.clip(h - base, 0, None)[h > thr].sum() / max(h.sum(), 1))
+        return rate * frac, rate, frac
+
+    best = None
+    try:
+        for d in range(0, 12500, coarse_step):
+            s, rate, frac = score_at(d)
+            if verbose:
+                print(f"  scan_gate coarse {d:>6} ps -> rate {rate:7.0f} "
+                      f"peak_frac {frac:5.3f} score {s:8.0f}")
+            if best is None or s > best[0]:
+                best = (s, d, rate, frac)
+
+        centre = best[1]
+        for d in range(centre - coarse_step, centre + coarse_step + 1, fine_step):
+            s, rate, frac = score_at(d)
+            if verbose:
+                print(f"  scan_gate fine   {d % 12500:>6} ps -> rate {rate:7.0f} "
+                      f"peak_frac {frac:5.3f} score {s:8.0f}")
+            if s > best[0]:
+                best = (s, d % 12500, rate, frac)
+    except Exception:
+        # leave the gate where it was rather than half-scanned
+        update_tmp('gate_delay', entry_delay)
+        Gen_Gate()
+        update_tmp('soft_gate', entry_soft)
+        Update_Softgate()
+        raise
+
+    update_tmp('gate_delay', int(best[1]))
+    Gen_Gate()
+    update_tmp('soft_gate', entry_soft)
+    Update_Softgate()
+    time.sleep(0.2)
+    return int(best[1]), best[2], best[3]
+
+
 def verify_gate_double(input_file, input_file2, gate0, gate1, width, binstep=2):
     if width == 0:
         width = 30
