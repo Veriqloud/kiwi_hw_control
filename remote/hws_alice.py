@@ -1038,8 +1038,14 @@ def find_am2_bias(conn, range_val=0.5, step=0.1, sendresult=True):
         direction = 1
 
     for i in range(num_points):
-        bias = bias_default + direction * (-range_val + step * i)
-        if bias < 0 or bias > 10:
+        # Same span and rounding as am_bias: the AM2 bias line runs -10..10 V
+        # like AM1's and `Set_Am2_Bias` has always accepted that, so clamping
+        # the search at 0 threw away half the range -- which mattered most for
+        # the `range_val=20` recovery pass, whose whole point is to sweep the
+        # full span. Rounding keeps values like 4.8999999999999995 out of
+        # tmp.txt.
+        bias = round(bias_default + direction * (-range_val + step * i), 4)
+        if bias < -10 or bias > 10:
             continue
 
         ctl.Set_Am2_Bias(bias)
