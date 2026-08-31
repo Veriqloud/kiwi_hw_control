@@ -1016,6 +1016,14 @@ FG_SOFT_W = 30              # soft gate width in units, as elsewhere in the tree
 FG_MIN_RATIO = 2.0          # in-window double/off below which gates are not good
 FG_MAX_FIT = 5.0            # units: comb fit worse than this is a placement failure
 FG_PLACED_TOL = 15          # units: how far the gated peak may sit from the target
+# Units of clearance a soft window keeps from a gate edge. `support` finds the
+# window by thresholding the pedestal, which reads a few units wide at each
+# shoulder, so a measured clearance is optimistic by about that much -- and the
+# shoulder is where detection efficiency is poor anyway. 10 units (200 ps)
+# covers the bias and keeps the light off the slope.
+FG_EDGE_SLACK = 10
+FG_CENTRE_TOL = 5           # units: window-centre error worth correcting
+FG_CENTRE_TRIES = 3         # attempts at centring the gate on the two ports
 # Which peak the target refers to. Stored with the prediction residual, since a
 # residual measured against a different choice of reference peak is meaningless.
 FG_CONVENTION = 'portA_first'
@@ -1197,6 +1205,32 @@ def Fg_Centre_At_Zero(width_slots, probe_delay_ps=0):
 def Fg_Gate_Delay(centre_units, t0, centre_at_zero):
     """gate_delay in ps that puts the window centre at `centre_units`."""
     return ((centre_units - t0 - centre_at_zero) % timing.PERIOD) * timing.UNIT_PS
+
+
+def Fg_Gate_Clearance(h, ports, soft_w):
+    """Where the APD gate window sits, and how close its edges come to the light.
+
+    Returns (window, clearance), `clearance` being the units between each port's
+    soft window and the nearer edge of the physical gate -- negative when that
+    edge cuts into it. None when the histogram is not gated at all, which is
+    what an all-ones pattern looks like.
+
+    The window comes from the support, which over-reads each shoulder by a few
+    units, so clearance is an optimistic bound; FG_EDGE_SLACK is what covers it.
+
+    The latency between Alice's dac0 and the TTL gate pattern is not the same
+    after every power cycle, so this is measured with the width that will be
+    used rather than predicted from the centre_at_zero probe.
+    """
+    win = Fg_Measure_Window(h)
+    if win is None:
+        return None
+    start, width = win['start'], win['support']
+    clear = []
+    for p in ports:
+        into = (p - start) % timing.PERIOD
+        clear.append(min(into, width - into) - soft_w / 2.0)
+    return win, clear
 
 
 def Fg_Emission_Slots(am_mode, am_shift, qdistance, am_edge):
@@ -1515,12 +1549,78 @@ def _find_gates(link, const, laser, entry, force):
     # register handles.
     centre = (FG_TARGET + forward + arc / 2.0) % timing.PERIOD
     centre0_ref, _ = Fg_Centre_At_Zero(candidates[0])
-    width_slots, centre0 = Fg_Choose_Gate_Width(
+    width_slots, _ = Fg_Choose_Gate_Width(
         candidates, centre, starts, t0_now, centre0_ref, candidates[0], soft_w)
+
+    # ------------------------------------ close the loop on the real latency --
+    # The delay between Alice's dac0 and the TTL gate pattern is not the same
+    # after every power cycle, and centre_at_zero was probed at a different
+    # width, so where the window actually lands is measured with the width that
+    # will be used and corrected until both ports sit clear of both edges. This
+    # is the job `ad` used to do, closed on the pulses themselves rather than on
+    # a fixed falling edge in the timing frame.
+    ports = (float(FG_TARGET), float((FG_TARGET + forward) % timing.PERIOD))
+    clear = [float('nan'), float('nan')]
+    edge_note = None
+    for attempt in range(FG_CENTRE_TRIES):
+        centre0 = centre0_ref + timing.gate_centre_shift(width_slots, candidates[0])
+        Fg_Set_Gate(Fg_Gate_Delay(centre, t0_now, centre0), width_slots)
+        got = None
+        try:
+            h_edge, _ = Fg_Histogram(FG_CLICKS_SWEEP, 'fg_gate_edge',
+                                     timing.PERIOD, min_rate=FG_MIN_RATE_SWEEP)
+            got = Fg_Gate_Clearance(h_edge, ports, soft_w)
+        except RuntimeError as e:
+            edge_note = f"gate edges not checked ({e})"
+            break
+        if got is None:
+            edge_note = ("the gate does not close the period, so its edges "
+                         "cannot be checked")
+            break
+        win, clear = got
+        err = ((centre - win['centre'] + timing.PERIOD / 2) % timing.PERIOD
+               - timing.PERIOD / 2)
+        print(f"  gate {width_slots} slots: window {win['support']:.0f} units "
+              f"wide at {win['start']:.0f}, centre {err:+.1f} units off target, "
+              f"port clearance {clear[0]:+.0f}/{clear[1]:+.0f} units")
+        if abs(err) > FG_CENTRE_TOL:
+            # Correct the measured latency itself, not gate_delay, so the value
+            # stored for the next run is the one the hardware just showed.
+            d = get_tmp()['gate_delay'] / timing.UNIT_PS
+            centre0_ref = ((win['centre'] - t0_now - d) % timing.PERIOD
+                           - timing.gate_centre_shift(width_slots,
+                                                      candidates[0])) % timing.PERIOD
+            edge_note = f"gate centre was {err:+.1f} units off; corrected"
+            continue
+        if min(clear) < FG_EDGE_SLACK:
+            # Centred as well as it can be and still tight: the only remaining
+            # move is a wider pattern.
+            wider = [w for w in candidates if w > width_slots]
+            if not wider:
+                edge_note = (f"the widest usable gate ({width_slots} slots) still "
+                             f"comes within {min(clear):+.0f} units of a port")
+                break
+            edge_note = (f"{width_slots} slots leaves only {min(clear):+.0f} units "
+                         f"of clearance; widening to {wider[0]}")
+            print('  ' + edge_note)
+            width_slots = wider[0]
+            continue
+        edge_note = None
+        break
+    else:
+        edge_note = edge_note or "the gate would not centre on the two ports"
+    # Carry the last correction to the hardware unconditionally: the loop can
+    # end on a `continue` that has updated centre0_ref without re-setting the
+    # gate, and the stored constants must describe the gate that is actually on.
+    centre0 = centre0_ref + timing.gate_centre_shift(width_slots, candidates[0])
     Fg_Set_Gate(Fg_Gate_Delay(centre, t0_now, centre0), width_slots)
+    if edge_note:
+        print('  ' + edge_note)
+        link.report(edge_note)
     sysconst.put_apd(const, centre_at_zero_units=round(centre0_ref, 2),
                      centre_ref_slots=candidates[0],
                      gate_slot_ps=round(timing.GATE_SLOT * timing.UNIT_PS, 2),
+                     edge_clearance_units=[round(c, 1) for c in clear],
                      **({'mode_offset_units': round(mode_offset, 2)}
                         if mode_offset is not None else {}))
     sysconst.save(const)
@@ -1604,11 +1704,19 @@ def _find_gates(link, const, laser, entry, force):
     placed = (score <= FG_MAX_FIT and landed is not None
               and abs(landed) <= FG_PLACED_TOL)
     contrast = pair >= FG_MIN_RATIO
+    # Whether the TTL gate cuts into the light is a third, separate question.
+    # Short of the slack is only worth saying; an edge actually inside a soft
+    # window means those counts are being clipped by the gate, not measured.
+    uncut = not any(c < 0 for c in clear if c == c)
     msg = (f"t1 {sol['t1_ns']:.3f} ns, t2 {sol['t2_ns']:.3f} ns, "
            f"qdistance {qdistance:.4f}, gate {width_slots} slots, "
+           f"clearance {clear[0]:+.0f}/{clear[1]:+.0f} units, "
            f"soft gates {g0}/{g1}, signal/leakage {ratios[0]:.2f}/{ratios[1]:.2f}"
            f" (pair {pair:.2f}), rates {rate_double:.0f}/{rate_off:.0f}")
-    if not placed:
+    if not uncut:
+        msg = (f"the TTL gate cuts into the light "
+               f"({clear[0]:+.0f}/{clear[1]:+.0f} units of clearance): " + msg)
+    elif not placed:
         off = ('no peak found' if landed is None
                else f"{abs(landed) * timing.UNIT_PS / 1000:.2f} ns off target")
         msg = f"gates not placed (comb fit {score:.1f} units, {off}): " + msg
@@ -1616,7 +1724,7 @@ def _find_gates(link, const, laser, entry, force):
         msg = (f"gates placed on the peaks, but the light in them stands only "
                f"{pair:.2f}x above the modulator's leakage -- re-null am_bias "
                f"and repeat: " + msg)
-    ok = placed and contrast
+    ok = placed and contrast and uncut
 
     sysconst.put_last_run(
         const, status='success' if ok else 'fail', laser=laser,
