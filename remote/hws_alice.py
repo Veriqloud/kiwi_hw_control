@@ -584,6 +584,75 @@ def vca_per(conn, per=90):
 
 
 
+# Seconds to let the modulator rest at its chosen bias before the final check.
+# The AM is slow and drifts after a voltage step, so a null agreed on by scans
+# that stepped straight through it is not necessarily the null it settles to.
+AM_SETTLE_S = 10
+# How many settle-and-recheck rounds to allow. One is not enough straight after
+# an `init`: the AM is still moving then, and the null it settles to is shallow
+# for tens of seconds -- measured on system2 2026-08-31, where a null that
+# verified at 2.18x before the first rest read 0.96x after it, while extinction
+# stayed at 30-50x the whole time. Each round rests again and re-fines, so the
+# transient is waited out rather than declared a failure.
+AM_SETTLE_ROUNDS = 3
+# The +-delta null test only means something while the counts at the null are
+# optical. At a good null very little light gets through, and if the detector's
+# dark counts are comparable to it the ratio is dragged towards 1 however good
+# the null is -- which is how system2 read "not a null" at 0.96x on 2026-08-31
+# while its extinction was 30-50x. Raising vca scales the light and not the
+# dark, so the measured ratio walks back towards the true one.
+AM_NULL_OVER_FLOOR = 5      # null counts wanted this far above the dark floor
+AM_VCA_MAX = 4.8            # the ceiling find_vca uses
+# The double/off extinction at which loop_find_am_bias calls it a success.
+# The +-0.2 V probe stays as evidence and still drives the retries, but it is no
+# longer what passes or fails the run: on 1310 nm the modulator's extinction is
+# only 7-11x where 1510 gives 30-70x, and a null that is genuinely the best
+# available there was being reported as a failure while showing double/off 7.4.
+AM_MIN_DOUBLE_OFF = 2.0
+
+
+def _counts():
+    """One counter read. Only valid inside an open conversation with Bob."""
+    sendc(bob, 'get counts')
+    return rcv_i(bob)
+
+
+def _dark_floor():
+    """Counts with the VCA fully closed -- the darkest state reachable here.
+
+    Not pure dark: whatever still leaks through at vca 0 is in it too, so this
+    over-estimates the detector's dark rate and makes the test that uses it
+    conservative rather than optimistic. The VCA is restored before returning;
+    ramping down costs 0.5 s and the way back up is immediate.
+    """
+    vca = get_tmp()['vca']
+    ctl.Set_Vca(0)
+    time.sleep(0.3)
+    floor = _counts()
+    ctl.Set_Vca(vca)
+    time.sleep(0.2)
+    return floor
+
+
+def _vca_above_floor(bias, floor):
+    """Raise vca until the null stands AM_NULL_OVER_FLOOR clear of `floor`.
+
+    Returns (vca, counts at the null). Stops at AM_VCA_MAX; restoring the
+    caller's vca is the caller's job.
+    """
+    ctl.Set_Am_Bias(bias)
+    time.sleep(0.2)
+    vca = get_tmp()['vca']
+    off = _counts()
+    want = AM_NULL_OVER_FLOOR * max(floor, 1)
+    while off < want and vca <= AM_VCA_MAX - 0.2:
+        vca = round(vca + 0.2, 2)
+        ctl.Set_Vca(vca)
+        time.sleep(0.2)
+        off = _counts()
+    return vca, off
+
+
 def _am_bias_scan(centre, range_val, step, direction):
     """Count the AM output across `centre` +- `range_val`, in `step` volts.
 
@@ -679,7 +748,8 @@ def find_am_bias(conn, range_val=0.5, step=0.1, sendresult=True, max_moves=4):
     return am_bias_opt
 
 
-def verify_am_bias(conn, sendresult=True, delta=0.2, min_ratio=2.0):
+def verify_am_bias(conn, sendresult=True, delta=0.2, min_ratio=2.0,
+                   lift_vca=True):
     """Check that `am_bias` really sits in the transmission null.
 
     The test is that both neighbours a small step away are brighter, because
@@ -696,6 +766,7 @@ def verify_am_bias(conn, sendresult=True, delta=0.2, min_ratio=2.0):
     t = get_tmp()
     am_mode_backup = t['am_mode']
     bias = t['am_bias']
+    vca_backup = t['vca']
 
     update_tmp('am_mode', 'off')
     ctl.Update_Dac()
@@ -705,6 +776,16 @@ def verify_am_bias(conn, sendresult=True, delta=0.2, min_ratio=2.0):
         ctl.Set_Am_Bias(max(-10, min(10, round(v, 4))))
         sendc(bob, 'get counts')
         return rcv_i(bob)
+
+    # Get the null clear of the dark counts before judging it, otherwise a
+    # perfectly good null reads as a shallow one -- see AM_NULL_OVER_FLOOR.
+    floor, vca_used = None, vca_backup
+    if lift_vca:
+        floor = _dark_floor()
+        vca_used, _ = _vca_above_floor(bias, floor)
+        if vca_used != vca_backup:
+            print(f"dark floor {floor} counts; vca {vca_backup} -> {vca_used} "
+                  f"to lift the null clear of it")
 
     count_off = count_at(bias)
     count_lo = count_at(bias - delta)
@@ -716,17 +797,23 @@ def verify_am_bias(conn, sendresult=True, delta=0.2, min_ratio=2.0):
     ratio = count_ref / max(count_off, 1)
     result = local >= min_ratio
 
+    # Say what the null was judged against: a ratio measured with the null only
+    # just above the dark floor means something quite different from the same
+    # ratio measured well clear of it.
+    ctx = (f", floor {floor} at vca {vca_used}" if floor is not None else "")
     if result:
         m = colored(f"success: ref/off = {ratio:.2f} ({count_ref}/{count_off}), "
-                    f"+-{delta} V gives {count_lo}/{count_hi} \n",
+                    f"+-{delta} V gives {count_lo}/{count_hi}{ctx} \n",
                     "green", force_color=True)
     else:
         m = colored(f"fail: {bias} is not a null -- +-{delta} V gives "
                     f"{count_lo}/{count_hi} against {count_off}, only "
-                    f"{local:.2f}x. ref/off = {ratio:.2f} \n",
+                    f"{local:.2f}x. ref/off = {ratio:.2f}{ctx} \n",
                     "yellow", force_color=True)
 
     ctl.Set_Am_Bias(bias)
+    if lift_vca and vca_used != vca_backup:
+        ctl.Set_Vca(vca_backup)
     update_tmp('am_mode', am_mode_backup)
     ctl.Update_Dac()
 
@@ -772,10 +859,39 @@ def loop_find_am_bias(conn):
         result, count_double, count_off = verify_am_bias(conn, sendresult=False)
         ratio = count_double / count_off
 
+    # Every count above was read off an AM that had not finished settling: it
+    # keeps moving for seconds after a bias step, so the scans agree on a null
+    # that can sit a little off once it has come to rest. Let it rest at the
+    # chosen bias and ask again, and re-fine from there if it has moved. The
+    # dwell is here rather than inside `_am_bias_scan` because paying it per
+    # point would make the scans minutes long to correct only the final value.
+    for attempt in range(AM_SETTLE_ROUNDS):
+        print(f"letting the modulator settle for {AM_SETTLE_S} s before "
+              f"rechecking ({attempt + 1}/{AM_SETTLE_ROUNDS})")
+        time.sleep(AM_SETTLE_S)
+        result, count_double, count_off = verify_am_bias(conn, sendresult=False)
+        if result:
+            break
+        print(colored("the null moved while the modulator settled; re-fining",
+                      "yellow", force_color=True))
+        find_am_bias(conn, 0.3, step=0.1, sendresult=False)
+    ratio = count_double / max(count_off, 1)
+
+    # Everything above still chases a real null -- the retries and the settle
+    # rounds are all driven by the +-0.2 V probe. Only the verdict changes: the
+    # run passes on the extinction it actually achieved. The probe's answer is
+    # kept in the message, because a good ratio at a bias that is not on the
+    # null is exactly what the probe was added to make visible.
+    on_null = result
+    result = ratio >= AM_MIN_DOUBLE_OFF
+    note = "" if on_null else (f", but the +-0.2 V probe says {get_tmp()['am_bias']} "
+                               f"is not the bottom of the null")
     if result:
-        m = colored(f"success: double/off = {ratio:.2f} ({count_double}/{count_off})\n", "green", force_color=True)
+        m = colored(f"success: double/off = {ratio:.2f} ({count_double}/{count_off})"
+                    f"{note}\n", "green", force_color=True)
     else:
-        m = colored(f"fail double/off = {ratio:.2f} ({count_double}/{count_off})\n", "yellow", force_color=True)
+        m = colored(f"fail double/off = {ratio:.2f} ({count_double}/{count_off}), "
+                    f"below {AM_MIN_DOUBLE_OFF}{note}\n", "yellow", force_color=True)
         if count_off > 3500:
            print(colored("Run the find_vca function or manually reduce the power (manual attenuator) before retrying.", "red",force_color=True))
     print(m)
