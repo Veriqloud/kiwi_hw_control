@@ -15,11 +15,22 @@ import logging
 import platform
 
 # Load library
+#
+# Loaded once and cached. `listDevices` rebinds the module-global DEVICE that
+# every other call here goes through, and it used to hand back a fresh CDLL on
+# each call -- so constructing a second Aurea while a first still had the device
+# open swapped the handle underneath it, and the closeDevice that followed went
+# through a different wrapper than its openDevice. dlopen refcounts the same
+# image so this is not by itself two libusb contexts, but there is no reason for
+# the handle to move mid-session and every reason for it to stay put.
+_DEVICE_LIB = None
+
+
 def oem_shared_lib():
-    if platform.system() == "Linux":
-        return CDLL("/home/vq-user/hw_control/lib/aurea/OEM.so")
-    else:
-        return None
+    global _DEVICE_LIB
+    if _DEVICE_LIB is None and platform.system() == "Linux":
+        _DEVICE_LIB = CDLL("/home/vq-user/hw_control/lib/aurea/OEM.so")
+    return _DEVICE_LIB
 
 # List devices
 # Description: scan all SPD OEM devices available
