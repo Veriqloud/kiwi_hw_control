@@ -283,7 +283,7 @@ def _solve_single_pulse_subset(subset, frame, ratio_range):
 
 
 def solve_single_pulse(positions, frame=SP_FRAME, ratio_range=(1.5, 2.5),
-                       t1_hint=None):
+                       t1_hint=None, t1_tol=15.0):
     """Read p0, t1 and t2 off the four single-pulse arrivals.
 
     The four arrivals are the sumset {0, t1} + {0, t2} offset by p0, so exactly
@@ -303,6 +303,15 @@ def solve_single_pulse(positions, frame=SP_FRAME, ratio_range=(1.5, 2.5),
     just as cleanly as the true one, at a t1 the real hardware has never shown.
     Without a hint, more than four peaks is refused rather than guessed at.
 
+    The hint narrows the field to `t1_tol` units of itself and picks by
+    residual *inside* that band, rather than by closeness to the hint first:
+    two candidates can sit within noise of each other in t1 (a unit or two)
+    while disagreeing wildly on t2, and ranking on t1-closeness first took the
+    worse-fitting one merely for being fractionally closer (seen 2026-09-01,
+    system2 1310 nm: t2 7.62 ns at residual 132.8 beat t2 9.99 ns at residual
+    0.27 this way). Candidates outside the band are still tried, ordered by
+    residual, so a hint that is merely stale does not turn into a hard refusal.
+
     Returns a dict with p0, t1, t2, the predicted-vs-measured residual on the
     fourth peak, and the same in ns.
     """
@@ -319,7 +328,7 @@ def solve_single_pulse(positions, frame=SP_FRAME, ratio_range=(1.5, 2.5),
     if t1_hint is None:
         results.sort(key=lambda r: (not r[0], r[1]))
     else:
-        results.sort(key=lambda r: (not r[0], abs(r[3] - t1_hint), r[1]))
+        results.sort(key=lambda r: (not r[0], abs(r[3] - t1_hint) > t1_tol, r[1]))
     valid, res, p0, t1, t2, tsum, ambiguous, gap_margin = results[0]
 
     return {
