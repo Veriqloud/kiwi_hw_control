@@ -35,6 +35,7 @@ which is where the two soft gates belong.  Their separation is `t2` modulo the
 period, and that separation is what the physical APD gate has to span.
 """
 
+import itertools
 import numpy as np
 
 UNIT_PS = 20.0
@@ -229,37 +230,19 @@ def align(h_ref, h_new, binw=2):
 
 # ------------------------------------------------------ single-pulse solution --
 
-def solve_single_pulse(positions, frame=SP_FRAME):
-    """Read p0, t1 and t2 off the four single-pulse arrivals.
-
-    The four arrivals are the sumset {0, t1} + {0, t2} offset by p0, so exactly
-    one of them is the one whose three offsets to the others satisfy
-    `third == first + second`.  Testing that identity picks p0 out without
-    relying on which gap happens to be the largest, which matters because
-    t2 ~ 2*t1 makes the four peaks very nearly equally spaced.
-
-    Returns a dict with p0, t1, t2, the predicted-vs-measured residual on the
-    fourth peak, and the same in ns.
-    """
-    pos = sorted(float(p) % frame for p in positions)
-    if len(pos) != 4:
-        raise ValueError(f"need 4 single-pulse peaks, got {len(pos)}")
-
-    # The four arrivals span t1+t2 of the frame and leave the rest empty, so the
-    # gap that closes the cycle is much the largest and the peak after it is p0.
-    # The sumset identity alone does not decide it: t2 ~ 2*t1 puts the peaks on
-    # a nearly uniform grid, where several rotations satisfy z == x + y equally
-    # well, and one of them reports t2 as t1+t2.
+def _solve_single_pulse_subset(subset, frame, ratio_range):
+    """Best (valid, residual, p0, t1, t2, tsum, ambiguous, gap_margin) for one
+    exact 4-peak subset. See solve_single_pulse for the model."""
     def rotation(p0):
-        off = sorted((p - p0) % frame for p in pos)
+        off = sorted((p - p0) % frame for p in subset)
         return off[1], off[2], off[3], abs(off[3] - (off[1] + off[2]))
 
     # The four arrivals span t1+t2 and leave the rest of the frame empty, so the
     # gap that closes the cycle is the largest and the peak after it is p0.
-    gaps = [(pos[(i + 1) % 4] - pos[i]) % frame for i in range(4)]
+    gaps = [(subset[(i + 1) % 4] - subset[i]) % frame for i in range(4)]
     wrap = int(np.argmax(gaps))
     gap_margin = gaps[wrap] / max(g for i, g in enumerate(gaps) if i != wrap)
-    p0 = pos[(wrap + 1) % 4]
+    p0 = subset[(wrap + 1) % 4]
 
     # Cross-check it against the model's own identity, third offset == first
     # plus second.  The two tests fail in opposite regimes -- the gap test gets
@@ -269,15 +252,75 @@ def solve_single_pulse(positions, frame=SP_FRAME):
     def close(a, b):
         return a <= max(3 * b, b + 8)
 
-    residuals = {c: rotation(c)[3] for c in pos}
-    best = min(residuals.values())
+    residuals = {c: rotation(c)[3] for c in subset}
+    best_res = min(residuals.values())
     ambiguous = False
-    if not close(residuals[p0], best):
+    if not close(residuals[p0], best_res):
         p0 = min(residuals, key=residuals.get)
         rest = sorted(v for c, v in residuals.items() if c != p0)
         ambiguous = bool(rest) and close(rest[0], residuals[p0])
 
     t1, t2, tsum, res = rotation(p0)
+
+    # t2 ~ 2*t1 is the real geometry here, which is exactly what makes the four
+    # peaks near-uniformly spaced -- the regime where the gap and residual
+    # tests above can both settle on the wrong rotation (residual can be small
+    # by coincidence for the wrong p0 too). The ratio is the one test that
+    # tells the true arms from the others, since only they land in range: try
+    # every rotation and take the best-residual one that has a sane ratio.
+    lo, hi = ratio_range
+    if not (t1 and lo <= t2 / t1 <= hi):
+        candidates = sorted(
+            (rotation(c) + (c,) for c in subset),
+            key=lambda r: r[3])
+        sane = [r for r in candidates if r[0] and lo <= r[1] / r[0] <= hi]
+        if sane:
+            t1, t2, tsum, res, p0 = sane[0]
+            ambiguous = (len(sane) > 1 and close(sane[1][3], res)) or ambiguous
+
+    valid = bool(t1 and lo <= t2 / t1 <= hi)
+    return valid, res, p0, t1, t2, tsum, ambiguous, gap_margin
+
+
+def solve_single_pulse(positions, frame=SP_FRAME, ratio_range=(1.5, 2.5),
+                       t1_hint=None):
+    """Read p0, t1 and t2 off the four single-pulse arrivals.
+
+    The four arrivals are the sumset {0, t1} + {0, t2} offset by p0, so exactly
+    one of them is the one whose three offsets to the others satisfy
+    `third == first + second`.  Testing that identity picks p0 out without
+    relying on which gap happens to be the largest, which matters because
+    t2 ~ 2*t1 makes the four peaks very nearly equally spaced.
+
+    More than four peaks above threshold means a second, leakage comb is mixed
+    in with the true one (seen 2026-09-01: two interleaved 4-peak combs ~2.5 ns
+    apart, and the leakage peak taking the true one's place in a plain top-4-by-
+    area pick by a few dozen counts). `t1_hint` (units, from a prior good
+    measurement of this same interferometer -- t1 does not change between runs)
+    is then required to pick among the 4-peak subsets: plain self-consistency
+    is not enough, because with 8 peaks several *other* subsets -- including a
+    sub-harmonic that mixes both combs -- pass the residual and ratio checks
+    just as cleanly as the true one, at a t1 the real hardware has never shown.
+    Without a hint, more than four peaks is refused rather than guessed at.
+
+    Returns a dict with p0, t1, t2, the predicted-vs-measured residual on the
+    fourth peak, and the same in ns.
+    """
+    pos = sorted(float(p) % frame for p in positions)
+    if len(pos) < 4:
+        raise ValueError(f"need at least 4 single-pulse peaks, got {len(pos)}")
+    if len(pos) > 4 and t1_hint is None:
+        raise ValueError(
+            f"got {len(pos)} peaks, more than 4, with no t1_hint to pick the "
+            f"true comb from a leakage one -- pass the last known-good t1")
+
+    subsets = [tuple(pos)] if len(pos) == 4 else list(itertools.combinations(pos, 4))
+    results = [_solve_single_pulse_subset(s, frame, ratio_range) for s in subsets]
+    if t1_hint is None:
+        results.sort(key=lambda r: (not r[0], r[1]))
+    else:
+        results.sort(key=lambda r: (not r[0], abs(r[3] - t1_hint), r[1]))
+    valid, res, p0, t1, t2, tsum, ambiguous, gap_margin = results[0]
 
     return {
         'p0': p0, 't1': t1, 't2': t2, 'sum': tsum, 'residual': res,

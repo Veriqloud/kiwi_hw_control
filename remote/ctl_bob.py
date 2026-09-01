@@ -1404,14 +1404,23 @@ def _find_gates(link, const, laser, entry, force):
     Ensure_Spd_Mode('gated')
     Fg_Set_Gate(entry['gate_delay'], FG_OPEN_GATE)
     h_gate, rate_g = Fg_Histogram(FG_CLICKS, 'fg_single_gated', timing.SP_FRAME)
-    peaks_g, base_g = Fg_Peaks(h_gate)
-    if len(peaks_g) != 4:
+    # A leakage comb interleaved with the true one can put more than four peaks
+    # above threshold, and picking only the top 4 by area can lose the true
+    # fourth peak to a leakage peak by a handful of counts (seen 2026-09-01).
+    # solve_single_pulse can search every peak above threshold instead, but
+    # only safely with the last known-good t1 to pick the true comb from a
+    # leakage one -- without that anchor, nmax=4 keeps the original behaviour
+    # rather than risk guessing a self-consistent but wrong t1/t2.
+    prior = sysconst.get_interferometer(const, laser)
+    t1_hint = prior['t1_units'] if prior else None
+    peaks_g, base_g = Fg_Peaks(h_gate, nmax=(None if t1_hint is not None else 4))
+    if len(peaks_g) < 4:
         raise RuntimeError(
-            f"the single-pulse histogram has {len(peaks_g)} peaks, not 4 "
+            f"the single-pulse histogram has {len(peaks_g)} peaks, fewer than 4 "
             f"(rate {rate_g:.0f}/0.1 s, pedestal {base_g:.0f}). A flat histogram "
             f"here is an am_bias off the null far more often than it is a gate "
             f"problem -- sweep it in am_mode off and re-null before retrying.")
-    sol = timing.solve_single_pulse([p['pos'] for p in peaks_g])
+    sol = timing.solve_single_pulse([p['pos'] for p in peaks_g], t1_hint=t1_hint)
     complaints = timing.check_single_pulse(sol)
     if complaints:
         raise RuntimeError('single-pulse geometry does not hold: ' +
@@ -1433,10 +1442,12 @@ def _find_gates(link, const, laser, entry, force):
     # matches which and the answer would be a multiple of t1 rather than a delay.
     Ensure_Spd_Mode('continuous')
     h_cont, _ = Fg_Histogram(FG_CLICKS, 'fg_single_cont', timing.SP_FRAME)
-    peaks_c, _ = Fg_Peaks(h_cont)
+    # t1 just measured gated is the same interferometer's, so it anchors this
+    # subset search the same way a cached prior does for the gated measurement.
+    peaks_c, _ = Fg_Peaks(h_cont, nmax=None)
     mode_offset = None
-    if len(peaks_c) == 4:
-        sol_c = timing.solve_single_pulse([p['pos'] for p in peaks_c])
+    if len(peaks_c) >= 4:
+        sol_c = timing.solve_single_pulse([p['pos'] for p in peaks_c], t1_hint=t1)
         if not timing.check_single_pulse(sol_c):
             d = (sol['p0'] - sol_c['p0']) % timing.SP_FRAME
             mode_offset = d - timing.SP_FRAME if d > timing.SP_FRAME / 2 else d
