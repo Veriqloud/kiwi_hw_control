@@ -18,6 +18,10 @@ A compile error there means a config field changed upstream and the vendored cop
 
 # Use gen_config
 
+Every field of `meta_config.json` and `sim_config.json` is described in
+[config_reference.md](config_reference.md) ([PDF](config_reference.pdf)); regenerate
+the PDF with `./make_config_reference.sh`.
+
 `gen_config` will generate the config files for the individual programs from one meta config. An example of the meta config can be found in the folder `gen_config` for the real hardware and for the simulator.
 
 Example folder structure for the generated config files:
