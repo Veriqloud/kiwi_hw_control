@@ -1,4 +1,4 @@
-# ETSI-014 KMS connection settings for the qline1 SAE pair.
+# ETSI-014 KMS connection settings for a SAE pair.
 # Sourced by get_key_*.sh / get_status_*.sh.
 #
 # Flags (recognised anywhere in the args and stripped from the positional
@@ -9,19 +9,21 @@
 #                     client certificate. Use this when the KMS has mTLS enabled
 #                     (meta_config kms.authentication=true -> kms.json SAEs.mtls=true).
 #                     Without it the scripts use plain HTTP (works only when mTLS is off).
-# e.g.  ./get_status_alice.sh --use_localhost --auth
-#       ./get_key_alice.sh    --use_localhost --auth            # enc_keys (mTLS)
-#       ./get_key_bob.sh      --use_localhost --auth <key_ID>   # dec_keys (mTLS)
+# e.g.  QLINE_CONFIG_DIR=../ets/system1 ./get_status_alice.sh --use_localhost --auth
+#       QLINE_CONFIG_DIR=../ets/system2 ./get_key_alice.sh    --auth            # enc_keys (mTLS)
+#       QLINE_CONFIG_DIR=../ets/system2 ./get_key_bob.sh      --auth <key_ID>   # dec_keys (mTLS)
 #
-# Localhost ports are read from <QLINE_CONFIG_DIR>/ports_for_localhost.json.
+# Everything (peer IDs, IPs, ports) is read from $QLINE_CONFIG_DIR/meta_config.json,
+# so pointing QLINE_CONFIG_DIR at config/ets/system1, config/ets/system2 or
+# config/qline1 picks that pair without editing this file. Localhost ports (with
+# --use_localhost) come from <QLINE_CONFIG_DIR>/ports_for_localhost.json instead.
+# When QLINE_CONFIG_DIR is unset, this falls back to the original qline1 defaults.
+#
 # With --auth the client cert/key/CA come from $KMS_CLIENT_CERTS
 # (default ~/qline1_kms_client): ca.crt, sae_cert.pem, sae_key.pem -- the client/
 # bundle produced by `gen_config --gen-certs`. The generated server cert's SAN
 # covers localhost/127.0.0.1 and the node IP, so --auth works both over the tunnel
 # and against the node IP directly.
-
-ALICE_ID="QmTsMUaLQZh2PuRCAVRyH4CCSgg23bgoPmVa5mqDT1DL6S"
-BOB_ID="QmcRZWX5XnVFXDceknYLEu7LaRceU2W2StNAznpg4kafnd"
 
 USE_LOCALHOST=0
 AUTH=0
@@ -35,13 +37,29 @@ for _a in "$@"; do
 done
 set -- "${_args[@]}"
 
-if [ "$USE_LOCALHOST" = 1 ]; then
-    CFG="${QLINE_CONFIG_DIR:?please set it to the config dir}"
-    ALICE_IP="localhost"
-    BOB_IP="localhost"
-    ALICE_PORT=$(jq '.kms_alice' "$CFG/ports_for_localhost.json")
-    BOB_PORT=$(jq '.kms_bob' "$CFG/ports_for_localhost.json")
+if [ -n "$QLINE_CONFIG_DIR" ]; then
+    META="$QLINE_CONFIG_DIR/meta_config.json"
+    ALICE_ID=$(jq -r '.kms.alice_peer_id' "$META")
+    BOB_ID=$(jq -r '.kms.bob_peer_id' "$META")
+    if [ "$USE_LOCALHOST" = 1 ]; then
+        ALICE_IP="localhost"
+        BOB_IP="localhost"
+        ALICE_PORT=$(jq '.kms_alice' "$QLINE_CONFIG_DIR/ports_for_localhost.json")
+        BOB_PORT=$(jq '.kms_bob' "$QLINE_CONFIG_DIR/ports_for_localhost.json")
+    else
+        ALICE_IP=$(jq -r '.ip.alice' "$META")
+        BOB_IP=$(jq -r '.ip.bob' "$META")
+        ALICE_PORT=$(jq '.port.kms_alice' "$META")
+        BOB_PORT=$(jq '.port.kms_bob' "$META")
+    fi
 else
+    # Fallback: original qline1 hardcoded pair, unchanged from before.
+    ALICE_ID="QmTsMUaLQZh2PuRCAVRyH4CCSgg23bgoPmVa5mqDT1DL6S"
+    BOB_ID="QmcRZWX5XnVFXDceknYLEu7LaRceU2W2StNAznpg4kafnd"
+    if [ "$USE_LOCALHOST" = 1 ]; then
+        echo "--use_localhost needs QLINE_CONFIG_DIR set" >&2
+        exit 1
+    fi
     ALICE_IP="192.168.1.14"
     BOB_IP="192.168.1.77"
     ALICE_PORT=13003

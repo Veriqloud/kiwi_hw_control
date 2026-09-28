@@ -23,7 +23,8 @@ What the script asks for:
 
 What it does next, in order:
   1. ssh-copy-id to Alice and Bob            (only if you answered yes)
-  2. make                                    (build gc/qber/gen_config)
+  2. make && make install                    (build gc/qber/gen_config, then
+                                               copy the binaries into ~/bin/)
   3. gen_config -c meta_config.json -g       (network config + certificates,
                                                written to qline_<alice>_<bob>/)
 
@@ -84,6 +85,7 @@ fi
 echo
 echo "==> 2/3 Build (make)"
 make -C "$SCRIPT_DIR/../deployment"
+make -C "$SCRIPT_DIR/../deployment" install
 
 echo
 echo "==> 3/3 Generating the network configuration"

@@ -52,14 +52,7 @@
                 "expected_key_basis_probability": 0.9
             }
         },
-        "decoystates": {
-            "mu1": 0.23,
-            "mu2": 0.076,
-            "p1": 0.55,
-            "esec": 1e-10,
-            "ecor": 1e-10,
-            "K": 19
-        }
+        "decoystates": null
     },
     "tls": {
         "country": "FR",
