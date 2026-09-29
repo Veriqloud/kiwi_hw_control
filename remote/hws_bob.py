@@ -119,6 +119,11 @@ GATE_PLATEAU_BAND = 0.05     # points within 5% of the best sum form the plateau
 GATE_SETTLE_S = 0.3          # enough: 0.3 s and 2.5 s agree within noise (measured)
 GATE_MIN_COUNTS = 50         # below this (per counts_slow window) the read is noise
 
+# 3 sigma of ctl.counts_mean() on click0+click1 at the qline1 rate: one read
+# carries sigma 62 on click1 and 28 on click0, so ~68 on the sum, and averaging
+# ten windows brings it to ~21. Below this a "better" angle is a coin flip.
+ANGLE_COUNT_MARGIN = 65
+
 
 def _gate_apply(ps):
     """Move the physical gate to `ps` ps, clamped to the safe range.
@@ -852,8 +857,7 @@ while True:
                     for delta in [-6,-3, 0, 3,6]:
                         g0_test = max(0, g0 + delta)
                         ctl.set_Softgate(g0_test, g1, w0, w1)
-                        time.sleep(0.2)
-                        count = ctl.counts_fast()[2]
+                        count = ctl.counts_mean()[2]
                         if count > best_count:
                             best_count = count
                             best_g0 = g0_test
@@ -866,8 +870,7 @@ while True:
                     for delta in [-6,-3, 0, 3,6]:
                         g1_test = max(0, g1 + delta)
                         ctl.set_Softgate(best_g0, g1_test, w0, w1)
-                        time.sleep(0.2)
-                        count = ctl.counts_fast()[1]
+                        count = ctl.counts_mean()[1]
                         if count > best_count:
                             best_count = count
                             best_g1 = g1_test
@@ -876,30 +879,27 @@ while True:
                     save_tmp(t)
 
                     best_w0 = w0
-                    max_count_w0 = ctl.counts_fast()[2]
+                    max_count_w0 = ctl.counts_mean()[2]
                     for delta in [3, 6]:
                         w0_test = max(0, w0 + delta)
                         ctl.set_Softgate(best_g0, best_g1, w0_test, w1)
-                        time.sleep(0.2)
-                        counts = ctl.counts_fast()[2]
+                        counts = ctl.counts_mean()[2]
                         if counts - max_count_w0 >= 50:
                             best_w0 = w0_test
                             max_count_w0 = counts
 
                     best_w1 = w1
-                    max_count_w1 = ctl.counts_fast()[1]
+                    max_count_w1 = ctl.counts_mean()[1]
                     for delta in [3, 6]:
                         w1_test = max(0, w1 + delta)
                         ctl.set_Softgate(best_g0, best_g1, best_w0, w1_test)
-                        time.sleep(0.2)
-                        counts = ctl.counts_fast()[1]
+                        counts = ctl.counts_mean()[1]
                         if counts - max_count_w1 >= 50:
                             best_w1 = w1_test
                             max_count_w1 = counts
 
                     ctl.set_Softgate(best_g0, best_g1, best_w0, best_w1)
-                    time.sleep(0.2)
-                    counts = ctl.counts_fast()
+                    counts = ctl.counts_mean()
 
                     if counts[1] > counts[2]:
                         i = 1
@@ -910,8 +910,7 @@ while True:
                         for delta in range(0, 16, 2):
                             w1_test = max(0, best_w1 - delta)
                             ctl.set_Softgate(best_g0, best_g1, best_w0, w1_test)
-                            time.sleep(0.2)
-                            counts = ctl.counts_fast()
+                            counts = ctl.counts_mean()
                             if abs(counts[1] - counts[2]) <= 60 or counts[1] < counts[2]:
                                 best_w1 = w1_test
                                 break
@@ -921,8 +920,7 @@ while True:
                         for delta in range(0, 16, 2):
                             w0_test = max(0, best_w0 - delta)
                             ctl.set_Softgate(best_g0, best_g1, w0_test, best_w1)
-                            time.sleep(0.2)
-                            counts = ctl.counts_fast()
+                            counts = ctl.counts_mean()
                             if abs(counts[2] - counts[1]) <= 60 or counts[2] < counts[1]:
                                 best_w0 = w0_test
                                 break
@@ -1044,12 +1042,26 @@ while True:
 
 
 
+                # adjust_angles_a / adjust_angles_b tune angle1 (the DAC
+                # amplitude for a pi/2 phase step) on the click counts. Measured
+                # on qline1 at 1550 nm: sweeping Bob's angle1 from 0.15 to 0.40
+                # moves click0+click1 over 2535..2557, a spread of 22 against a
+                # single-read sigma of 62 on click1 alone, while the QBER over
+                # the same sweep goes 15.4 % -> 4.7 % -> 9.9 %. With random
+                # phases the total detection rate simply does not depend on the
+                # modulator amplitude, so this metric carries no information
+                # about the angle and the +-0.006 step is far below its noise
+                # either way. Both are left out of full_init for that reason;
+                # the QBER variants are the ones that can see the optimum.
+                # The counts are averaged and the result is only kept when it
+                # clears the noise, so a call that measured nothing is a no-op
+                # instead of a random walk.
                 elif command == 'adjust_angles_a':
                     while rcvc() == 'get counts':
-                        counts = ctl.counts_fast()
+                        counts = ctl.counts_mean()
                         count = abs(counts[1] + counts[2])
                        # count = ctl.diff_counts()
-                        send_i(count)
+                        send_i(int(count))
 
                 elif command == 'adjust_angles_b':
 
@@ -1057,6 +1069,7 @@ while True:
                     base_angle1 = t['angle1']
                     best_angle1 = base_angle1
                     max_diff = 0
+                    base_diff = 0
 
                     for delta in [-0.006,-0.003, 0, 0.003,0.006]:
                         angle1_test = base_angle1 + delta
@@ -1070,15 +1083,21 @@ while True:
                         update_tmp('angle2', angle2)
                         update_tmp('angle3', angle3)
                         ctl.Update_Dac()
-                        time.sleep(0.4)
-                        counts = ctl.counts_fast()
+                        counts = ctl.counts_mean()
                         diff = abs(counts[1] + counts[2])
+                        if delta == 0:
+                            base_diff = diff
 
-     #                   diff = ctl.diff_counts()   
+     #                   diff = ctl.diff_counts()
                         if diff > max_diff:
-                            min_diff = diff
+                            max_diff = diff
                             best_angle1 = angle1_test
 
+                    if max_diff - base_diff < ANGLE_COUNT_MARGIN:
+                        print(f"adjust_angles_b: best {best_angle1:.4f} beats "
+                              f"{base_angle1:.4f} by only {max_diff - base_diff:.0f} "
+                              f"counts (< {ANGLE_COUNT_MARGIN}); keeping the angle")
+                        best_angle1 = base_angle1
 
                     angle0 = 0.0
                     angle1 = best_angle1

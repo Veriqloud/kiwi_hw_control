@@ -1906,6 +1906,11 @@ def counts_single():
 def counts_fast():
     return(get_counts())
 
+# The FPGA republishes the count registers every 100.0 ms (measured: 30 changes
+# in 3 s, jitter 0.5 ms), so reads closer together than that return the same
+# window twice and average nothing away.
+COUNTS_WINDOW = 0.10
+
 def counts_slow():
     total = 0
     click0 = 0
@@ -1915,8 +1920,31 @@ def counts_slow():
         total += ret[0]
         click0 += ret[1]
         click1 += ret[2]
-        time.sleep(0.1)
+        time.sleep(COUNTS_WINDOW + 0.02)
     return(total, click0, click1)
+
+
+def counts_mean(n=10, dt=COUNTS_WINDOW + 0.02):
+    """Mean of `n` count windows -- the shot noise of one read divided by sqrt(n).
+
+    A single get_counts() on qline1 at ~4500 total carries sigma 21 on total,
+    28 on click0 and 62 on click1 (measured over 40 reads). Any search that
+    compares gate positions or widths on one read is comparing noise unless the
+    step moves the counts by more than that, which is why every comparison in
+    adjust_soft_gates goes through here: at n=10 the sigma on click1 is ~20,
+    small against the 50/60 count thresholds those searches are written around.
+    """
+    # One window is dropped first: the register still holds the 100 ms that
+    # straddles whatever the caller just changed, and averaging that in would
+    # bias every point of a search towards the setting before it.
+    acc = [0.0, 0.0, 0.0]
+    for i in range(n + 1):
+        time.sleep(dt)
+        ret = get_counts()
+        if i:
+            for k in range(3):
+                acc[k] += ret[k]
+    return tuple(v / n for v in acc)
 
 
 #def Read_Count():

@@ -34,6 +34,16 @@ FRINGE_HP_DEFAULT = 0.18
 FRINGE_MIN_VISIBILITY = 0.25
 FRINGE_MIN_SIGMA = 5.0
 
+# pm_shift samples the phase pulse in tenths of a slot and dac1_sample gives it
+# a two-sample plateau, so a shift one step off the plateau still shows a clean
+# fringe but needs a much larger DAC amplitude for the same pi/2. Measured on
+# qline1 at 1550 nm: all ten shifts at visibility 0.90-0.98, B from 0.80 to
+# 2.81, i.e. angle1 from 0.63 down to 0.178, and the QBER followed -- 5.4 % on
+# the shift that wanted angle1 0.305 against 4.7 % on the one that wanted 0.177.
+# A winner needing more than this much of the smallest accepted angle1 is off
+# the plateau, whatever its contrast.
+FRINGE_PLATEAU_RATIO = 1.25
+
 def Shift_Unit(j,party,gc_comp):
     #times_ref_click0=[]
     #times_ref_click1=[]
@@ -127,7 +137,11 @@ def Best_Shift(party,gc_comp):
     print(f"accepting visibility >= {FRINGE_MIN_VISIBILITY}, "
           f"{FRINGE_MIN_SIGMA} sigma over Poisson, "
           f"{FRINGE_B_MIN} <= B <= {FRINGE_B_MAX}")
-    print("  i     amp      B  offset     vis   sigma  verdict")
+    # angle1 = 1/(2B) is printed next to each fit: it is what that shift costs
+    # in modulator drive, and the cheapest one is the shift sitting on the phase
+    # pulse plateau (see FRINGE_PLATEAU_RATIO).
+    print("  i     amp      B  offset     vis   sigma  angle1  verdict")
+    hp_ok = {}
     for amp,fre,off,i in return_arr:
         vis = abs(amp) / max(off, 1.0)
         sigma = abs(amp) / np.sqrt(max(off, 1.0))
@@ -135,13 +149,24 @@ def Best_Shift(party,gc_comp):
               and FRINGE_B_MIN <= fre <= FRINGE_B_MAX)
         if ok:
             amp_fre_arr.append(((abs(amp)*fre),i))
+            hp_ok[i] = 1.0 / (2.0 * fre)
         print(f"{i:>3} {abs(amp):>7.1f} {fre:>6.2f} {off:>7.1f} "
-              f"{vis:>7.2f} {sigma:>7.1f}  {'accept' if ok else 'reject'}")
+              f"{vis:>7.2f} {sigma:>7.1f} {1.0/(2.0*fre):>7.3f}  "
+              f"{'accept' if ok else 'reject'}")
     if not amp_fre_arr:
           print(colored('no shift passed the fringe acceptance test', 'red'))
           return None
     max_ele = max(amp_fre_arr, key=lambda t: t[0])
     best_shift = max_ele[1]
+    plateau = min(hp_ok, key=hp_ok.get)
+    if hp_ok[best_shift] > FRINGE_PLATEAU_RATIO * hp_ok[plateau]:
+        # amp*fre favours contrast times frequency, which can crown a shift that
+        # drives the modulator harder than an equally clean one does.
+        print(colored(f"shift {best_shift} wants angle1 {hp_ok[best_shift]:.3f} "
+                      f"where shift {plateau} wants {hp_ok[plateau]:.3f}: off the "
+                      f"phase pulse plateau, taking shift {plateau} instead",
+                      'yellow', force_color=True))
+        best_shift = plateau
     print("Best shift: ", best_shift)
     return best_shift
 
@@ -306,6 +331,14 @@ def plot_shift(party, shift,gc_comp):
         in1 = FRINGE_HP_MIN <= half_period1 <= FRINGE_HP_MAX
         if in0 and in1:
             half_period = (half_period0 + half_period1) / 2
+            # The two ports see the same modulator, so they must report the same
+            # pi/2 amplitude. When they do not, the average is wrong for both
+            # and the angle it sets is wrong by half the disagreement.
+            if abs(half_period0 - half_period1) > 0.1 * half_period:
+                print(colored(f"ports disagree on the half period: "
+                              f"{half_period0:.3f} vs {half_period1:.3f}; "
+                              f"using {half_period:.3f}, check the soft gates",
+                              'yellow', force_color=True))
         elif in0:
             half_period = half_period0
         elif in1:

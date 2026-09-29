@@ -1796,13 +1796,23 @@ def set_soft_gates(conn):
 
 
 
+# 3 sigma of Bob's averaged click0+click1 at the qline1 rate; see the note next
+# to adjust_angles_a in hws_bob.py.
+ANGLE_COUNT_MARGIN = 65
+
+
 def adjust_angles_a(conn):
+    # click0+click1 does not depend on angle1: sweeping it 0.15..0.40 on qline1
+    # left the sum inside 2535..2557 while the QBER moved by ten points. This
+    # can confirm an angle, never find one, so the margin below keeps a call
+    # that measured nothing from moving it anyway.
     sendc(bob, 'adjust_angles_a')
 
     t = get_tmp()
     base_angle1 = t['angle1']
     best_angle1 = base_angle1
     max_diff = 0
+    base_diff = 0
 
     for delta in [-0.006,-0.003, 0, 0.003,0.006]:
         angle1_test = base_angle1 + delta
@@ -1820,10 +1830,18 @@ def adjust_angles_a(conn):
 
         sendc(bob, 'get counts')
         diff = rcv_i(bob)
+        if delta == 0:
+            base_diff = diff
 
         if diff > max_diff:
             max_diff = diff
             best_angle1 = angle1_test
+
+    if max_diff - base_diff < ANGLE_COUNT_MARGIN:
+        print(f"adjust_angles_a: best {best_angle1:.4f} beats {base_angle1:.4f} "
+              f"by only {max_diff - base_diff} counts "
+              f"(< {ANGLE_COUNT_MARGIN}); keeping the angle")
+        best_angle1 = base_angle1
 
     angle0 = 0.0
     angle1 = best_angle1
