@@ -428,7 +428,7 @@ def find_vca(conn, target=3000):
 
     best_count = 0
     best_v = 0
-    for v in [0, 2.5, 5]:
+    for v in [0, 4, 8]:
       ctl.Set_Am2_Bias(v)
       time.sleep(0.2)
       sendc(bob,'get counts')
@@ -441,7 +441,7 @@ def find_vca(conn, target=3000):
 
     best_count = 0
     best_v = 0
-    for v in [0, 2.5, 5]:
+    for v in [-5, 0, 5]:
       ctl.Set_Am_Bias(v)
       time.sleep(0.2)
       sendc(bob,'get counts')
@@ -830,7 +830,7 @@ def loop_find_am_bias(conn):
 
     best_count = 0
     best_v = 0
-    for v in [0, 2.5, 5]:
+    for v in [0, 4, 8]:
       ctl.Set_Am2_Bias(v)
       time.sleep(0.2)
       sendc(bob,'get counts')
@@ -930,7 +930,7 @@ def loop_find_gates(conn):
 
 
 #########################################################################
-def find_gates(conn, sendresult=True, force=False):
+def find_gates(conn, sendresult=True, force=False, freeze=False):
     """Place both gates from the interferometer geometry Bob measures.
 
     Bob leads the exchange: he asks for each modulator state he needs and Alice
@@ -950,7 +950,8 @@ def find_gates(conn, sendresult=True, force=False):
     update_tmp('am2_mode', 'off')
     ctl.Update_Decoy()
 
-    sendc(bob, 'find_gates_force' if force else 'find_gates')
+    sendc(bob, 'find_gates_freeze' if freeze else
+               'find_gates_force' if force else 'find_gates')
     pic = b''
     m = ''
     try:
@@ -965,6 +966,17 @@ def find_gates(conn, sendresult=True, force=False):
                 reply = str(t['laser'])
             elif m == 'am_edge':
                 reply = get_tmp().get('am_edge') or gen_seq.DEFAULT_EDGE
+            elif m.startswith('set_am_edge '):
+                # Bob re-imposes the edge frozen for this laser: it is a
+                # property of the system's pulse generator, and a --clean
+                # resets tmp.txt to the default one.
+                name = m.split()[1]
+                if name in gen_seq.EDGES:
+                    update_tmp('am_edge', name)
+                    ctl.Update_Dac()
+                    time.sleep(0.2)
+                else:
+                    reply = 'unknown edge'
             elif m.startswith('report '):
                 print(colored('bob: ' + m[len('report '):], 'cyan', force_color=True))
             elif m.startswith('am_shift '):
@@ -1137,7 +1149,7 @@ def loop_find_am2_bias(conn, x=2):
     bias_2 = t['am2_bias_min']
     best_count = 0
     best_v = 0
-    for v in [0, 2.5, 5]:
+    for v in [-5, 0, 5]:
       ctl.Set_Am_Bias(v)
       time.sleep(0.2)
       sendc(bob,'get counts')
@@ -1488,7 +1500,12 @@ def fd_a_long(conn):
     sendc(conn, 'fd_a_long done')
 
 
-def fz_b(conn):
+def _fz_b():
+    """One fz_b pass. Returns True if Bob moved his zero_pos.
+
+    Bob answers 'ok <zero_pos> <moved>'; a Bob that only says 'ok' is taken as
+    not having moved, which is what a single fz_b always assumed.
+    """
     sendc(bob, 'fz_b')
     backup = ctl.backup_params_alice()
     update_tmp('am_mode', 'double')
@@ -1496,19 +1513,48 @@ def fz_b(conn):
     update_tmp('insert_zeros', 'off')
     ctl.Write_To_Fake_Rng(gen_seq.seq_rng_zeros())
     ctl.Update_Dac()
-    rcvc(bob)
+    reply = rcvc(bob).split()
     update_tmp('insert_zeros', 'on')
     ctl.Write_To_Fake_Rng(gen_seq.seq_rng_zeros())
     ctl.Update_Dac()
     ctl.restore_params_alice(backup)
+    return len(reply) == 3 and reply[2] == '1'
+
+
+def fz_b(conn):
+    _fz_b()
     sendc(conn, 'fz_b done')
 
 
+# fz_a judges Alice's zero_pos against Bob's current one, and fz_b then moves
+# Bob's. From settled values neither moves, but from a reset pair (a --clean
+# puts both at 0) fz_a can accept a position that only agrees with Bob's stale
+# 0, fz_b then moves Bob, and the pair no longer matches: QBER 50 % (qline1,
+# 2026-09-29). Repeating both until neither moves lets them agree, whatever
+# the laser; it costs nothing when they were already settled.
+FZ_ROUNDS = 4
 
 
+def fz(conn):
+    for i in range(FZ_ROUNDS):
+        moved_a = _fz_a()
+        moved_b = _fz_b()
+        print(f"fz round {i + 1}: alice {'moved' if moved_a else 'kept'} "
+              f"zero_pos {get_tmp()['zero_pos']}, bob {'moved' if moved_b else 'kept'}")
+        if not moved_a and not moved_b:
+            sendc(conn, f'fz done: zero_pos pair settled after {i + 1} round(s)')
+            return
+    sendc(conn, colored(f'fz fail: zero_pos still moving after {FZ_ROUNDS} rounds',
+                        'red', force_color=True))
 
 
 def fz_a(conn):
+    _fz_a()
+    sendc(conn, 'fz_a done')
+
+
+def _fz_a():
+    """One fz_a pass. Returns True if Alice's zero_pos changed."""
     sendc(bob, 'fz_a')
     backup = ctl.backup_params_alice()
     #d = get_default()
@@ -1542,20 +1588,22 @@ def fz_a(conn):
 
             if ratio > 3:
                 zero_pos = zp
+                print(f"Found zero_pos {zp} with good ratio={ratio:.2f}")
                 break
 
             if ratio > max_ratio:
                 max_ratio = ratio
                 best_zero_pos = zp
-            else:
-                zero_pos = best_zero_pos
+        else:
+            zero_pos = best_zero_pos
+            print(f"Best zero_pos found after full scan: {zero_pos}, ratio={max_ratio:.2f}")
     sendc(bob, 'ok')
     update_tmp('zero_pos', zero_pos)
     #update_default('zero_pos', zero_pos)
     ctl.Update_Dac()
     rcvc(bob)
     ctl.restore_params_alice(backup)
-    sendc(conn, 'fz_a done')
+    return zero_pos != initial_zero_pos
 
 
 
@@ -2027,7 +2075,7 @@ def wait_for_node_idle(timeout=60):
 # on a length prefix that never arrives -- which is what an unknown command
 # used to look like from the outside: a ten minute hang, not an error.
 DATA_COMMANDS = ('verify_gates', 'loop_find_gates', 'find_gates',
-                 'find_gates_force', 'loop_find_gates_new')
+                 'find_gates_force', 'find_gates_freeze', 'loop_find_gates_new')
 
 
 functionmap = {}
@@ -2067,6 +2115,7 @@ functionmap['fd_a'] = fd_a
 functionmap['fd_a_long'] = fd_a_long
 functionmap['fz_a'] = fz_a
 functionmap['fz_b'] = fz_b
+functionmap['fz'] = fz
 functionmap['set_angles_a'] = set_angles_a
 functionmap['adjust_am'] = adjust_am
 functionmap['adjust_am_qber'] = adjust_am_qber
@@ -2158,7 +2207,8 @@ while True:
                     functionmap['set_laser'](conn, nm)
                 elif command.startswith('find_gates'):
                     print('command: ', command)
-                    functionmap['find_gates'](conn, force=command.endswith('_force'))
+                    functionmap['find_gates'](conn, force=command.endswith('_force'),
+                                              freeze=command.endswith('_freeze'))
                 elif command.startswith('save_'):
                     name = command[len('save_'):]
                     functionmap['save'](conn, name)

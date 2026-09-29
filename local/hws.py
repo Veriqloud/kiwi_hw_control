@@ -135,6 +135,10 @@ find_gates          : place both gates from the interferometer geometry. Measure
                       the APD gate width and delay and both soft gates from them. The
                       hardware constants land in Bob's config/system_constants.json.
 find_gates_force    : the same, re-measuring the stored constants instead of reusing them
+find_gates_freeze   : run once per laser: measures t1/t2 5 times and freezes the median
+                      and its qdistance in Bob's system_constants.json. find_gates (and so
+                      full_init) then always uses the frozen values, and fails if the day's
+                      read is more than 0.15 ns off them. Run again after moving a fiber.
 loop_find_gates_new : find_gates, retried once
 check_gate_edge     : check the physical SPD gate is not on a slope/dip, recentre if it is
 find_sp             : find single peak
@@ -147,6 +151,7 @@ fd_a_long           : find delay long for Alice
 fd_b_long           : find delay long for Bob
 fz_a                : find zero position for Alice
 fz_b                : find zero position for Bob
+fz                  : fz_a then fz_b, repeated until neither moves (what full_init runs)
 adjust_am           : adjust AM
 adjust_soft_gates   : adjust soft gates after calibration
 set_soft_gates      : set soft gates during calibration
@@ -188,6 +193,8 @@ parser.add_argument("--full_init_1310", action="store_true",
                     help="reset and calibrate for the 1310 nm laser")
 parser.add_argument("--full_init_1510", action="store_true",
                     help="reset and calibrate for the 1510 nm laser")
+parser.add_argument("--full_init_1550", action="store_true",
+                    help="reset and calibrate for the 1550 nm laser")
 
 # parse arguments
 args = parser.parse_args()
@@ -203,7 +210,8 @@ def interact(command):
         pic = rcv_data()
         with open('pics/verify_gates.png', 'wb') as f:
             f.write(pic)
-    elif command in ('find_gates', 'find_gates_force', 'loop_find_gates_new'):
+    elif command in ('find_gates', 'find_gates_force', 'find_gates_freeze',
+                     'loop_find_gates_new'):
         pic = rcv_data()
         with open('pics/find_gates.png', 'wb') as f:
             f.write(pic)
@@ -261,8 +269,7 @@ def full_init(nm):
     interact('fd_b_long')
     interact('fd_a')
     interact('fd_a_long')
-    interact('fz_a')
-    interact('fz_b')
+    interact('fz')
     interact('adjust_soft_gates')
     interact('adjust_am')
 #    interact('adjust_angles_a')
@@ -270,7 +277,7 @@ def full_init(nm):
     interact('start')
 
 
-for nm in (1310, 1510):
+for nm in (1310, 1510, 1550):
     if getattr(args, f'full_init_{nm}'):
         full_init(nm)
 

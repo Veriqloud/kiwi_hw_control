@@ -67,9 +67,23 @@ def get_interferometer(d, nm):
     return d.get('interferometer', {}).get(str(nm))
 
 
-def put_interferometer(d, nm, t1, t2, residual, qdistance, separation):
+def get_frozen_interferometer(d, nm):
+    """The frozen t1/t2/qdistance for laser `nm`, or None if never frozen."""
+    entry = get_interferometer(d, nm)
+    return entry if entry and entry.get('frozen') else None
+
+
+def put_interferometer(d, nm, t1, t2, residual, qdistance, separation,
+                       samples=None, am_edge=None):
+    """Record the interferometer geometry for laser `nm`.
+
+    `samples`, the (t1, t2) of each measurement a median was taken over, marks
+    the entry frozen: find_gates then uses it as it is rather than re-deriving
+    qdistance from one noisy histogram on every run, and re-imposes `am_edge`,
+    the pulse shape the geometry was measured with.
+    """
     from lib.timing import UNIT_PS
-    d.setdefault('interferometer', {})[str(nm)] = {
+    entry = {
         't1_units': round(float(t1), 3),
         't2_units': round(float(t2), 3),
         't1_ns': round(float(t1) * UNIT_PS / 1000.0, 4),
@@ -79,6 +93,14 @@ def put_interferometer(d, nm, t1, t2, residual, qdistance, separation):
         'separation_slots': round(float(separation), 4),
         'measured': now(),
     }
+    if samples:
+        spread = lambda i: max(s[i] for s in samples) - min(s[i] for s in samples)
+        entry.update(frozen=True, samples=len(samples),
+                     t1_spread_ns=round(spread(0) * UNIT_PS / 1000.0, 4),
+                     t2_spread_ns=round(spread(1) * UNIT_PS / 1000.0, 4))
+        if am_edge:
+            entry['am_edge'] = am_edge
+    d.setdefault('interferometer', {})[str(nm)] = entry
     return d
 
 

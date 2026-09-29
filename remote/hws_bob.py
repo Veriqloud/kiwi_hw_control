@@ -650,12 +650,13 @@ while True:
                     sendc(status)
 
 
-                elif command in ('find_gates', 'find_gates_force'):
+                elif command in ('find_gates', 'find_gates_force', 'find_gates_freeze'):
                     print(colored(command, 'cyan', force_color=True))
                     link = ctl.Link(sendc, rcvc, send_data)
                     try:
                         status, msg = ctl.Find_Gates(
-                            link, force=command.endswith('_force'))
+                            link, force=command.endswith('_force'),
+                            freeze=command.endswith('_freeze'))
                     except Exception as e:
                         # Report the failure over the link rather than letting it
                         # drop the connection: Alice is waiting for the next
@@ -788,11 +789,13 @@ while True:
                     print(colored('fz_b', 'cyan', force_color=True))
                     backup = ctl.backup_params_bob()
                     ctl.Ensure_Spd_Mode('gated')
+                    initial_zero_pos = get_tmp()['zero_pos']
                     zero_pos = ctl.Find_Zero_Pos_B_new()
                     update_tmp('zero_pos', zero_pos)
                     ctl.Update_Dac()
                     ctl.restore_params_bob(backup)
-                    sendc('ok')
+                    # Alice's fz repeats fz_a/fz_b until neither moves.
+                    sendc(f'ok {zero_pos} {int(zero_pos != initial_zero_pos)}')
             
 
 

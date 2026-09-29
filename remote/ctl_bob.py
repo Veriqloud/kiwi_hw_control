@@ -1027,6 +1027,16 @@ FG_CENTRE_TRIES = 3         # attempts at centring the gate on the two ports
 # Which peak the target refers to. Stored with the prediction residual, since a
 # residual measured against a different choice of reference peak is meaningless.
 FG_CONVENTION = 'portA_first'
+# The interferometer's t1 and t2 are fixed by the fibers, but one histogram
+# reads t1 only to about +-50 ps -- and qdistance follows t1 in closed form, so
+# a single noisy read lands straight in the QBER (qline1, 2026-09-28: the one
+# run whose t1 came out 50 ps short gave 8.5 % against 5.3-5.9 %).
+# find_gates_freeze therefore takes the median of several reads once and
+# freezes it; every later find_gates uses the frozen values and only checks
+# that the day's read still agrees with them.
+FG_WIDTH_KEEP = 0.9         # a wider APD gate must capture over 1/0.9 more to be taken
+FG_FREEZE_SAMPLES = 5
+FG_FREEZE_TOL = 7.5         # units (0.15 ns): beyond this a fiber moved, or the read is wrong
 
 
 class Link:
@@ -1295,8 +1305,14 @@ def Fg_Choose_Gate_Width(candidates, centre_units, starts, t0, centre0_ref,
     The window centre is not re-measured per candidate: gate_pattern extends the
     run of bits forwards from the offset, so widening it moves the centre by
     exactly half the added width.
+
+    The narrowest width keeping FG_WIDTH_KEEP of the best capture wins, not the
+    best capture outright: past the width that holds both peaks the captures
+    are equal within noise (qline1: 1638 at 8 slots against 1645 at 10), while
+    a wider gate lets in more dark counts and afterpulses -- the 10-slot runs
+    gave 7-7.7 % QBER against 5.3-5.9 % at 8 (qline1, 2026-09-28/29).
     """
-    best = None
+    results = []
     for w in candidates:
         centre0 = centre0_ref + timing.gate_centre_shift(w, ref_slots)
         Fg_Set_Gate(Fg_Gate_Delay(centre_units, t0, centre0), w)
@@ -1311,12 +1327,17 @@ def Fg_Choose_Gate_Width(candidates, centre_units, starts, t0, centre0_ref,
         excess = [Fg_Window_Sum(h, g, soft_w) - base * nbins for g in starts]
         score = min(excess)
         print(f"  gate {w:>2} slots: captures {excess[0]:6.0f} and {excess[1]:6.0f} "
-              f"above pedestal, rate {rate:.0f}")
-        if best is None or score > best[0]:
-            best = (score, w, centre0)
-    if best is None:
+              f"above pedestal ({base * nbins:.0f} per window), rate {rate:.0f}")
+        results.append((score, w, centre0))
+    if not results:
         raise RuntimeError("no gate width produced a usable histogram")
-    return best[1], best[2]
+    top = max(r[0] for r in results)
+    if top > 0:
+        for score, w, centre0 in results:          # narrowest first
+            if score >= FG_WIDTH_KEEP * top:
+                return w, centre0
+    score, w, centre0 = max(results)
+    return w, centre0
 
 
 def Fg_Plot(h_single, sol, h_double, h_off, gates, path):
@@ -1366,11 +1387,48 @@ def Fg_Window_Sum(h, start, width, binw=FG_BINW):
     return float(sum(h[(lo + i) % n] for i in range(int(round(width / binw)))))
 
 
-def Find_Gates(link, force=False):
+def Fg_Single_Pulse(prior):
+    """One gated single-pulse histogram, solved for p0, t1 and t2.
+
+    `prior` is the stored geometry of this interferometer, if there is one; it
+    anchors the choice of comb when a leakage comb puts more than four peaks
+    above threshold.  Returns (sol, histogram).
+    """
+    h_gate, rate_g = Fg_Histogram(FG_CLICKS, 'fg_single_gated', timing.SP_FRAME)
+    # A leakage comb interleaved with the true one can put more than four peaks
+    # above threshold, and picking only the top 4 by area can lose the true
+    # fourth peak to a leakage peak by a handful of counts (seen 2026-09-01).
+    # solve_single_pulse can search every peak above threshold instead, but
+    # only safely with a known-good t1 and t2 to pick the true comb from a
+    # leakage one -- without that anchor, nmax=4 keeps the original behaviour
+    # rather than risk guessing a self-consistent but wrong t1/t2.
+    t1_hint = prior['t1_units'] if prior else None
+    t2_hint = prior['t2_units'] if prior else None
+    peaks_g, base_g = Fg_Peaks(h_gate, nmax=(None if t1_hint is not None else 4))
+    if len(peaks_g) < 4:
+        raise RuntimeError(
+            f"the single-pulse histogram has {len(peaks_g)} peaks, fewer than 4 "
+            f"(rate {rate_g:.0f}/0.1 s, pedestal {base_g:.0f}). A flat histogram "
+            f"here is an am_bias off the null far more often than it is a gate "
+            f"problem -- sweep it in am_mode off and re-null before retrying.")
+    sol = timing.solve_single_pulse([p['pos'] for p in peaks_g],
+                                    t1_hint=t1_hint, t2_hint=t2_hint)
+    complaints = timing.check_single_pulse(sol)
+    if complaints:
+        raise RuntimeError('single-pulse geometry does not hold: ' +
+                           '; '.join(complaints))
+    print(f"gated: p0 {sol['p0']:.1f} units, t1 {sol['t1_ns']:.3f} ns, "
+          f"t2 {sol['t2_ns']:.3f} ns, residual {sol['residual_ns']:.3f} ns")
+    return sol, h_gate
+
+
+def Find_Gates(link, force=False, freeze=False):
     """Place both gates from the single-pulse geometry, and verify the result.
 
     `link` talks to Alice; `force` re-measures the hardware constants instead of
-    reading them back.  Returns (status, message).
+    reading them back; `freeze` measures the interferometer FG_FREEZE_SAMPLES
+    times and freezes the median t1, t2 and qdistance before placing the gates.
+    Returns (status, message).
     """
     const = sysconst.load()
     laser = link.ask('laser')
@@ -1381,7 +1439,7 @@ def Find_Gates(link, force=False):
     update_tmp('soft_gate', 'off')
     Update_Softgate()
     try:
-        return _find_gates(link, const, laser, entry, force)
+        return _find_gates(link, const, laser, entry, force, freeze)
     finally:
         # Whatever went wrong, do not leave the link filtering on windows that
         # were never placed -- a half-finished run would otherwise look like a
@@ -1390,7 +1448,7 @@ def Find_Gates(link, force=False):
         Update_Softgate()
 
 
-def _find_gates(link, const, laser, entry, force):
+def _find_gates(link, const, laser, entry, force, freeze):
     # ------------------------------------------- geometry, in the gated frame --
     # Measured gated, with the pattern held all-ones so the gate never closes.
     # The link runs gated, and the detector timestamps a gated photon several ns
@@ -1399,41 +1457,69 @@ def _find_gates(link, const, laser, entry, force):
     # all four arrivals visible, which a real gate does not: it opens under 5 ns
     # of the 12.5 ns period, and with only two arrivals showing, p0 cannot be
     # told from p0+t2.
+    prior = sysconst.get_interferometer(const, laser)
+    frozen = None if freeze else sysconst.get_frozen_interferometer(const, laser)
+    ns = lambda u: u * timing.UNIT_PS / 1000.0
+    # The pulse shape is frozen with the geometry: it is a property of this
+    # system's pulse generator (qline1 double-triggers on preemph and needs
+    # step, system2 runs preemph), the single-pulse probe below depends on it,
+    # and a --clean resets tmp.txt to the default one.
+    if frozen and frozen.get('am_edge'):
+        if link.ask('am_edge').strip() != frozen['am_edge']:
+            if link.ask(f"set_am_edge {frozen['am_edge']}") != 'ok':
+                raise RuntimeError(f"Alice refused the frozen am_edge {frozen['am_edge']}")
+            link.report(f"am_edge set back to the frozen {frozen['am_edge']}")
+
     link.ask('am single')
     link.ask('am_shift 0')
     Ensure_Spd_Mode('gated')
     Fg_Set_Gate(entry['gate_delay'], FG_OPEN_GATE)
-    h_gate, rate_g = Fg_Histogram(FG_CLICKS, 'fg_single_gated', timing.SP_FRAME)
-    # A leakage comb interleaved with the true one can put more than four peaks
-    # above threshold, and picking only the top 4 by area can lose the true
-    # fourth peak to a leakage peak by a handful of counts (seen 2026-09-01).
-    # solve_single_pulse can search every peak above threshold instead, but
-    # only safely with the last known-good t1 to pick the true comb from a
-    # leakage one -- without that anchor, nmax=4 keeps the original behaviour
-    # rather than risk guessing a self-consistent but wrong t1/t2.
-    prior = sysconst.get_interferometer(const, laser)
-    t1_hint = prior['t1_units'] if prior else None
-    peaks_g, base_g = Fg_Peaks(h_gate, nmax=(None if t1_hint is not None else 4))
-    if len(peaks_g) < 4:
-        raise RuntimeError(
-            f"the single-pulse histogram has {len(peaks_g)} peaks, fewer than 4 "
-            f"(rate {rate_g:.0f}/0.1 s, pedestal {base_g:.0f}). A flat histogram "
-            f"here is an am_bias off the null far more often than it is a gate "
-            f"problem -- sweep it in am_mode off and re-null before retrying.")
-    sol = timing.solve_single_pulse([p['pos'] for p in peaks_g], t1_hint=t1_hint)
-    complaints = timing.check_single_pulse(sol)
-    if complaints:
-        raise RuntimeError('single-pulse geometry does not hold: ' +
-                           '; '.join(complaints))
-    t1, t2 = sol['t1'], sol['t2']
-    print(f"gated: p0 {sol['p0']:.1f} units, t1 {sol['t1_ns']:.3f} ns, "
-          f"t2 {sol['t2_ns']:.3f} ns, residual {sol['residual_ns']:.3f} ns")
-    link.report(f"t1 {sol['t1_ns']:.3f} ns, t2 {sol['t2_ns']:.3f} ns")
 
-    qdistance, separation = timing.qdistance_for_arm(t1)
+    if freeze:
+        runs = []
+        for i in range(FG_FREEZE_SAMPLES):
+            runs.append(Fg_Single_Pulse(prior))
+            s = runs[-1][0]
+            link.report(f"freeze {i + 1}/{FG_FREEZE_SAMPLES}: t1 {s['t1_ns']:.3f} ns, "
+                        f"t2 {s['t2_ns']:.3f} ns")
+        t1 = float(np.median([s['t1'] for s, _ in runs]))
+        t2 = float(np.median([s['t2'] for s, _ in runs]))
+        # p0 and the plot come from the read closest to the median.
+        sol, h_gate = min(runs, key=lambda r: abs(r[0]['t1'] - t1) + abs(r[0]['t2'] - t2))
+        qdistance, separation = timing.qdistance_for_arm(t1)
+        sysconst.put_interferometer(const, laser, t1, t2, sol['residual'],
+                                    qdistance, separation,
+                                    samples=[(s['t1'], s['t2']) for s, _ in runs],
+                                    am_edge=link.ask('am_edge').strip())
+        # Saved now, not with the rest at the end: the freeze is the point of
+        # this run, and it must survive a failure further down.
+        sysconst.save(const)
+        f = sysconst.get_frozen_interferometer(const, laser)
+        link.report(f"frozen: t1 {f['t1_ns']:.3f} ns, t2 {f['t2_ns']:.3f} ns, qdistance "
+                    f"{f['qdistance']:.4f}, am_edge {f['am_edge']} (spread t1 "
+                    f"{f['t1_spread_ns']:.3f} ns, t2 {f['t2_spread_ns']:.3f} ns)")
+    elif frozen:
+        sol, h_gate = Fg_Single_Pulse(frozen)
+        if (abs(sol['t1'] - frozen['t1_units']) > FG_FREEZE_TOL
+                or abs(sol['t2'] - frozen['t2_units']) > FG_FREEZE_TOL):
+            raise RuntimeError(
+                f"t1/t2 read {sol['t1_ns']:.3f}/{sol['t2_ns']:.3f} ns vs frozen "
+                f"{frozen['t1_ns']:.3f}/{frozen['t2_ns']:.3f} ns: fiber moved or "
+                f"wrong comb; if the hardware changed, run find_gates_freeze")
+        t1, t2 = frozen['t1_units'], frozen['t2_units']
+        qdistance, separation = frozen['qdistance'], frozen['separation_slots']
+        link.report(f"t1 {sol['t1_ns']:.3f} ns, t2 {sol['t2_ns']:.3f} ns read; using "
+                    f"frozen t1 {frozen['t1_ns']:.3f} ns, t2 {frozen['t2_ns']:.3f} ns, "
+                    f"qdistance {qdistance:.4f}")
+    else:
+        sol, h_gate = Fg_Single_Pulse(prior)
+        t1, t2 = sol['t1'], sol['t2']
+        qdistance, separation = timing.qdistance_for_arm(t1)
+        sysconst.put_interferometer(const, laser, t1, t2, sol['residual'],
+                                    qdistance, separation)
+        link.report(f"t1 {sol['t1_ns']:.3f} ns, t2 {sol['t2_ns']:.3f} ns "
+                    f"(not frozen: run find_gates_freeze once to fix qdistance)")
     first, second, forward, arc = timing.gate_pair(t1, t2)
-    sysconst.put_interferometer(const, laser, t1, t2, sol['residual'],
-                                qdistance, separation)
 
     # ------------------------------------ free running, for the APD constant --
     # Not used for placement -- only to record how far the free-running detector
@@ -1447,7 +1533,8 @@ def _find_gates(link, const, laser, entry, force):
     peaks_c, _ = Fg_Peaks(h_cont, nmax=None)
     mode_offset = None
     if len(peaks_c) >= 4:
-        sol_c = timing.solve_single_pulse([p['pos'] for p in peaks_c], t1_hint=t1)
+        sol_c = timing.solve_single_pulse([p['pos'] for p in peaks_c],
+                                          t1_hint=t1, t2_hint=t2)
         if not timing.check_single_pulse(sol_c):
             d = (sol['p0'] - sol_c['p0']) % timing.SP_FRAME
             mode_offset = d - timing.SP_FRAME if d > timing.SP_FRAME / 2 else d
@@ -1719,8 +1806,9 @@ def _find_gates(link, const, laser, entry, force):
     # Short of the slack is only worth saying; an edge actually inside a soft
     # window means those counts are being clipped by the gate, not measured.
     uncut = not any(c < 0 for c in clear if c == c)
-    msg = (f"t1 {sol['t1_ns']:.3f} ns, t2 {sol['t2_ns']:.3f} ns, "
-           f"qdistance {qdistance:.4f}, gate {width_slots} slots, "
+    msg = (f"t1 {ns(t1):.3f} ns, t2 {ns(t2):.3f} ns, "
+           f"qdistance {qdistance:.4f}{' (frozen)' if freeze or frozen else ''}, "
+           f"gate {width_slots} slots, "
            f"clearance {clear[0]:+.0f}/{clear[1]:+.0f} units, "
            f"soft gates {g0}/{g1}, signal/leakage {ratios[0]:.2f}/{ratios[1]:.2f}"
            f" (pair {pair:.2f}), rates {rate_double:.0f}/{rate_off:.0f}")
@@ -1739,7 +1827,9 @@ def _find_gates(link, const, laser, entry, force):
 
     sysconst.put_last_run(
         const, status='success' if ok else 'fail', laser=laser,
-        t1_ns=round(sol['t1_ns'], 4), t2_ns=round(sol['t2_ns'], 4),
+        t1_ns=round(ns(t1), 4), t2_ns=round(ns(t2), 4),
+        read_t1_ns=round(sol['t1_ns'], 4), read_t2_ns=round(sol['t2_ns'], 4),
+        frozen=bool(freeze or frozen),
         qdistance=round(qdistance, 4), gate_slots=int(width_slots),
         soft_gate0=int(g0), soft_gate1=int(g1), soft_w=int(soft_w),
         forward_ns=round(forward * timing.UNIT_PS / 1000.0, 4),

@@ -283,7 +283,7 @@ def _solve_single_pulse_subset(subset, frame, ratio_range):
 
 
 def solve_single_pulse(positions, frame=SP_FRAME, ratio_range=(1.5, 2.5),
-                       t1_hint=None, t1_tol=15.0):
+                       t1_hint=None, t1_tol=15.0, t2_hint=None, t2_tol=15.0):
     """Read p0, t1 and t2 off the four single-pulse arrivals.
 
     The four arrivals are the sumset {0, t1} + {0, t2} offset by p0, so exactly
@@ -312,6 +312,12 @@ def solve_single_pulse(positions, frame=SP_FRAME, ratio_range=(1.5, 2.5),
     0.27 this way). Candidates outside the band are still tried, ordered by
     residual, so a hint that is merely stale does not turn into a hard refusal.
 
+    `t2_hint` narrows the band on t2 the same way, and is needed as soon as the
+    two combs are one period minus t2 apart: then the subset that takes p0 and
+    p0+t1 from one comb and the other two peaks from the other has the true t1,
+    t2 = exactly one period and a zero residual (seen 2026-09-28, qline1 with
+    am_edge preemph: t1 5.153 ns, t2 12.501 ns won on t1 alone).
+
     Returns a dict with p0, t1, t2, the predicted-vs-measured residual on the
     fourth peak, and the same in ns.
     """
@@ -325,10 +331,14 @@ def solve_single_pulse(positions, frame=SP_FRAME, ratio_range=(1.5, 2.5),
 
     subsets = [tuple(pos)] if len(pos) == 4 else list(itertools.combinations(pos, 4))
     results = [_solve_single_pulse_subset(s, frame, ratio_range) for s in subsets]
+    def off_hint(r):
+        return (abs(r[3] - t1_hint) > t1_tol
+                or (t2_hint is not None and abs(r[4] - t2_hint) > t2_tol))
+
     if t1_hint is None:
         results.sort(key=lambda r: (not r[0], r[1]))
     else:
-        results.sort(key=lambda r: (not r[0], abs(r[3] - t1_hint) > t1_tol, r[1]))
+        results.sort(key=lambda r: (not r[0], off_hint(r), r[1]))
     valid, res, p0, t1, t2, tsum, ambiguous, gap_margin = results[0]
 
     return {
