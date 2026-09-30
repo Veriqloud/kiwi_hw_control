@@ -44,6 +44,18 @@ FRINGE_MIN_SIGMA = 5.0
 # the plateau, whatever its contrast.
 FRINGE_PLATEAU_RATIO = 1.25
 
+# The two ports watch the same modulator, so they must agree on the pi/2
+# amplitude. When they do not, the average is wrong for both and every angle
+# derived from it is wrong -- on qline1 2026-09-30 the ports read 0.302 against
+# 0.162 and 0.256 against 0.149, a factor two apart, the average was taken, and
+# full_init ran to completion reporting success with angle1 0.232/0.203 instead
+# of 0.177/0.186 and 9.6 % QBER where 6.4 % was available. Warning about it was
+# not enough: a calibration that cannot measure its own angle has to stop, so
+# the shift is refused and fs_a/fs_b fail through the path they already have
+# for "no usable fringe". A factor-two disagreement means one port fitted a
+# harmonic, which is what a bad soft gate or a leaking modulator does.
+FRINGE_PORT_TOL = 0.10
+
 def Shift_Unit(j,party,gc_comp):
     #times_ref_click0=[]
     #times_ref_click1=[]
@@ -334,11 +346,14 @@ def plot_shift(party, shift,gc_comp):
             # The two ports see the same modulator, so they must report the same
             # pi/2 amplitude. When they do not, the average is wrong for both
             # and the angle it sets is wrong by half the disagreement.
-            if abs(half_period0 - half_period1) > 0.1 * half_period:
+            if abs(half_period0 - half_period1) > FRINGE_PORT_TOL * half_period:
                 print(colored(f"ports disagree on the half period: "
-                              f"{half_period0:.3f} vs {half_period1:.3f}; "
-                              f"using {half_period:.3f}, check the soft gates",
-                              'yellow', force_color=True))
+                              f"{half_period0:.3f} vs {half_period1:.3f} "
+                              f"(>{100 * FRINGE_PORT_TOL:.0f} % apart); refusing "
+                              f"this shift -- check the soft gates and the "
+                              f"modulator null before trusting any angle",
+                              'red', force_color=True))
+                return None
         elif in0:
             half_period = half_period0
         elif in1:

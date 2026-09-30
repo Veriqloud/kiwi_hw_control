@@ -261,6 +261,11 @@ def Find_Best_Shift(party):
        gc_comp = cal_lib.find_best_gc_comp('bob')
     best_shift = cal_lib.Best_Shift(party,gc_comp)
     half_period = cal_lib.plot_shift(party, best_shift, gc_comp)
+    if half_period is None:
+        # The ports disagreed: there is no angle to report. Refusing the shift
+        # sends fs_a/fs_b down the "no usable fringe" path, which stops
+        # full_init, instead of letting it finish on an angle known to be wrong.
+        return None, cal_lib.FRINGE_HP_DEFAULT
     return best_shift, half_period
     
 #---------------------------TDC CALIBRATION-----------------------------------------------
@@ -1458,7 +1463,13 @@ def _find_gates(link, const, laser, entry, force, freeze):
     # of the 12.5 ns period, and with only two arrivals showing, p0 cannot be
     # told from p0+t2.
     prior = sysconst.get_interferometer(const, laser)
-    frozen = None if freeze else sysconst.get_frozen_interferometer(const, laser)
+    # `force` means re-measure rather than reuse, which has to include the
+    # frozen geometry -- otherwise find_gates_force silently returned the
+    # frozen numbers and only the gate width table was re-measured, which is
+    # not what its help says. It re-measures for this run without clearing
+    # the freeze; sysconst_tool.py --unfreeze is how you drop it for good.
+    frozen = (None if freeze or force
+              else sysconst.get_frozen_interferometer(const, laser))
     ns = lambda u: u * timing.UNIT_PS / 1000.0
     # The pulse shape is frozen with the geometry: it is a property of this
     # system's pulse generator (qline1 double-triggers on preemph and needs
@@ -1515,10 +1526,18 @@ def _find_gates(link, const, laser, entry, force, freeze):
         sol, h_gate = Fg_Single_Pulse(prior)
         t1, t2 = sol['t1'], sol['t2']
         qdistance, separation = timing.qdistance_for_arm(t1)
-        sysconst.put_interferometer(const, laser, t1, t2, sol['residual'],
-                                    qdistance, separation)
-        link.report(f"t1 {sol['t1_ns']:.3f} ns, t2 {sol['t2_ns']:.3f} ns "
-                    f"(not frozen: run find_gates_freeze once to fix qdistance)")
+        kept = sysconst.get_frozen_interferometer(const, laser)
+        if not kept:
+            sysconst.put_interferometer(const, laser, t1, t2, sol['residual'],
+                                        qdistance, separation)
+            link.report(f"t1 {sol['t1_ns']:.3f} ns, t2 {sol['t2_ns']:.3f} ns "
+                        f"(not frozen: run find_gates_freeze once to fix qdistance)")
+        else:
+            # force: measured fresh for this run, and the stored freeze is left
+            # exactly as it was so the next plain find_gates goes back to it.
+            link.report(f"t1 {sol['t1_ns']:.3f} ns, t2 {sol['t2_ns']:.3f} ns "
+                        f"(forced: frozen {kept['t1_ns']:.3f}/{kept['t2_ns']:.3f} ns "
+                        f"kept, this run ignores it)")
     first, second, forward, arc = timing.gate_pair(t1, t2)
 
     # ------------------------------------ free running, for the APD constant --

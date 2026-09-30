@@ -595,6 +595,16 @@ AM_SETTLE_S = 10
 # stayed at 30-50x the whole time. Each round rests again and re-fines, so the
 # transient is waited out rather than declared a failure.
 AM_SETTLE_ROUNDS = 3
+# Final pass over the null, finer than the 0.1 V one before it. The +-0.2 V
+# probe only asks whether the chosen bias beats its two neighbours 0.2 V away,
+# which a point 0.08 V off the bottom still does, so the coarse grid could stop
+# there and verify as good. Measured on qline1 2026-09-30: the scans settled on
+# -0.90 and verified, while a 0.02 V sweep put the null at -0.82 with 211
+# counts against 543 -- 2.6x more light leaking through at the "verified"
+# bias. That leak is what then collapses the fringe on the plateau pm_shift and
+# sends Best_Shift to a flank, so it is worth nine more points here.
+AM_FINE_RANGE = 0.08
+AM_FINE_STEP = 0.02
 # The +-delta null test only means something while the counts at the null are
 # optical. At a good null very little light gets through, and if the detector's
 # dark counts are comparable to it the ratio is dragged towards 1 however good
@@ -738,6 +748,11 @@ def find_am_bias(conn, range_val=0.5, step=0.1, sendresult=True, max_moves=4):
 
     ctl.Set_Am_Bias(am_bias_opt)
     update_tmp('am_bias_min', am_bias_opt)
+    # Record it as the current bias too, not just as the minimum. The DAC is
+    # now at am_bias_opt, so a tmp.txt that still shows the previous value is
+    # simply wrong: mon and hw report it, `save`/`load` carry it, and it sent
+    # this session chasing an AM null that was not where tmp said it was.
+    update_tmp('am_bias', am_bias_opt)
     sendc(bob, 'done')
     update_tmp('am_mode', am_mode_backup)
     ctl.Update_Dac()
@@ -875,6 +890,11 @@ def loop_find_am_bias(conn):
         print(colored("the null moved while the modulator settled; re-fining",
                       "yellow", force_color=True))
         find_am_bias(conn, 0.3, step=0.1, sendresult=False)
+
+    # Settled now, so the fine pass measures the null the modulator actually
+    # rests in rather than one it was still moving through.
+    find_am_bias(conn, AM_FINE_RANGE, step=AM_FINE_STEP, sendresult=False)
+    result, count_double, count_off = verify_am_bias(conn, sendresult=False)
     ratio = count_double / max(count_off, 1)
 
     # Everything above still chases a real null -- the retries and the settle

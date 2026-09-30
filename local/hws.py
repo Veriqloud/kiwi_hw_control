@@ -134,7 +134,10 @@ find_gates          : place both gates from the interferometer geometry. Measure
                       port recombination) off it, and computes qdistance, am_shift, t0,
                       the APD gate width and delay and both soft gates from them. The
                       hardware constants land in Bob's config/system_constants.json.
-find_gates_force    : the same, re-measuring the stored constants instead of reusing them
+find_gates_force    : the same, re-measuring everything instead of reusing it -- including a
+                      frozen geometry, which is ignored for this run and left stored, so the
+                      next plain find_gates goes back to it. To drop a freeze for good use
+                      sysconst_tool.py --unfreeze
 find_gates_freeze   : run once per laser: measures t1/t2 5 times and freezes the median
                       and its qdistance in Bob's system_constants.json. find_gates (and so
                       full_init) then always uses the frozen values, and fails if the day's
@@ -223,7 +226,11 @@ def interact(command):
         print(f"[error] '{command}' failed: {e}")
         exit(1)
     print(m)
-    if 'fail' in m:
+    # Case-insensitive: the remote messages are not consistent about it, and
+    # "fs_b Fail: pm_shift_Bob is None" slipped past a lowercase test, so
+    # full_init carried on through a step that had just refused to produce an
+    # angle and still reported 'start done' at the end.
+    if 'fail' in m.lower():
         exit(1)
 
 

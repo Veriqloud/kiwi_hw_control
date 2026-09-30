@@ -73,6 +73,30 @@ def get_frozen_interferometer(d, nm):
     return entry if entry and entry.get('frozen') else None
 
 
+def unfreeze_interferometer(d, nm):
+    """Drop the frozen flag for laser `nm`, keeping the values as a prior.
+
+    find_gates then measures the geometry again and re-records it, instead of
+    reusing the frozen numbers and failing when the day's read is more than
+    FG_FREEZE_TOL off them. Use it when the hardware really changed and the
+    freeze is now wrong; `force` is the way to ignore it for a single run.
+    Returns the entry, or None if there was nothing frozen.
+    """
+    entry = get_interferometer(d, nm)
+    if not entry or not entry.get('frozen'):
+        return None
+    for k in ('frozen', 'samples', 't1_spread_ns', 't2_spread_ns',
+              'qdistance_geometric', 'qdistance_source'):
+        entry.pop(k, None)
+    entry['unfrozen'] = now()
+    return entry
+
+
+def forget_interferometer(d, nm):
+    """Remove laser `nm`'s entry entirely. Returns it, or None if absent."""
+    return d.get('interferometer', {}).pop(str(nm), None)
+
+
 def put_interferometer(d, nm, t1, t2, residual, qdistance, separation,
                        samples=None, am_edge=None):
     """Record the interferometer geometry for laser `nm`.
