@@ -44,6 +44,7 @@ import os
 import re
 import socket
 import struct
+import shlex
 import subprocess
 import sys
 import time
@@ -210,7 +211,7 @@ def main():
             f's.put_k2(d, "bob", "{nm}", {k2["bob"]}, {note!r})\n'
             's.save(d)\n'
             'print("written")\n')
-    print(sh(HOST['bob'], 'cd ~/hw_control && python3 -c ' + json.dumps(code)).strip())
+    print(sh(HOST['bob'], 'cd ~/hw_control && python3 -c ' + shlex.quote(code)).strip())
     print(f'fs_a and fs_b use these from now on. Run a full_init to confirm.')
 
 

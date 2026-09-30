@@ -23,6 +23,7 @@ the hardware, not of the current tuning, which is the whole point of the file.
 import argparse
 import json
 import os
+import shlex
 import subprocess
 import sys
 
@@ -32,7 +33,12 @@ REMOTE = 'cd ~/hw_control && python3 -c {code}'
 def run(bob, code):
     """Run `code` on Bob inside ~/hw_control; returns stdout."""
     r = subprocess.run(['ssh', '-o', 'BatchMode=yes', f'vq-user@{bob}',
-                        'cd ~/hw_control && python3 -c ' + json.dumps(code)],
+                        # shlex.quote, not json.dumps: json escapes a newline as
+                        # the two characters \ and n, the remote shell passes
+                        # those through literally, and python3 -c then dies on
+                        # "unexpected character after line continuation
+                        # character". Single quotes keep real newlines.
+                        'cd ~/hw_control && python3 -c ' + shlex.quote(code)],
                        stdin=subprocess.DEVNULL, capture_output=True, text=True,
                        timeout=60)
     if r.returncode:
