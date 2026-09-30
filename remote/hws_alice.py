@@ -1441,6 +1441,9 @@ def fs_a(conn):
         rcvc(bob)
     pm_shift = rcv_i(bob)
     hp = rcv_d(bob)
+    # Bob keeps system_constants.json, so he holds Alice's k2 too and sends it
+    # with the half period. 1.0 on a system that has never been measured.
+    k2 = rcv_d(bob)
     if pm_shift != 1000:
         update_tmp('pm_shift', pm_shift_coarse + pm_shift)
         ctl.Update_Dac()
@@ -1451,9 +1454,11 @@ def fs_a(conn):
         print(m)
     update_tmp('angle0', 0)
     update_tmp('angle1', hp)
-    update_tmp('angle2', -hp)
+    update_tmp('angle2', -k2*hp)
     update_tmp('angle3', 2*hp)
     ctl.Update_Dac()
+    if k2 != 1.0:
+        print(f"alice angle2 = -{k2} x angle1 (frozen)")
     ctl.restore_params_alice(backup)
     sendc(conn, 'fs_a '+m)
 

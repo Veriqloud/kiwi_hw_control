@@ -1454,6 +1454,9 @@ def Find_Gates(link, force=False, freeze=False):
 
 
 def _find_gates(link, const, laser, entry, force, freeze):
+    # fs_a and fs_b need to know the wavelength to pick their k2 and have no
+    # link to Alice to ask; find_gates always runs before them in full_init.
+    sysconst.put_laser(const, laser)
     # ------------------------------------------- geometry, in the gated frame --
     # Measured gated, with the pattern held all-ones so the gate never closes.
     # The link runs gated, and the detector timestamps a gated photon several ns

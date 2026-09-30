@@ -5,7 +5,7 @@
     ... sysconst_tool.py unfreeze --laser 1550
     ... sysconst_tool.py forget   --laser 1550
 
-`show` prints every laser's entry. `unfreeze` drops the frozen flag for one
+`show` prints every laser's entry, `reset` wipes a whole section. `unfreeze` drops the frozen flag for one
 laser, so the next find_gates measures the geometry again and records it,
 instead of reusing the frozen values and failing when the day's read is more
 than 0.15 ns off them. `forget` removes the entry outright.
@@ -51,11 +51,46 @@ def bob_host():
 def main():
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument('action', choices=['show', 'unfreeze', 'forget'])
+    p.add_argument('action', choices=['show', 'unfreeze', 'forget', 'reset'])
+    p.add_argument('--section', choices=['interferometer', 'apd', 'sequence',
+                                         'modulator', 'all'], default='all',
+                   help='reset: which section to wipe (default all)')
     p.add_argument('--laser', type=int, help='1310, 1510 or 1550')
     p.add_argument('--yes', action='store_true', help='skip the confirmation')
     args = p.parse_args()
     bob = bob_host()
+
+    if args.action == 'reset':
+        before = run(bob, 'import json, lib.sysconst as s; '
+                          'print(json.dumps(sorted(s.load().keys())))')
+        print(f'sections present: {before.strip()}')
+        what = 'everything' if args.section == 'all' else args.section
+        print(f'\nresetting {what} means the next find_gates measures it again '
+              f'from scratch:\n'
+              f'  interferometer  the frozen t1/t2/qdistance -- you lose the QBER-\n'
+              f'                  optimal qdistance and go back to the geometric one\n'
+              f'  apd             the gate width table, a few minutes to re-measure\n'
+              f'  sequence        the pulse shape and port convention\n'
+              f'  modulator       the angle2/angle1 ratios')
+        if not args.yes and input(f'\nwipe {what}? [y/N] ').strip().lower() != 'y':
+            sys.exit('cancelled')
+        if args.section == 'all':
+            code = ('import lib.sysconst as s\n'
+                    'd = s.load()\n'
+                    'for k in list(d):\n'
+                    '    if k != "version":\n'
+                    '        del d[k]\n'
+                    's.save(d)\n'
+                    'print("wiped, only version kept")\n')
+        else:
+            code = ('import lib.sysconst as s\n'
+                    'd = s.load()\n'
+                    f'print("removed" if d.pop("{args.section}", None) is not None '
+                    'else "was not there")\n'
+                    's.save(d)\n')
+        print(run(bob, code).strip())
+        print('run a full_init to re-measure what you just dropped')
+        return
 
     if args.action == 'show':
         print(run(bob, 'import json, lib.sysconst as s; '

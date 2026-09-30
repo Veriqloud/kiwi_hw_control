@@ -6,6 +6,7 @@ import traceback
 #import numpy as np
 import ctl_bob as ctl
 import lib.gen_seq as gen_seq
+import lib.sysconst as sysconst
 
 from lib.fpga import get_tmp, save_tmp, update_tmp, Set_t0, Sync_Gc, get_gc
 from termcolor import colored
@@ -123,6 +124,22 @@ GATE_MIN_COUNTS = 50         # below this (per counts_slow window) the read is n
 # carries sigma 62 on click1 and 28 on click0, so ~68 on the sum, and averaging
 # ten windows brings it to ~21. Below this a "better" angle is a coin flip.
 ANGLE_COUNT_MARGIN = 65
+
+
+def _k2(party):
+    """`party`'s frozen angle2/angle1 ratio for the laser find_gates last ran on.
+
+    1.0 -- today's `angle2 = -angle1` -- until freeze_angles.py has measured it,
+    so a system that has never been measured behaves exactly as before.
+    """
+    const = sysconst.load()
+    nm = sysconst.get_laser(const)
+    if nm is None:
+        return sysconst.K2_DEFAULT
+    k2 = sysconst.get_k2(const, party, nm)
+    if k2 != sysconst.K2_DEFAULT:
+        print(f"{party} angle2 = -{k2} x angle1 (frozen for {nm} nm)")
+    return k2
 
 
 def _gate_apply(ps):
@@ -466,7 +483,7 @@ while True:
                             angle1 = rcv_d()
 
                             angle0 = 0.0
-                            angle2 = -angle1
+                            angle2 = -_k2('bob') * angle1
                             angle3 = 2 * angle1
 
                             update_tmp('angle0', angle0)
@@ -701,9 +718,10 @@ while True:
                         ctl.Download_Time(10000, 'pm_b_shift_'+str(s))
                     pm_shift, hp = ctl.Find_Best_Shift('bob')
                    # hp = hp+0.005
+                    k2 = _k2('bob')
                     update_tmp('angle0', 0)
                     update_tmp('angle1', hp)
-                    update_tmp('angle2', -hp)
+                    update_tmp('angle2', -k2*hp)
                     update_tmp('angle3', 2*hp)
                     ctl.Update_Dac()
 
@@ -739,6 +757,9 @@ while True:
                     send_i(pm_shift)
                    # hp = hp-0.002
                     send_d(hp)
+                    # Alice's k2 lives here because system_constants.json is
+                    # Bob's file and she has none of her own.
+                    send_d(_k2('alice'))
 
 
            

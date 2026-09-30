@@ -73,6 +73,53 @@ def get_frozen_interferometer(d, nm):
     return entry if entry and entry.get('frozen') else None
 
 
+# --------------------------------------------------------------- modulator --
+# `angle2 = -angle1` assumes the phase modulator is odd: that the same drive
+# either side of zero gives the same phase either side of zero. It is not.
+# Measured on qline1 at 1550 nm against the QBER matrix, both modulators need
+# more drive on the negative side -- k2 about 1.13 -- and the two cells that
+# angle2 trades, 32/33 for Alice and 23/33 for Bob, only balance there. angle3
+# needs no such factor: 2*angle1 measured right twice on Alice (k3 1.001 and
+# 0.999), so only this one number is stored.
+#
+# Cell 33 depends on BOTH parties' angle2, so the two k2 are not independent:
+# measuring one while the other sits at a different value gives a different
+# answer, which is what made a stable quantity look like it was drifting 10 %
+# overnight. freeze_angles.py iterates them to their joint fixed point. The
+# measurement itself repeats to 0.3 %.
+K2_DEFAULT = 1.0
+
+
+def get_k2(d, party, nm):
+    """The frozen angle2/angle1 ratio for `party` at laser `nm`, or 1.0."""
+    try:
+        return float(d['modulator'][party][str(nm)]['k2'])
+    except (KeyError, TypeError, ValueError):
+        return K2_DEFAULT
+
+
+def put_k2(d, party, nm, k2, note=''):
+    """Record `party`'s k2 for laser `nm`."""
+    entry = d.setdefault('modulator', {}).setdefault(party, {}).setdefault(str(nm), {})
+    entry.update(k2=round(float(k2), 4), measured=now())
+    if note:
+        entry['source'] = note
+    return entry
+
+
+def get_laser(d):
+    """The laser find_gates last ran on, or None.
+
+    fs_a/fs_b have no link to Alice to ask, and find_gates always runs before
+    them in full_init, so it leaves the answer here for them.
+    """
+    return d.get('laser')
+
+
+def put_laser(d, nm):
+    d['laser'] = str(nm)
+
+
 def unfreeze_interferometer(d, nm):
     """Drop the frozen flag for laser `nm`, keeping the values as a prior.
 
